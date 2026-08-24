@@ -1,0 +1,80 @@
+src/
+├── api/                              # one file per resource, thin Axios wrappers
+│   ├── axiosClient.ts                  # base instance, JWT interceptor, refresh-on-401
+│   ├── authApi.ts                        # login, register, refresh, forgot/reset password, otp, oauth
+│   ├── rolesApi.ts                         # admin: roles, permissions, role_permissions
+│   ├── usersApi.ts                           # admin: user list, assign/remove roles
+│   ├── departmentsApi.ts
+│   ├── skillsApi.ts                              # skills + synonyms
+│   ├── candidatesApi.ts
+│   ├── employeesApi.ts
+│   ├── jobsApi.ts
+│   ├── projectsApi.ts
+│   ├── matchingApi.ts                                # hiring: run match, get results, shortlist/reject
+│   ├── workAllocationApi.ts                            # workforce: run match, get results, confirm
+│   ├── skillGapsApi.ts
+│   ├── trainingApi.ts
+│   ├── searchApi.ts
+│   └── dashboardApi.ts
+│
+├── components/
+│   ├── ui/                            # shadcn-generated primitives (button, dialog, table, tag...)
+│   ├── common/                          # AppShell, Sidebar (renders per-role links), Topbar,
+│   │                                       ProtectedRoute, RoleGuard, EmptyState
+│   ├── auth/                              # LoginForm, OtpLoginForm, ForgotPasswordForm,
+│   │                                         ResetPasswordForm, GoogleOAuthButton
+│   ├── skills/                              # SkillTag, SkillAutocomplete, SkillTaxonomyTable,
+│   │                                           SynonymEditor
+│   ├── departments/                           # DepartmentSelector, DepartmentTable
+│   ├── candidates/                              # CandidateProfileForm, ResumeUploader,
+│   │                                               CandidateExperienceTimeline
+│   ├── employees/                                 # EmployeeForm, EmployeeSkillEditor,
+│   │                                                 EmployeeTable
+│   ├── jobs/                                        # JobForm, JobSkillsEditor, JobCard,
+│   │                                                   JobStatusBadge
+│   ├── projects/                                      # ProjectForm, ProjectSkillsEditor,
+│   │                                                     ProjectCard
+│   ├── matching/                                        # MatchScoreCard, MatchBreakdownChart,
+│   │                                                       ShortlistRejectActions
+│   ├── work-allocation/                                   # AllocationCard, AllocationActions,
+│   │                                                         AllocationStatusBadge
+│   ├── skill-gaps/                                          # SkillGapTable, GapSeverityBadge
+│   ├── training/                                              # TrainingRecommendationCard,
+│   │                                                             PriorityBadge
+│   └── dashboard/                                               # StatCard, AlignmentChart,
+│                                                                    HiringFunnelChart
+│
+├── pages/
+│   ├── auth/                          # Login, Register, ForgotPassword, ResetPassword, OtpLogin
+│   ├── admin/                           # RoleManagement, UserManagement, SkillsManagement,
+│   │                                       DepartmentsManagement
+│   ├── hr/                                # Jobs, JobCreate, JobDetail, Employees, EmployeeCreate,
+│   │                                         Projects, ProjectCreate, WorkAllocationResults,
+│   │                                         SkillGapReport, TrainingRecommendations, HRDashboard
+│   ├── recruiter/                           # CandidateSearch, JobMatchResults, RecruiterDashboard
+│   ├── candidate/                             # MyProfile, ResumeUpload  (self-service, own data only)
+│   └── shared/                                  # Unauthorized, NotFound
+│
+├── routes/
+│   └── AppRoutes.tsx                  # route definitions, each wrapped in <RoleGuard permission="...">
+│
+├── hooks/
+│   ├── useAuth.ts                     # current user, roles, permission-check helper
+│   ├── usePermission.ts                 # hasPermission("create_jobs") style checks
+│   ├── useDebounce.ts
+│   └── usePolling.ts                      # for resume/processing status polling
+│
+├── store/                             # Zustand — client/UI state only
+│   ├── authStore.ts                     # user, roles, tokens (in-memory)
+│   └── uiStore.ts                         # sidebar state, active filters
+│
+├── lib/
+│   ├── constants.ts
+│   ├── permissions.ts                 # mirrors backend permission names — single source of truth
+│   └── validators/                      # zod schemas per form
+│
+└── types/                             # TS interfaces mirroring backend Pydantic schemas
+    ├── auth.ts, user.ts, role.ts
+    ├── candidate.ts, employee.ts, skill.ts, department.ts
+    ├── job.ts, project.ts
+    └── matching.ts, workAllocation.ts, skillGap.ts, training.ts

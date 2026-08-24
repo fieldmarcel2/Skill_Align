@@ -1,0 +1,153 @@
+
+
+
+
+
+
+
+
+
+users
+├── id                PK, SERIAL
+├── name              VARCHAR
+├── email              VARCHAR, UNIQUE
+├── password_hash        VARCHAR
+├── role_id                FK → roles.id
+├── is_active                BOOLEAN
+└── created_at                TIMESTAMP
+
+roles
+├── id                PK, SERIAL
+├── name              VARCHAR, UNIQUE     -- Admin, HR, Recruiter, Candidate
+└── description         TEXT
+
+permissions
+├── id                PK, SERIAL
+└── name              VARCHAR, UNIQUE     -- e.g. "manage_skills", "view_reports"
+
+role_permissions                          -- JUNCTION (many-to-many)
+├── role_id           FK → roles.id
+└── permission_id       FK → permissions.id
+    PK (role_id, permission_id)
+
+skills
+├── id                PK, SERIAL
+├── name              VARCHAR, UNIQUE
+├── category            VARCHAR             -- e.g. "Programming", "Cloud", "Soft Skill"
+└── created_at              TIMESTAMP
+
+skill_synonyms
+├── id                PK, SERIAL
+├── skill_id            FK → skills.id
+└── synonym                VARCHAR
+
+candidates
+├── id                PK, SERIAL
+├── user_id             FK → users.id, UNIQUE   -- one-to-one; candidate always has a login
+├── full_name            VARCHAR
+├── email                  VARCHAR
+├── phone                    VARCHAR
+├── resume_file_path          TEXT
+└── created_at                  TIMESTAMP
+
+candidate_skills                          -- JUNCTION (many-to-many, weighted)
+├── id                PK, SERIAL
+├── candidate_id        FK → candidates.id
+├── skill_id              FK → skills.id
+├── proficiency_level        ENUM('beginner','intermediate','expert')
+└── years_experience            NUMERIC
+
+candidate_experience
+├── id                PK, SERIAL
+├── candidate_id        FK → candidates.id
+├── company_name          VARCHAR
+├── title                    VARCHAR
+├── start_date                 DATE
+├── end_date                     DATE, NULLABLE
+└── description                    TEXT
+
+employees
+├── id                PK, SERIAL
+├── user_id             FK → users.id, NULLABLE   -- no login in MVP, kept for future self-service
+├── full_name             VARCHAR
+├── department               VARCHAR
+├── designation                 VARCHAR
+└── joined_at                     DATE
+
+employee_skills                           -- JUNCTION (many-to-many, weighted)
+├── id                PK, SERIAL
+├── employee_id         FK → employees.id
+├── skill_id               FK → skills.id
+├── proficiency_level         ENUM('beginner','intermediate','expert')
+└── years_experience             NUMERIC
+
+jobs
+├── id                PK, SERIAL
+├── title               VARCHAR
+├── description            TEXT
+├── created_by               FK → users.id       -- HR who created it
+├── min_experience_years        NUMERIC
+├── department                     VARCHAR
+├── status                           ENUM('draft','active','closed')
+└── created_at                          TIMESTAMP
+
+job_skills                                -- JUNCTION (many-to-many, weighted)
+├── id                PK, SERIAL
+├── job_id              FK → jobs.id
+├── skill_id               FK → skills.id
+├── requirement_type          ENUM('required','preferred')
+└── min_proficiency               ENUM('beginner','intermediate','expert')
+
+projects
+├── id                PK, SERIAL
+├── name               VARCHAR
+├── description            TEXT
+├── start_date                DATE
+├── end_date                     DATE, NULLABLE
+└── status                          ENUM('planned','active','completed')
+
+project_skills                            -- JUNCTION (many-to-many, weighted)
+├── id                PK, SERIAL
+├── project_id           FK → projects.id
+├── skill_id                FK → skills.id
+└── min_proficiency            ENUM('beginner','intermediate','expert')
+
+work_allocations                          -- JUNCTION (many-to-many, scored)
+├── id                PK, SERIAL
+├── project_id           FK → projects.id
+├── employee_id             FK → employees.id
+├── match_score                NUMERIC
+├── allocated_from                DATE
+├── allocated_to                     DATE, NULLABLE
+└── status                              ENUM('proposed','confirmed','completed')
+    UNIQUE (project_id, employee_id)
+
+match_results                             -- JUNCTION (many-to-many, scored) — HIRING SIDE
+├── id                PK, SERIAL
+├── job_id              FK → jobs.id
+├── candidate_id           FK → candidates.id
+├── overall_score             NUMERIC
+├── skill_score                  NUMERIC
+├── experience_score                NUMERIC
+├── status                             ENUM('matched','shortlisted','rejected')
+└── computed_at                           TIMESTAMP
+    UNIQUE (job_id, candidate_id)
+
+skill_gaps                                -- derived/computed table, used by BOTH sides
+├── id                PK, SERIAL
+├── subject_type          ENUM('candidate','employee')
+├── subject_id               INTEGER          -- candidates.id OR employees.id (polymorphic)
+├── skill_id                    FK → skills.id
+├── required_level                 ENUM('beginner','intermediate','expert')
+├── current_level                     ENUM('beginner','intermediate','expert') NULLABLE
+├── gap_score                            NUMERIC
+└── computed_at                              TIMESTAMP
+
+training_recommendations
+├── id                PK, SERIAL
+├── employee_id           FK → employees.id
+├── skill_id                  FK → skills.id
+├── recommended_resource         VARCHAR      -- course/training name
+├── priority                        ENUM('low','medium','high')
+├── status                              ENUM('recommended','in_progress','completed')
+└── created_at                              TIMESTAMP

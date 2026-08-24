@@ -1,0 +1,59 @@
+# ── SkillAlign .gitignore ───────────────────────────────────────────────
+
+# Environment / Secrets
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.lcov
+.tox/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Uploads (never commit actual uploaded files)
+backend/uploads/
+
+# Alembic
+# Keep the versions directory but ignore any local SQL exports
+*.sql
+
+# Logs
+*.log
+logs/
