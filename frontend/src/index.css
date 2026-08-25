@@ -4,35 +4,57 @@
 
 @layer base {
   :root {
-    --background: 224 71% 4%;
-    --foreground: 213 31% 91%;
+    --background: 210 40% 98%;       /* Slate 50 (#F8FAFC) */
+    --foreground: 222.2 84% 4.9%;     /* Slate 950 (#020817) */
 
-    --card: 224 71% 6%;
-    --card-foreground: 213 31% 91%;
+    --card: 0 0% 100%;                /* Pure white surface (#FFFFFF) */
+    --card-foreground: 222.2 84% 4.9%;
 
-    --popover: 224 71% 6%;
-    --popover-foreground: 213 31% 91%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 239 84% 67%; /* Electric Indigo */
-    --primary-foreground: 0 0% 100%;
+    --primary: 239 84% 60%;           /* Modern Electric Indigo (#4F46E5) */
+    --primary-foreground: 210 40% 98%;
 
-    --secondary: 222 47% 13%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;       /* Slate 100 (#F1F5F9) */
+    --secondary-foreground: 222.2 47.4% 11.2%;
 
-    --muted: 223 47% 11%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 210 40% 96.1%;           /* Slate 100 */
+    --muted-foreground: 215.4 16.3% 44%; /* Slate 500 (#64748B) */
 
-    --accent: 250 84% 64%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 239 84% 96.5%;          /* Indigo light tint */
+    --accent-foreground: 239 84% 45%; /* Deep Indigo */
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
+    --border: 214.3 31.8% 91.4%;      /* Slate 200 (#E2E8F0) */
+    --input: 214.3 31.8% 91.4%;
+    --ring: 239 84% 60%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 224 71% 4%;
+    --foreground: 213 31% 91%;
+    --card: 224 71% 6%;
+    --card-foreground: 213 31% 91%;
+    --popover: 224 71% 6%;
+    --popover-foreground: 213 31% 91%;
+    --primary: 239 84% 67%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 222 47% 13%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 223 47% 11%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 250 84% 64%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
     --border: 217 33% 17%;
     --input: 217 33% 17%;
     --ring: 239 84% 67%;
-
-    --radius: 0.75rem;
   }
 }
 
@@ -41,35 +63,36 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-sans;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Outfit', 'Inter', sans-serif;
+    font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
   }
 }
 
-/* Glassmorphism utility classes */
+/* Glassmorphism utility classes for light mode */
 .glass-panel {
-  background: rgba(15, 23, 42, 0.65);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04);
 }
 
 .glass-card {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.9) 100%);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
 }
 
 .glow-indigo {
-  box-shadow: 0 0 40px -10px rgba(99, 102, 241, 0.35);
+  box-shadow: 0 10px 30px -5px rgba(99, 102, 241, 0.25);
 }
 
 .glow-emerald {
-  box-shadow: 0 0 40px -10px rgba(16, 185, 129, 0.35);
+  box-shadow: 0 10px 30px -5px rgba(16, 185, 129, 0.25);
 }
 
 /* Custom modern scrollbar */
@@ -81,9 +104,9 @@
   background: hsl(var(--background));
 }
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.3);
+  background: hsl(var(--muted-foreground) / 0.25);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--primary) / 0.6);
+  background: hsl(var(--primary) / 0.7);
 }

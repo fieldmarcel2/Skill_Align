@@ -1,0 +1,23 @@
+[tool.pyrefly]
+python_interpreter = "backend/.venv/Scripts/python.exe"
+search_path = [
+    "backend",
+    "backend/app",
+    "backend/.venv/Lib/site-packages"
+]
+
+[tool.pyright]
+venvPath = "backend"
+venv = ".venv"
+extraPaths = [
+    "backend",
+    "backend/app",
+    "backend/.venv/Lib/site-packages"
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["backend/tests"]
+pythonpath = ["backend"]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"

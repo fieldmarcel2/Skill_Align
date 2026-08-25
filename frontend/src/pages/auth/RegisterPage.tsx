@@ -101,7 +101,7 @@ export const RegisterPage: React.FC = () => {
                   {...register("name")}
                   className={errors.name ? "border-rose-500" : ""}
                 />
-                {errors.name && <p className="text-xs text-rose-400">{errors.name.message}</p>}
+                {errors.name && <p className="text-xs text-rose-600 font-medium">{errors.name.message}</p>}
               </div>
 
               <div className="space-y-1.5">
@@ -112,7 +112,7 @@ export const RegisterPage: React.FC = () => {
                   {...register("email")}
                   className={errors.email ? "border-rose-500" : ""}
                 />
-                {errors.email && <p className="text-xs text-rose-400">{errors.email.message}</p>}
+                {errors.email && <p className="text-xs text-rose-600 font-medium">{errors.email.message}</p>}
               </div>
 
               <div className="space-y-1.5">
@@ -124,7 +124,7 @@ export const RegisterPage: React.FC = () => {
                   className={errors.password ? "border-rose-500" : ""}
                 />
                 {errors.password && (
-                  <p className="text-xs text-rose-400">{errors.password.message}</p>
+                  <p className="text-xs text-rose-600 font-medium">{errors.password.message}</p>
                 )}
               </div>
 
@@ -137,7 +137,7 @@ export const RegisterPage: React.FC = () => {
                   className={errors.confirmPassword ? "border-rose-500" : ""}
                 />
                 {errors.confirmPassword && (
-                  <p className="text-xs text-rose-400">{errors.confirmPassword.message}</p>
+                  <p className="text-xs text-rose-600 font-medium">{errors.confirmPassword.message}</p>
                 )}
               </div>
 

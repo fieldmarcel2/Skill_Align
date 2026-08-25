@@ -1,0 +1,23 @@
+[tool.pyrefly]
+python_interpreter = ".venv/Scripts/python.exe"
+search_path = [
+    ".",
+    "app",
+    ".venv/Lib/site-packages"
+]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+extraPaths = [
+    ".",
+    "app",
+    ".venv/Lib/site-packages"
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"

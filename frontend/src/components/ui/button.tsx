@@ -9,19 +9,19 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-lg shadow-indigo-500/25 hover:bg-primary/90 hover:shadow-indigo-500/40",
+          "bg-primary text-primary-foreground shadow-md shadow-indigo-600/20 hover:bg-primary/95 font-semibold",
         destructive:
-          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 shadow-rose-500/20",
+          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 shadow-rose-500/20 font-semibold",
         outline:
-          "border border-border bg-background/50 hover:bg-secondary hover:text-secondary-foreground backdrop-blur-sm",
+          "border border-slate-300 bg-white hover:bg-slate-100 hover:text-slate-900 shadow-sm text-slate-700 font-medium",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-secondary hover:text-secondary-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
+          "bg-slate-100 text-slate-900 hover:bg-slate-200 border border-slate-200/60 font-medium",
+        ghost: "hover:bg-slate-100 hover:text-slate-900 text-slate-700 font-medium",
+        link: "text-primary underline-offset-4 hover:underline font-medium",
         gradient:
-          "bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white shadow-lg shadow-indigo-500/25 hover:opacity-90",
+          "bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 text-white shadow-md shadow-indigo-500/20 hover:opacity-95 font-semibold",
         glass:
-          "bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-md",
+          "bg-white/80 hover:bg-white text-slate-800 border border-slate-200 shadow-sm backdrop-blur-md font-medium",
       },
       size: {
         default: "h-10 px-4 py-2",

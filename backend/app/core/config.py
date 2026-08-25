@@ -5,13 +5,17 @@ Reads settings from environment variables / .env file using Pydantic Settings.
 All sensitive values (secrets, database URLs) must come from the environment.
 """
 
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+ENV_FILE_PATH = BACKEND_DIR / ".env"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(str(ENV_FILE_PATH), ".env", "backend/.env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",

@@ -36,7 +36,7 @@ export const ScoreBadge: React.FC<ScoreBadgeProps> = ({
             r="32"
             stroke="currentColor"
             strokeWidth="6"
-            className="text-secondary"
+            className="text-slate-200"
             fill="transparent"
           />
           <circle

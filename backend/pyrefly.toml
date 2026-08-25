@@ -1,0 +1,6 @@
+python_interpreter = ".venv/Scripts/python.exe"
+search_path = [
+    ".",
+    "app",
+    ".venv/Lib/site-packages"
+]

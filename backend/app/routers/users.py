@@ -11,7 +11,7 @@ Endpoints:
 """
 
 from typing import List, Optional
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, status, Query 
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db

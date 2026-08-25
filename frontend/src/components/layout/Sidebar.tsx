@@ -60,10 +60,10 @@ export const Sidebar: React.FC = () => {
   }
 
   return (
-    <aside className="w-64 shrink-0 border-r border-border/60 bg-card/40 backdrop-blur-xl flex flex-col justify-between p-4 min-h-[calc(100vh-4rem)]">
+    <aside className="w-64 shrink-0 border-r border-slate-200/80 bg-white flex flex-col justify-between p-4 min-h-[calc(100vh-4rem)]">
       <div className="space-y-6">
         <div>
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-2">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 px-3 mb-2">
             {role} Portal
           </h4>
           <nav className="space-y-1">
@@ -76,8 +76,8 @@ export const Sidebar: React.FC = () => {
                   cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group",
                     isActive
-                      ? "bg-primary text-primary-foreground shadow-md shadow-indigo-500/20 font-semibold"
-                      : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                      ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-semibold"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                   )
                 }
               >
@@ -90,13 +90,13 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* Role info card at bottom */}
-      <div className="p-3.5 rounded-xl border border-border/50 bg-secondary/30 backdrop-blur-sm">
+      <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50">
         <div className="flex items-center gap-2 mb-1">
-          <span className="flex h-2 w-2 rounded-full bg-emerald-400" />
-          <span className="text-xs font-semibold text-foreground">Logged in as</span>
+          <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
+          <span className="text-xs font-semibold text-slate-800">Logged in as</span>
         </div>
-        <p className="text-xs text-muted-foreground truncate">{user.name}</p>
-        <span className="inline-block mt-1 text-[10px] font-mono text-primary bg-primary/10 px-2 py-0.5 rounded-md">
+        <p className="text-xs text-slate-500 truncate">{user.name}</p>
+        <span className="inline-block mt-1 text-[10px] font-mono text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md font-semibold">
           {user.role.name}
         </span>
       </div>

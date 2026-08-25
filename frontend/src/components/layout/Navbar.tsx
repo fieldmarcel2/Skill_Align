@@ -24,16 +24,16 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 w-full border-b border-slate-200/80 bg-white/90 backdrop-blur-xl shadow-xs">
       <div className="flex h-16 items-center justify-between px-6">
         {/* Brand Logo */}
         <Link to="/" className="flex items-center gap-2.5 group">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/25 group-hover:scale-105 transition-transform">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-500 text-white shadow-md shadow-indigo-500/20 group-hover:scale-105 transition-transform">
             <Sparkles className="h-5 w-5" />
           </div>
           <div className="flex flex-col">
-            <span className="font-outfit text-xl font-bold tracking-tight text-foreground flex items-center gap-1.5">
-              Skill<span className="text-primary">Align</span>
+            <span className="font-outfit text-xl font-bold tracking-tight text-slate-900 flex items-center gap-1.5">
+              Skill<span className="text-indigo-600">Align</span>
             </span>
           </div>
         </Link>
@@ -41,13 +41,13 @@ export const Navbar: React.FC = () => {
         {/* User profile & actions */}
         {user ? (
           <div className="flex items-center gap-4">
-            <div className="hidden sm:flex items-center gap-2.5 pl-3 pr-2 py-1.5 rounded-xl border border-border/50 bg-secondary/40 backdrop-blur-sm">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/20 text-primary text-xs font-bold">
+            <div className="hidden sm:flex items-center gap-2.5 pl-3 pr-2 py-1.5 rounded-xl border border-slate-200 bg-slate-50/80">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700 text-xs font-bold">
                 {user.name.charAt(0).toUpperCase()}
               </div>
               <div className="flex flex-col text-left">
-                <span className="text-xs font-semibold text-foreground leading-tight">{user.name}</span>
-                <span className="text-[10px] text-muted-foreground leading-tight">{user.email}</span>
+                <span className="text-xs font-semibold text-slate-900 leading-tight">{user.name}</span>
+                <span className="text-[10px] text-slate-500 leading-tight">{user.email}</span>
               </div>
               {getRoleBadge(user.role.name)}
             </div>
@@ -56,7 +56,7 @@ export const Navbar: React.FC = () => {
               variant="outline"
               size="sm"
               onClick={logout}
-              className="gap-1.5 text-muted-foreground hover:text-rose-400 hover:border-rose-500/40"
+              className="gap-1.5 text-slate-600 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50"
             >
               <LogOut className="h-4 w-4" />
               <span className="hidden sm:inline">Logout</span>

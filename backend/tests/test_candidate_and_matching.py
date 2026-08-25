@@ -25,10 +25,11 @@ def test_candidate_profile_and_skills(client, candidate_token):
     assert update_res.json()["total_experience_years"] == 5.0
 
     # 3. Add a new skill
-    # Fetch a skill to add
+    # Fetch a skill to add that candidate doesn't already have
     skills_res = client.get("/api/skills", headers=headers)
     all_skills = skills_res.json()
-    skill_to_add = next(s for s in all_skills if s["name"] == "Java")
+    existing_skill_ids = {s["skill"]["id"] for s in candidate_data.get("skills", [])}
+    skill_to_add = next(s for s in all_skills if s["id"] not in existing_skill_ids)
 
     add_skill_res = client.post(
         "/api/candidates/me/skills",

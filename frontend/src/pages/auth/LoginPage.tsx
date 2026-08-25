@@ -139,8 +139,8 @@ export const LoginPage: React.FC = () => {
             </form>
 
             {/* Quick 1-Click Role Login for instant reviewer testing */}
-            <div className="pt-4 border-t border-border/60">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center mb-3">
+            <div className="pt-4 border-t border-slate-200">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 text-center mb-3">
                 Quick 1-Click Demo Login
               </p>
               <div className="grid grid-cols-2 gap-2">
@@ -148,37 +148,37 @@ export const LoginPage: React.FC = () => {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="gap-1.5 text-xs text-purple-300 hover:bg-purple-500/10 border-purple-500/30"
+                  className="gap-1.5 text-xs text-purple-700 hover:bg-purple-100 bg-purple-50 border-purple-200 font-semibold"
                   onClick={() => handleQuickFill("admin@skillaign.dev", "Admin@123")}
                 >
-                  <Shield className="h-3.5 w-3.5 text-purple-400" /> Admin
+                  <Shield className="h-3.5 w-3.5 text-purple-600" /> Admin
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="gap-1.5 text-xs text-blue-300 hover:bg-blue-500/10 border-blue-500/30"
+                  className="gap-1.5 text-xs text-blue-700 hover:bg-blue-100 bg-blue-50 border-blue-200 font-semibold"
                   onClick={() => handleQuickFill("hr@skillaign.dev", "HR@12345")}
                 >
-                  <Users className="h-3.5 w-3.5 text-blue-400" /> HR Manager
+                  <Users className="h-3.5 w-3.5 text-blue-600" /> HR Manager
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="gap-1.5 text-xs text-emerald-300 hover:bg-emerald-500/10 border-emerald-500/30"
+                  className="gap-1.5 text-xs text-emerald-700 hover:bg-emerald-100 bg-emerald-50 border-emerald-200 font-semibold"
                   onClick={() => handleQuickFill("recruiter@skillaign.dev", "Rec@12345")}
                 >
-                  <Briefcase className="h-3.5 w-3.5 text-emerald-400" /> Recruiter
+                  <Briefcase className="h-3.5 w-3.5 text-emerald-600" /> Recruiter
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="gap-1.5 text-xs text-amber-300 hover:bg-amber-500/10 border-amber-500/30"
+                  className="gap-1.5 text-xs text-amber-800 hover:bg-amber-100 bg-amber-50 border-amber-200 font-semibold"
                   onClick={() => handleQuickFill("alice@candidate.dev", "Alice@123")}
                 >
-                  <UserCheck className="h-3.5 w-3.5 text-amber-400" /> Candidate
+                  <UserCheck className="h-3.5 w-3.5 text-amber-600" /> Candidate
                 </Button>
               </div>
             </div>

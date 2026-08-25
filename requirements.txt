@@ -1,12 +1,4 @@
 
-
-
-
-
-
-
-
-
 users
 ├── id                PK, SERIAL
 ├── name              VARCHAR
