@@ -1,11 +1,23 @@
-# ── SkillAlign .gitignore ───────────────────────────────────────────────
+# =============================================================================
+# SkillAlign — Comprehensive .gitignore
+# =============================================================================
 
-# Environment / Secrets
+# ── Environment & Secrets ───────────────────────────────────────────────────
 .env
 *.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
 !.env.example
+!backend/.env.example
+!frontend/.env.example
 
-# Python
+# ── Python Artifacts ────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
@@ -14,46 +26,92 @@ __pycache__/
 *.so
 .Python
 build/
+develop-eggs/
 dist/
-*.egg-info/
-*.egg
+downloads/
+eggs/
 .eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Virtual environments
+# ── Virtual Environments ────────────────────────────────────────────────────
 .venv/
 venv/
 env/
 ENV/
+backend/.venv/
+env.bak/
+venv.bak/
 
-# Testing
+# ── Testing & Code Quality ──────────────────────────────────────────────────
 .pytest_cache/
+backend/.pytest_cache/
 .coverage
+.coverage.*
 coverage.xml
 htmlcov/
 *.lcov
 .tox/
+.nox/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
 
-# IDE / Editor
-.vscode/
+# ── User Uploads & Media Storage ────────────────────────────────────────────
+uploads/
+uploads/**
+backend/uploads/
+backend/uploads/**
+
+# ── Frontend & Node ─────────────────────────────────────────────────────────
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+dist-ssr/
+frontend/dist-ssr/
+.vite/
+frontend/.vite/
+.npm/
+.eslintcache
+.stylelintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ── Database & SQL Exports ──────────────────────────────────────────────────
+*.sqlite
+*.sqlite3
+*.db
+*.sql
+*.dump
+
+# ── Logs & Debugging ────────────────────────────────────────────────────────
+*.log
+logs/
+backend/logs/
+
+# ── IDEs & Operating System ─────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
 .idea/
 *.swp
 *.swo
+*.swn
 *~
-.DS_Store
-Thumbs.db
-
-# Node / Frontend
-node_modules/
-frontend/dist/
-frontend/.vite/
-
-# Uploads (never commit actual uploaded files)
-backend/uploads/
-
-# Alembic
-# Keep the versions directory but ignore any local SQL exports
-*.sql
-
-# Logs
-*.log
-logs/
