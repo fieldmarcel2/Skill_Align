@@ -50,12 +50,24 @@ apiClient.interceptors.response.use(
 
 // ── Auth APIs ────────────────────────────────────────────────────────────────
 export const authApi = {
-  register: async (data: { name: string; email: string; password: string }): Promise<User> => {
+  register: async (data: { name: string; email: string; password: string; phone?: string }): Promise<User> => {
     const res = await apiClient.post<User>("/api/auth/register", data);
     return res.data;
   },
   login: async (data: { email: string; password: string }): Promise<{ access_token: string }> => {
     const res = await apiClient.post<{ access_token: string }>("/api/auth/login", data);
+    return res.data;
+  },
+  sendOtp: async (data: { phone: string }): Promise<{ message: string; dev_otp?: string }> => {
+    const res = await apiClient.post<{ message: string; dev_otp?: string }>("/api/auth/send-otp", data);
+    return res.data;
+  },
+  verifyOtp: async (data: { phone: string; otp: string }): Promise<{ access_token: string; user: User; is_new_user: boolean; message: string }> => {
+    const res = await apiClient.post<{ access_token: string; user: User; is_new_user: boolean; message: string }>("/api/auth/verify-otp", data);
+    return res.data;
+  },
+  resendOtp: async (data: { phone: string }): Promise<{ message: string; dev_otp?: string }> => {
+    const res = await apiClient.post<{ message: string; dev_otp?: string }>("/api/auth/resend-otp", data);
     return res.data;
   },
   getMe: async (): Promise<User> => {

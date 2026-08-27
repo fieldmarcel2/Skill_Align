@@ -47,7 +47,9 @@ export const Navbar: React.FC = () => {
               </div>
               <div className="flex flex-col text-left">
                 <span className="text-xs font-semibold text-slate-900 leading-tight">{user.name}</span>
-                <span className="text-[10px] text-slate-500 leading-tight">{user.email}</span>
+                <span className="text-[10px] text-slate-500 leading-tight">
+                  {user.email || user.phone_number || ""}
+                </span>
               </div>
               {getRoleBadge(user.role.name)}
             </div>

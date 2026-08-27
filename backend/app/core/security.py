@@ -64,3 +64,30 @@ def decode_access_token(token: str) -> dict[str, Any]:
         jose.JWTError: if the token is invalid, expired, or tampered with.
     """
     return jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+
+
+# ── Phone Number Normalization ────────────────────────────────────────────────
+
+def normalize_phone(phone: str, default_region: str = "IN") -> str:
+    """
+    Normalize a phone number to E.164 format using the phonenumbers library.
+
+    Examples:
+        "+91 98765 43210"  → "+919876543210"
+        "09876543210"      → "+919876543210"
+        "+919876543210"    → "+919876543210"
+
+    Raises:
+        ValueError: if the phone number is invalid or cannot be parsed.
+    """
+    import phonenumbers
+
+    try:
+        parsed = phonenumbers.parse(phone, default_region)
+    except phonenumbers.NumberParseException as e:
+        raise ValueError(f"Invalid phone number: {e}")
+
+    if not phonenumbers.is_valid_number(parsed):
+        raise ValueError("Phone number is not valid.")
+
+    return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)

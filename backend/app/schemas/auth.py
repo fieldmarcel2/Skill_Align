@@ -5,9 +5,16 @@ RegisterRequest  → POST /api/auth/register (public, Candidate only)
 LoginRequest     → POST /api/auth/login
 TokenResponse    → returned after successful login
 UserResponse     → GET /api/auth/me (current user profile)
+
+OTP schemas:
+SendOTPRequest   → POST /api/auth/send-otp
+VerifyOTPRequest → POST /api/auth/verify-otp
+OTPResponse      → response after sending OTP
+OTPLoginResponse → response after successful OTP verification
 """
 
 import re
+from typing import Optional
 from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
 from datetime import datetime
 
@@ -40,10 +47,12 @@ class RegisterRequest(BaseModel):
     Public candidate self-registration.
     The backend ALWAYS assigns role = Candidate.
     Clients cannot submit role_id.
+    Phone number is optional during email+password registration.
     """
     name: str
     email: EmailStr
     password: str
+    phone: Optional[str] = None
 
     @field_validator("password")
     @classmethod
@@ -86,7 +95,62 @@ class UserResponse(BaseModel):
 
     id: int
     name: str
-    email: str
+    email: Optional[str] = None
+    phone_number: Optional[str] = None
     role: RoleOut
     is_active: bool
     created_at: datetime
+
+
+# ── OTP Schemas ──────────────────────────────────────────────────────────────
+
+class SendOTPRequest(BaseModel):
+    """Request body for POST /api/auth/send-otp."""
+    phone: str
+
+    @field_validator("phone")
+    @classmethod
+    def non_empty_phone(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Phone number cannot be blank.")
+        return v
+
+
+class VerifyOTPRequest(BaseModel):
+    """Request body for POST /api/auth/verify-otp."""
+    phone: str
+    otp: str
+
+    @field_validator("otp")
+    @classmethod
+    def valid_otp_format(cls, v: str) -> str:
+        v = v.strip()
+        if not re.match(r"^\d{6}$", v):
+            raise ValueError("OTP must be exactly 6 digits.")
+        return v
+
+    @field_validator("phone")
+    @classmethod
+    def non_empty_phone(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Phone number cannot be blank.")
+        return v
+
+
+class OTPResponse(BaseModel):
+    """Response after requesting an OTP."""
+    message: str
+    dev_otp: Optional[str] = None
+
+
+
+class OTPLoginResponse(BaseModel):
+    """Response after successful OTP verification and login."""
+    message: str
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+    is_new_user: bool
+

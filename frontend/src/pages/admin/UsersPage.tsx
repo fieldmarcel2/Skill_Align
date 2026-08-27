@@ -101,9 +101,11 @@ export const UsersPage: React.FC = () => {
   };
 
   const filteredUsers = users.filter((u) => {
+    const term = searchTerm.toLowerCase();
     const matchesSearch =
-      u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchTerm.toLowerCase());
+      u.name.toLowerCase().includes(term) ||
+      (u.email ? u.email.toLowerCase().includes(term) : false) ||
+      (u.phone_number ? u.phone_number.includes(term) : false);
     const matchesRole = roleFilter === "all" || u.role.name.toLowerCase() === roleFilter.toLowerCase();
     return matchesSearch && matchesRole;
   });
@@ -146,7 +148,7 @@ export const UsersPage: React.FC = () => {
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Search by name or email..."
+              placeholder="Search by name, email, or phone..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9 bg-background/50"
@@ -178,7 +180,7 @@ export const UsersPage: React.FC = () => {
           <TableHeader>
             <TableRow>
               <TableHead>User</TableHead>
-              <TableHead>Email</TableHead>
+              <TableHead>Contact (Email / Phone)</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Registered</TableHead>
@@ -201,7 +203,17 @@ export const UsersPage: React.FC = () => {
                     </div>
                     <span>{u.name}</span>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    <div className="flex flex-col text-xs">
+                      {u.email && <span>{u.email}</span>}
+                      {u.phone_number && (
+                        <span className="text-muted-foreground/80 font-mono">
+                          {u.phone_number}
+                        </span>
+                      )}
+                      {!u.email && !u.phone_number && <span>—</span>}
+                    </div>
+                  </TableCell>
                   <TableCell>{getRoleBadge(u.role.name)}</TableCell>
                   <TableCell>
                     {u.is_active ? (

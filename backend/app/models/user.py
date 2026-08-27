@@ -12,7 +12,7 @@ Security notes:
 
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Boolean, DateTime, ForeignKey, Integer, String, func
+    Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, func
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -22,10 +22,18 @@ from app.database.base import Base
 class User(Base):
     __tablename__ = "users"
 
+    __table_args__ = (
+        CheckConstraint(
+            "email IS NOT NULL OR phone_number IS NOT NULL",
+            name="ck_users_email_or_phone",
+        ),
+    )
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone_number: Mapped[str | None] = mapped_column(String(20), unique=True, nullable=True, index=True)
     role_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("roles.id", ondelete="RESTRICT"), nullable=False, index=True
     )
@@ -51,4 +59,4 @@ class User(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<User id={self.id} email={self.email!r} role_id={self.role_id}>"
+        return f"<User id={self.id} email={self.email!r} phone={self.phone_number!r} role_id={self.role_id}>"

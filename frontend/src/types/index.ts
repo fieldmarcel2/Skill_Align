@@ -8,7 +8,8 @@ export interface Role {
 export interface User {
   id: number;
   name: string;
-  email: string;
+  email?: string | null;
+  phone_number?: string | null;
   role: Role;
   is_active: boolean;
   created_at: string;
@@ -46,7 +47,8 @@ export interface Job {
   creator: {
     id: number;
     name: string;
-    email: string;
+    email?: string | null;
+    phone_number?: string | null;
   };
   job_skills: JobSkill[];
 }

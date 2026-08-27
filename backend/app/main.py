@@ -9,14 +9,18 @@ FastAPI entry point configuring:
 - Interactive API documentation (/docs and /redoc)
 """
 
+
 import os
 from pathlib import Path
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
+from app.core.rate_limit import limiter
 from app.routers import auth, users, skills, jobs, candidates, matching
 
 app = FastAPI(
@@ -35,6 +39,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Rate Limiter ─────────────────────────────────────────────────────────────
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── Ensure Upload Directory Exists ───────────────────────────────────────────
 upload_path = Path(settings.UPLOAD_DIR)

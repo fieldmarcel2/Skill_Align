@@ -108,3 +108,25 @@ def test_matching_engine_and_shortlist(client, hr_token, recruiter_token):
     assert sl_list_res.status_code == 200
     sl_candidates = sl_list_res.json()
     assert any(c["id"] == match_id for c in sl_candidates)
+
+
+def test_admin_user_management(client, admin_token):
+    # 1. Admin lists all users (including phone-only and email-only users)
+    users_res = client.get(
+        "/api/users",
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    assert users_res.status_code == 200
+    users = users_res.json()
+    assert len(users) > 0
+
+    # 2. Admin gets dashboard stats
+    stats_res = client.get(
+        "/api/users/stats",
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    assert stats_res.status_code == 200
+    stats = stats_res.json()
+    assert "total_users" in stats
+    assert "active_users" in stats
+

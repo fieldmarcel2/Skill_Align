@@ -1,0 +1,29 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/Scripts/python.exe",
+  "python.terminal.activateEnvironment": true,
+  "python.envFile": "${workspaceFolder}/backend/.env",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/backend",
+    "${workspaceFolder}/backend/app",
+    "${workspaceFolder}/backend/.venv/Lib/site-packages",
+    "backend",
+    "backend/app",
+    "backend/.venv/Lib/site-packages"
+  ],
+  "python.analysis.autoSearchPaths": true,
+  "python.analysis.typeCheckingMode": "basic",
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.python"
+  },
+  "pyrefly.pythonInterpreter": "${workspaceFolder}/backend/.venv/Scripts/python.exe",
+  "pyrefly.searchPath": [
+    "${workspaceFolder}/backend",
+    "${workspaceFolder}/backend/app",
+    "${workspaceFolder}/backend/.venv/Lib/site-packages",
+    "backend",
+    "backend/app",
+    "backend/.venv/Lib/site-packages"
+  ],
+  "pyright.venv": ".venv",
+  "pyright.venvPath": "${workspaceFolder}/backend"
+}

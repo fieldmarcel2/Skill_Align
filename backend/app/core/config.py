@@ -45,6 +45,18 @@ class Settings(BaseSettings):
     # ── CORS ─────────────────────────────────────────────────────────────────
     ALLOWED_ORIGINS: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
+    # ── OTP ──────────────────────────────────────────────────────────────────
+    OTP_EXPIRY_SECONDS: int = 300            # 5 minutes
+    OTP_MAX_ATTEMPTS: int = 5
+    OTP_RESEND_COOLDOWN_SECONDS: int = 60    # minimum seconds between resends
+    OTP_DEV_MODE: bool = False               # True = log OTP to console, skip SMS
+
+    # ── SMS Provider (Twilio) ────────────────────────────────────────────────
+    SMS_PROVIDER: str = "twilio"
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_FROM_NUMBER: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

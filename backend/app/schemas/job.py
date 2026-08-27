@@ -108,7 +108,9 @@ class JobCreatorOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     name: str
-    email: str
+    email: Optional[str] = None
+    phone_number: Optional[str] = None
+
 
 
 class JobOut(BaseModel):

@@ -75,7 +75,9 @@ class UserOut(BaseModel):
 
     id: int
     name: str
-    email: str
+    email: Optional[str] = None
+    phone_number: Optional[str] = None
     role: RoleOut
     is_active: bool
     created_at: datetime
+
