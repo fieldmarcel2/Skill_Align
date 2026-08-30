@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import confetti from "canvas-confetti";
 import { jobsApi, matchingApi, candidatesApi } from "../../services/api";
-import { Job, MatchResult } from "../../types";
+import { Job, MatchResult, PipelineStatus } from "../../types";
 import { useToast } from "../../components/ui/toast";
 import { Button } from "../../components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../../components/ui/card";
@@ -41,7 +41,7 @@ export const HRJobMatchesPage: React.FC = () => {
   const [matches, setMatches] = useState<MatchResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
-  const [activeTab, setActiveTab] = useState<"all" | "shortlisted" | "rejected">("all");
+  const [activeTab, setActiveTab] = useState<string>("all");
 
   // Candidate detail modal
   const [selectedMatch, setSelectedMatch] = useState<MatchResult | null>(null);
@@ -84,13 +84,13 @@ export const HRJobMatchesPage: React.FC = () => {
 
   const handleStatusUpdate = async (
     matchId: number,
-    newStatus: "shortlisted" | "rejected" | "matched"
+    newStatus: PipelineStatus
   ) => {
     try {
       const updated = await matchingApi.updateStatus(matchId, newStatus);
       setMatches((prev) => prev.map((m) => (m.id === matchId ? updated : m)));
 
-      if (newStatus === "shortlisted") {
+      if (newStatus === "approved_by_hr" || newStatus === "interview_scheduled") {
         // Trigger celebratory confetti effect
         confetti({
           particleCount: 80,
@@ -98,9 +98,9 @@ export const HRJobMatchesPage: React.FC = () => {
           origin: { y: 0.6 },
           colors: ["#6366f1", "#a855f7", "#10b981"],
         });
-        toast.success("Candidate shortlisted! Handed off to recruiter pipeline.", "Shortlisted");
+        toast.success(`Candidate status updated to ${newStatus.replace(/_/g, " ")}.`, "Status Updated");
       } else {
-        toast.info("Candidate status updated to rejected.", "Status Updated");
+        toast.info(`Candidate status updated to ${newStatus.replace(/_/g, " ")}.`, "Status Updated");
       }
     } catch (err: any) {
       toast.error(err.response?.data?.detail || "Failed to update match status.");
@@ -207,14 +207,24 @@ export const HRJobMatchesPage: React.FC = () => {
           All Matches ({matches.length})
         </button>
         <button
-          onClick={() => setActiveTab("shortlisted")}
+          onClick={() => setActiveTab("screening")}
           className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            activeTab === "shortlisted"
-              ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
+            activeTab === "screening"
+              ? "bg-blue-500 text-white shadow-md shadow-blue-500/20"
               : "text-muted-foreground hover:bg-secondary"
           }`}
         >
-          Shortlisted ({matches.filter((m) => m.status === "shortlisted").length})
+          Screening ({matches.filter((m) => m.status === "screening").length})
+        </button>
+        <button
+          onClick={() => setActiveTab("technical_interview")}
+          className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            activeTab === "technical_interview"
+              ? "bg-violet-500 text-white shadow-md shadow-violet-500/20"
+              : "text-muted-foreground hover:bg-secondary"
+          }`}
+        >
+          Technical ({matches.filter((m) => m.status === "technical_interview").length})
         </button>
         <button
           onClick={() => setActiveTab("rejected")}
@@ -248,7 +258,7 @@ export const HRJobMatchesPage: React.FC = () => {
               <Card
                 key={match.id}
                 className={`border bg-card/80 backdrop-blur-xl p-6 transition-all duration-300 hover:shadow-xl ${
-                  match.status === "shortlisted"
+                  match.status === "technical_interview" || match.status === "hr_interview" || match.status === "offer" || match.status === "hired"
                     ? "border-emerald-500/40 bg-emerald-500/5"
                     : match.status === "rejected"
                     ? "border-rose-500/20 opacity-70"
@@ -270,9 +280,24 @@ export const HRJobMatchesPage: React.FC = () => {
                         </h3>
 
                         {/* Status Badge */}
-                        {match.status === "shortlisted" && (
+                        {match.status === "technical_interview" && (
                           <Badge variant="success">
-                            <BookmarkCheck className="h-3 w-3 mr-1" /> Shortlisted
+                            <BookmarkCheck className="h-3 w-3 mr-1" /> Technical Interview
+                          </Badge>
+                        )}
+                        {match.status === "hr_interview" && (
+                          <Badge variant="info">
+                            <Sparkles className="h-3 w-3 mr-1" /> HR Interview
+                          </Badge>
+                        )}
+                        {match.status === "offer" && (
+                          <Badge variant="success">
+                            <TrendingUp className="h-3 w-3 mr-1" /> Offer Extended
+                          </Badge>
+                        )}
+                        {match.status === "hired" && (
+                          <Badge variant="success">
+                            <CheckCircle2 className="h-3 w-3 mr-1" /> Hired
                           </Badge>
                         )}
                         {match.status === "rejected" && (
@@ -280,9 +305,9 @@ export const HRJobMatchesPage: React.FC = () => {
                             <XCircle className="h-3 w-3 mr-1" /> Rejected
                           </Badge>
                         )}
-                        {match.status === "matched" && (
+                        {match.status === "screening" && (
                           <Badge variant="info">
-                            <Sparkles className="h-3 w-3 mr-1" /> Ready for Review
+                            <Sparkles className="h-3 w-3 mr-1" /> Screening
                           </Badge>
                         )}
 
@@ -355,14 +380,24 @@ export const HRJobMatchesPage: React.FC = () => {
                         View Full Profile
                       </Button>
 
-                      {match.status !== "shortlisted" && (
+                      {match.status === "screening" && (
                         <Button
                           variant="gradient"
                           size="sm"
-                          onClick={() => handleStatusUpdate(match.id, "shortlisted")}
+                          onClick={() => handleStatusUpdate(match.id, "technical_interview")}
                           className="w-full text-xs gap-1 shadow-md shadow-indigo-500/20"
                         >
-                          <BookmarkCheck className="h-3.5 w-3.5" /> Shortlist
+                          <BookmarkCheck className="h-3.5 w-3.5" /> Move to Technical
+                        </Button>
+                      )}
+                      {match.status === "technical_interview" && (
+                        <Button
+                          variant="gradient"
+                          size="sm"
+                          onClick={() => handleStatusUpdate(match.id, "hr_interview")}
+                          className="w-full text-xs gap-1 shadow-md shadow-indigo-500/20"
+                        >
+                          <BookmarkCheck className="h-3.5 w-3.5" /> Move to HR Interview
                         </Button>
                       )}
 

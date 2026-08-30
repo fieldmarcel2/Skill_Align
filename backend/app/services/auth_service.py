@@ -15,7 +15,7 @@ from app.core.security import hash_password, verify_password, create_access_toke
 from app.models.user import User
 from app.models.role import Role
 from app.schemas.auth import (
-    RegisterRequest, LoginRequest, TokenResponse, UserResponse,
+    RegisterRequest, LoginRequest, TokenResponse, UserResponse, UserUpdateMeRequest,
     SendOTPRequest, VerifyOTPRequest, OTPResponse, OTPLoginResponse,
 )
 from app.services import otp_service
@@ -210,4 +210,37 @@ def verify_otp_and_login(db: Session, data: VerifyOTPRequest) -> OTPLoginRespons
         user=UserResponse.model_validate(user),
         is_new_user=is_new_user,
     )
+
+
+def update_me(db: Session, current_user: User, data: UserUpdateMeRequest) -> UserResponse:
+    if data.name is not None and data.name.strip():
+        current_user.name = data.name.strip()
+        if current_user.candidate_profile:
+            current_user.candidate_profile.full_name = data.name.strip()
+
+    if data.phone_number is not None:
+        clean_phone = data.phone_number.strip() if data.phone_number else None
+        if clean_phone:
+            existing = db.query(User).filter(User.phone_number == clean_phone, User.id != current_user.id).first()
+            if existing:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Phone number is already in use by another account.")
+            current_user.phone_number = clean_phone
+            if current_user.candidate_profile:
+                current_user.candidate_profile.phone = clean_phone
+        else:
+            current_user.phone_number = None
+
+    if data.email is not None:
+        clean_email = data.email.strip().lower()
+        existing_email = db.query(User).filter(User.email == clean_email, User.id != current_user.id).first()
+        if existing_email:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email is already in use by another account.")
+        current_user.email = clean_email
+
+    db.add(current_user)
+    if current_user.candidate_profile:
+        db.add(current_user.candidate_profile)
+    db.commit()
+    db.refresh(current_user)
+    return UserResponse.model_validate(current_user)
 

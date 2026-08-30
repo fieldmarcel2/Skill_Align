@@ -1,6 +1,5 @@
 """
 Auth Router
-===========
 
 Endpoints:
 - POST /api/auth/register     (Public, Candidate self-registration only)
@@ -19,7 +18,7 @@ from app.core.dependencies import get_current_user
 from app.core.rate_limit import limiter
 from app.models.user import User
 from app.schemas.auth import (
-    RegisterRequest, LoginRequest, TokenResponse, UserResponse,
+    RegisterRequest, LoginRequest, TokenResponse, UserResponse, UserUpdateMeRequest,
     SendOTPRequest, VerifyOTPRequest, OTPResponse, OTPLoginResponse,
 )
 from app.services import auth_service
@@ -60,6 +59,21 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
 )
 def get_me(current_user: User = Depends(get_current_user)):
     return UserResponse.model_validate(current_user)
+
+
+@router.put(
+    "/me",
+    response_model=UserResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update current user profile",
+    description="Updates the profile information (name, phone, email) of the authenticated user."
+)
+def update_me(
+    data: UserUpdateMeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return auth_service.update_me(db, current_user, data)
 
 
 # ── Phone OTP ────────────────────────────────────────────────────────────────

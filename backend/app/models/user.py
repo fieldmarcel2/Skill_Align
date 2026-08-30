@@ -55,7 +55,7 @@ class User(Base):
         "Job", back_populates="creator", lazy="select"
     )
     match_results_triggered: Mapped[list["MatchResult"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
-        "MatchResult", back_populates="matched_by_user", lazy="select"
+        "MatchResult", foreign_keys="[MatchResult.matched_by]", back_populates="matched_by_user", lazy="select"
     )
 
     def __repr__(self) -> str:

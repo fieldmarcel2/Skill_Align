@@ -13,6 +13,7 @@ import {
   UserCheck,
   Layers,
   FileSpreadsheet,
+  Kanban,
 } from "lucide-react";
 
 interface NavItem {
@@ -40,6 +41,7 @@ export const Sidebar: React.FC = () => {
     case "HR":
       navItems = [
         { title: "HR Dashboard", to: "/hr", icon: LayoutDashboard },
+        { title: "Hiring Pipeline", to: "/hr/pipeline", icon: Kanban },
         { title: "Shortlisted Candidates", to: "/hr/shortlists", icon: BookmarkCheck },
       ];
       break;

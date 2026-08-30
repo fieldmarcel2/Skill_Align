@@ -70,9 +70,17 @@ def test_authorization_matrix(client, candidate_token, hr_token, recruiter_token
     )
     assert res.status_code == 403
 
-    # Recruiter cannot run matching engine
+    # Candidate cannot run matching engine
     res = client.post(
         "/api/matching/jobs/1/run",
+        headers={"Authorization": f"Bearer {candidate_token}"}
+    )
+    assert res.status_code == 403
+
+    # Recruiter cannot schedule interviews (HR only)
+    res = client.post(
+        "/api/interviews",
+        json={"match_result_id": 1, "interview_date": "2026-09-01T10:00:00Z"},
         headers={"Authorization": f"Bearer {recruiter_token}"}
     )
     assert res.status_code == 403

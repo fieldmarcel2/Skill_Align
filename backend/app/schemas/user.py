@@ -1,13 +1,14 @@
 """
 Pydantic schemas for User management (Admin endpoints).
 
-UserCreate  → POST /api/users   (Admin creates HR or Recruiter accounts)
-UserUpdate  → PUT  /api/users/{id}
-UserOut     → response for user data (no password_hash)
+UserCreate            → POST /api/users           (Admin creates HR or Recruiter accounts)
+UserUpdate            → PUT  /api/users/{id}
+UserOut               → response for user data (no password_hash)
+PaginatedUsersResponse→ GET  /api/admin/users     (paginated + filtered)
 """
 
 import re
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
 from datetime import datetime
 
@@ -81,3 +82,10 @@ class UserOut(BaseModel):
     is_active: bool
     created_at: datetime
 
+
+class PaginatedUsersResponse(BaseModel):
+    """Paginated response for admin user management."""
+    data: List[UserOut]
+    total_items: int
+    total_pages: int
+    current_page: int

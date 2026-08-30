@@ -17,6 +17,7 @@ import { SkillsPage } from "../pages/admin/SkillsPage";
 import { HRDashboard } from "../pages/hr/HRDashboard";
 import { HRJobMatchesPage } from "../pages/hr/HRJobMatchesPage";
 import { HRShortlistsPage } from "../pages/hr/HRShortlistsPage";
+import { HiringPipelinePage } from "../pages/hr/HiringPipelinePage";
 
 // Recruiter pages
 import { RecruiterDashboard } from "../pages/recruiter/RecruiterDashboard";
@@ -63,6 +64,7 @@ export const AppRoutes: React.FC = () => {
         <Route index element={<HRDashboard />} />
         <Route path="jobs/:id/matches" element={<HRJobMatchesPage />} />
         <Route path="shortlists" element={<HRShortlistsPage />} />
+        <Route path="pipeline" element={<HiringPipelinePage />} />
       </Route>
 
       {/* Recruiter Protected Routes */}

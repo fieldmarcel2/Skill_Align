@@ -111,6 +111,9 @@ class CandidateOut(BaseModel):
     id: int
     full_name: str
     phone: Optional[str]
-    resume_file_path: Optional[str]
+    resume_file_path: Optional[str] = None
+    resume_s3_key: Optional[str] = None
+    resume_filename: Optional[str] = None
+    resume_uploaded_at: Optional[datetime] = None
     total_experience_years: float
     skills: list[CandidateSkillOut]

@@ -4,14 +4,16 @@ User management service (Admin operations).
 Business logic for creating HR/Recruiter accounts and managing user state.
 """
 
+import math
 from typing import Optional
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from fastapi import HTTPException, status
 
 from app.core.security import hash_password
 from app.models.user import User
 from app.models.role import Role
-from app.schemas.user import UserCreate, UserUpdate, UserOut
+from app.schemas.user import UserCreate, UserUpdate, UserOut, PaginatedUsersResponse
 
 
 def create_user(db: Session, data: UserCreate) -> UserOut:
@@ -64,6 +66,59 @@ def list_users(db: Session, role_id: Optional[int] = None) -> list[UserOut]:
     return [UserOut.model_validate(u) for u in query.order_by(User.id).all()]
 
 
+def list_users_paginated(
+    db: Session,
+    page: int = 1,
+    page_size: int = 20,
+    search: Optional[str] = None,
+    role: Optional[str] = None,
+    user_status: Optional[str] = None,
+) -> PaginatedUsersResponse:
+    """
+    Admin: List users with server-side pagination, search, role, and status filters.
+
+    Args:
+        page:        1-indexed page number
+        page_size:   results per page (max 100)
+        search:      partial match on name or email
+        role:        role name filter (Admin, HR, Recruiter, Candidate)
+        user_status: 'active' | 'deactivated'
+    """
+    page_size = min(page_size, 100)  # cap at 100
+    query = db.query(User).join(User.role)
+
+    # Search filter (name OR email)
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        query = query.filter(
+            or_(User.name.ilike(term), User.email.ilike(term))
+        )
+
+    # Role filter
+    if role and role.strip():
+        query = query.filter(Role.name == role.strip())
+
+    # Active/Deactivated filter
+    if user_status:
+        if user_status.lower() == "active":
+            query = query.filter(User.is_active == True)  # noqa: E712
+        elif user_status.lower() == "deactivated":
+            query = query.filter(User.is_active == False)  # noqa: E712
+
+    total_items = query.count()
+    total_pages = max(1, math.ceil(total_items / page_size))
+    offset = (page - 1) * page_size
+
+    users = query.order_by(User.created_at.desc()).offset(offset).limit(page_size).all()
+
+    return PaginatedUsersResponse(
+        data=[UserOut.model_validate(u) for u in users],
+        total_items=total_items,
+        total_pages=total_pages,
+        current_page=page,
+    )
+
+
 def get_user(db: Session, user_id: int) -> UserOut:
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -82,6 +137,22 @@ def update_user(db: Session, user_id: int, data: UserUpdate) -> UserOut:
     if data.is_active is not None:
         user.is_active = data.is_active
 
+    db.commit()
+    db.refresh(user)
+    return UserOut.model_validate(user)
+
+
+def toggle_user_status(db: Session, user_id: int) -> UserOut:
+    """Quick-toggle: flip is_active without sending the full payload."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    if user.role.name == "Admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin accounts cannot be deactivated via this endpoint."
+        )
+    user.is_active = not user.is_active
     db.commit()
     db.refresh(user)
     return UserOut.model_validate(user)

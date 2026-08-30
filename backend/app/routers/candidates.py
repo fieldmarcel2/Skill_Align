@@ -15,6 +15,7 @@ Endpoints:
 """
 
 import os
+from typing import List
 from pathlib import Path
 from fastapi import APIRouter, Depends, status, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
@@ -25,6 +26,7 @@ from app.core.config import settings
 from app.core.dependencies import get_current_user, require_candidate, require_hr_or_recruiter
 from app.models.user import User
 from app.models.candidate import Candidate
+from app.models.match_result import MatchResult
 from app.schemas.candidate import (
     CandidateOut,
     CandidateProfileCreate,
@@ -32,6 +34,7 @@ from app.schemas.candidate import (
     CandidateSkillIn,
     CandidateSkillUpdate
 )
+from app.schemas.matching import MatchResultOut
 from app.services import candidate_service
 
 router = APIRouter(prefix="/api/candidates", tags=["Candidates"])
@@ -50,6 +53,40 @@ def get_my_profile(
     candidate_user: User = Depends(require_candidate)
 ):
     return candidate_service.get_my_profile(db, candidate_user)
+
+
+@router.get(
+    "/me/pipeline",
+    response_model=List[MatchResultOut],
+    status_code=status.HTTP_200_OK,
+    summary="Get candidate's job matches and pipeline statuses",
+    description="Returns all job matches, current pipeline stage (Matched -> Screened -> HR Approved -> Interview Scheduled), and interview details for the logged-in candidate."
+)
+def get_my_pipeline(
+    db: Session = Depends(get_db),
+    candidate_user: User = Depends(require_candidate)
+):
+    candidate = db.query(Candidate).filter(Candidate.user_id == candidate_user.id).first()
+    if not candidate:
+        return []
+
+    results = (
+        db.query(MatchResult)
+        .filter(MatchResult.candidate_id == candidate.id)
+        .order_by(MatchResult.updated_at.desc())
+        .all()
+    )
+
+    output: List[MatchResultOut] = []
+    for r in results:
+        meets_exp = True
+        if r.job and r.candidate:
+            meets_exp = float(r.candidate.total_experience_years or 0) >= float(r.job.min_experience_years or 0)
+        item = MatchResultOut.model_validate(r)
+        item.meets_experience = meets_exp
+        output.append(item)
+
+    return output
 
 
 @router.post(
@@ -153,54 +190,3 @@ def get_candidate_profile(
     user: User = Depends(require_hr_or_recruiter)
 ):
     return candidate_service.get_candidate_by_id(db, candidate_id)
-
-
-@router.get(
-    "/{candidate_id}/resume",
-    summary="Secure resume download/view (Authorized HR, Recruiter, or Owner)"
-)
-def download_resume(
-    candidate_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
-    if not candidate or not candidate.resume_file_path:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Resume not found for this candidate."
-        )
-
-    # Check authorization: HR, Recruiter, Admin, or Candidate themselves
-    user_role = current_user.role.name
-    if user_role not in ["HR", "Recruiter", "Admin"] and candidate.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this resume."
-        )
-
-    # Path traversal protection: resolve against base upload dir
-    safe_base = Path(settings.UPLOAD_DIR).resolve()
-    target_path = (safe_base / candidate.resume_file_path).resolve()
-
-    if not str(target_path).startswith(str(safe_base)):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid file path detected."
-        )
-
-    if not target_path.exists() or not target_path.is_file():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Resume file does not exist on disk."
-        )
-
-    # Determine media type for inline viewing/download
-    ext = target_path.suffix.lower()
-    media_type = "application/pdf" if ext == ".pdf" else "application/octet-stream"
-
-    return FileResponse(
-        path=str(target_path),
-        media_type=media_type,
-        filename=f"Resume_{candidate.full_name.replace(' ', '_')}{ext}"
-    )

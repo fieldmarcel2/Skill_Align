@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { candidatesApi } from "../../services/api";
+import { useAuth } from "../../context/AuthContext";
+import { candidatesApi, resumeApi } from "../../services/api";
 import { Candidate } from "../../types";
 import { useToast } from "../../components/ui/toast";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../../components/ui/card";
+import { Card } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
 import {
   UserCheck,
@@ -17,6 +18,8 @@ import {
   Save,
   Download,
   AlertCircle,
+  ExternalLink,
+  Trash2,
 } from "lucide-react";
 
 export const CandidateProfilePage: React.FC = () => {
@@ -25,6 +28,8 @@ export const CandidateProfilePage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isViewingResume, setIsViewingResume] = useState(false);
+  const [isDeletingResume, setIsDeletingResume] = useState(false);
 
   // Profile Form state
   const [fullName, setFullName] = useState("");
@@ -54,6 +59,8 @@ export const CandidateProfilePage: React.FC = () => {
     fetchProfile();
   }, []);
 
+  const { refreshUser } = useAuth();
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim()) {
@@ -69,7 +76,8 @@ export const CandidateProfilePage: React.FC = () => {
           total_experience_years: Number(totalExperienceYears),
         });
         setProfile(updated);
-        toast.success("Profile information updated successfully.");
+        await refreshUser();
+        toast.success("Profile and account name updated successfully.");
       } else {
         const created = await candidatesApi.createProfile({
           full_name: fullName,
@@ -77,6 +85,7 @@ export const CandidateProfilePage: React.FC = () => {
           total_experience_years: Number(totalExperienceYears),
         });
         setProfile(created);
+        await refreshUser();
         toast.success("Profile created! You can now upload your resume and add skills.");
       }
     } catch (err: any) {
@@ -99,14 +108,68 @@ export const CandidateProfilePage: React.FC = () => {
 
     setIsUploading(true);
     try {
-      const updated = await candidatesApi.uploadResume(selectedFile);
-      setProfile(updated);
+      const res = await resumeApi.upload(profile.id, selectedFile);
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              resume_file_path: res.resume_s3_key,
+              resume_s3_key: res.resume_s3_key,
+              resume_filename: res.resume_filename,
+              resume_uploaded_at: res.resume_uploaded_at,
+            }
+          : null
+      );
       setSelectedFile(null);
-      toast.success("Resume uploaded and attached to profile.", "Upload Complete");
+      toast.success("Resume uploaded successfully to AWS S3!", "Upload Complete");
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || "Failed to upload resume.");
+      toast.error(err.response?.data?.detail || "Failed to upload resume to S3.");
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleViewResume = async () => {
+    if (!profile) return;
+    setIsViewingResume(true);
+    try {
+      const data = await resumeApi.getUrl(profile.id);
+      if (data.resume_url) {
+        window.open(data.resume_url, "_blank");
+      } else {
+        toast.error("Resume URL not found.");
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to generate secure resume URL.");
+    } finally {
+      setIsViewingResume(false);
+    }
+  };
+
+  const handleDeleteResume = async () => {
+    if (!profile) return;
+    if (!window.confirm("Are you sure you want to delete your uploaded resume from AWS S3?")) {
+      return;
+    }
+    setIsDeletingResume(true);
+    try {
+      await resumeApi.delete(profile.id);
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              resume_file_path: undefined,
+              resume_s3_key: null,
+              resume_filename: null,
+              resume_uploaded_at: null,
+            }
+          : null
+      );
+      toast.success("Resume deleted from AWS S3.");
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to delete resume.");
+    } finally {
+      setIsDeletingResume(false);
     }
   };
 
@@ -117,6 +180,8 @@ export const CandidateProfilePage: React.FC = () => {
       </div>
     );
   }
+
+  const hasResume = !!(profile?.resume_file_path || profile?.resume_s3_key);
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in duration-300">
@@ -203,28 +268,69 @@ export const CandidateProfilePage: React.FC = () => {
         {/* Right Col: Resume Upload Card */}
         <div className="space-y-6">
           <Card className="border-border/80 bg-card/70 backdrop-blur-xl p-6 space-y-4">
-            <h3 className="text-base font-bold font-outfit text-foreground flex items-center gap-2">
-              <FileText className="h-4 w-4 text-purple-400" /> Resume Document
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold font-outfit text-foreground flex items-center gap-2">
+                <FileText className="h-4 w-4 text-purple-400" /> Resume Document
+              </h3>
+              {hasResume && (
+                <Badge variant="success" className="text-[10px]">
+                  AWS S3
+                </Badge>
+              )}
+            </div>
 
-            {profile?.resume_file_path ? (
+            {hasResume ? (
               <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 space-y-2">
-                <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400">
-                  <CheckCircle2 className="h-4 w-4" /> Resume is Uploaded
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    <span className="truncate max-w-[170px]">
+                      {profile?.resume_filename || "Resume is Uploaded"}
+                    </span>
+                  </div>
+                  {profile?.resume_uploaded_at && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {new Date(profile.resume_uploaded_at).toLocaleDateString()}
+                    </span>
+                  )}
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Available for authorized HR and Recruiters upon match review.
+                  Stored securely in AWS S3. Available to HR & Recruiters upon match review.
                 </p>
-                <a
-                  href={candidatesApi.getResumeUrl(profile.id)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block pt-1"
-                >
-                  <Button variant="outline" size="sm" className="w-full text-xs gap-1.5">
-                    <Download className="h-3.5 w-3.5" /> Download Current File
+
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleViewResume}
+                    disabled={isViewingResume}
+                    className="w-full text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+                  >
+                    {isViewingResume ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    )}
+                    View / Download Resume
                   </Button>
-                </a>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDeleteResume}
+                    disabled={isDeletingResume}
+                    className="w-full text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 gap-1.5"
+                  >
+                    {isDeletingResume ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" />
+                    )}
+                    Delete Resume
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 space-y-1">
@@ -240,7 +346,7 @@ export const CandidateProfilePage: React.FC = () => {
             {/* File Upload Form */}
             <form onSubmit={handleResumeUpload} className="space-y-3 pt-2">
               <label className="text-xs font-semibold text-foreground block">
-                {profile?.resume_file_path ? "Replace Resume File" : "Upload Resume File"}
+                {hasResume ? "Replace Resume File (AWS S3)" : "Upload Resume File (AWS S3)"}
               </label>
               <input
                 type="file"
@@ -254,14 +360,14 @@ export const CandidateProfilePage: React.FC = () => {
 
               <Button
                 type="submit"
-                variant="secondary"
+                variant="gradient"
                 size="sm"
                 disabled={!selectedFile || isUploading || !profile}
                 className="w-full gap-2"
               >
                 {isUploading ? (
                   <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading...
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading to AWS S3...
                   </>
                 ) : (
                   <>

@@ -5,10 +5,17 @@ import {
   Job,
   JobSkillIn,
   Candidate,
+  ResumeUrlResponse,
+  ResumeUploadResponse,
   CandidateSkill,
   MatchResult,
   MatchRunResponse,
   AdminStats,
+  PaginatedUsersResponse,
+  Scorecard,
+  PipelineStatus,
+  Interview,
+  Notification,
 } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -37,7 +44,6 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
-      // If unauthorized, remove token and let AuthContext handle state
       const currentPath = window.location.pathname;
       if (currentPath !== "/login" && currentPath !== "/register" && currentPath !== "/") {
         localStorage.removeItem("skillalign_token");
@@ -74,6 +80,10 @@ export const authApi = {
     const res = await apiClient.get<User>("/api/auth/me");
     return res.data;
   },
+  updateMe: async (data: { name?: string; phone_number?: string; email?: string }): Promise<User> => {
+    const res = await apiClient.put<User>("/api/auth/me", data);
+    return res.data;
+  },
 };
 
 // ── User Management APIs (Admin) ─────────────────────────────────────────────
@@ -93,6 +103,24 @@ export const usersApi = {
   },
   update: async (userId: number, data: { name?: string; is_active?: boolean }): Promise<User> => {
     const res = await apiClient.put<User>(`/api/users/${userId}`, data);
+    return res.data;
+  },
+};
+
+// ── Admin Management APIs ────────────────────────────────────────────────────
+export const adminApi = {
+  listUsers: async (params: {
+    page?: number;
+    page_size?: number;
+    search?: string;
+    role?: string;
+    status?: string;
+  }): Promise<PaginatedUsersResponse> => {
+    const res = await apiClient.get<PaginatedUsersResponse>("/api/admin/users", { params });
+    return res.data;
+  },
+  toggleUserStatus: async (userId: number): Promise<User> => {
+    const res = await apiClient.patch<User>(`/api/admin/users/${userId}/toggle-status`);
     return res.data;
   },
 };
@@ -162,6 +190,10 @@ export const candidatesApi = {
     const res = await apiClient.get<Candidate>("/api/candidates/me");
     return res.data;
   },
+  getMyPipeline: async (): Promise<MatchResult[]> => {
+    const res = await apiClient.get<MatchResult[]>("/api/candidates/me/pipeline");
+    return res.data;
+  },
   createProfile: async (data: {
     full_name: string;
     phone?: string;
@@ -214,6 +246,26 @@ export const candidatesApi = {
   },
 };
 
+// ── AWS S3 Resume Management APIs ───────────────────────────────────────────
+export const resumeApi = {
+  upload: async (candidateId: number, file: File): Promise<ResumeUploadResponse> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await apiClient.post<ResumeUploadResponse>(`/api/candidates/${candidateId}/resume`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return res.data;
+  },
+  getUrl: async (candidateId: number): Promise<ResumeUrlResponse> => {
+    const res = await apiClient.get<ResumeUrlResponse>(`/api/candidates/${candidateId}/resume`);
+    return res.data;
+  },
+  delete: async (candidateId: number): Promise<{ message: string; candidate_id: number }> => {
+    const res = await apiClient.delete<{ message: string; candidate_id: number }>(`/api/candidates/${candidateId}/resume`);
+    return res.data;
+  },
+};
+
 // ── Matching Engine APIs ─────────────────────────────────────────────────────
 export const matchingApi = {
   runMatch: async (jobId: number): Promise<MatchRunResponse> => {
@@ -225,13 +277,90 @@ export const matchingApi = {
     const res = await apiClient.get<MatchResult[]>(`/api/matching/jobs/${jobId}`, { params });
     return res.data;
   },
-  updateStatus: async (matchId: number, newStatus: "matched" | "shortlisted" | "rejected"): Promise<MatchResult> => {
-    const res = await apiClient.patch<MatchResult>(`/api/matching/${matchId}/status`, { status: newStatus });
+  getScreenedMatches: async (jobId?: number): Promise<MatchResult[]> => {
+    const params = jobId ? { job_id: jobId } : {};
+    const res = await apiClient.get<MatchResult[]>("/api/matching/screened", { params });
+    return res.data;
+  },
+  updateStatus: async (matchId: number, newStatus: PipelineStatus): Promise<MatchResult> => {
+    const res = await apiClient.patch<MatchResult>(`/api/match_results/${matchId}/status`, { status: newStatus });
     return res.data;
   },
   listShortlists: async (jobId?: number): Promise<MatchResult[]> => {
     const params = jobId ? { job_id: jobId } : {};
     const res = await apiClient.get<MatchResult[]>("/api/matching/shortlists", { params });
+    return res.data;
+  },
+  createScorecard: async (
+    matchId: number,
+    data: { communication_score: number; technical_score: number; overall_impression?: string }
+  ): Promise<Scorecard> => {
+    const res = await apiClient.post<Scorecard>(`/api/matching/${matchId}/scorecard`, data);
+    return res.data;
+  },
+  getScorecards: async (matchId: number): Promise<Scorecard[]> => {
+    const res = await apiClient.get<Scorecard[]>(`/api/matching/${matchId}/scorecards`);
+    return res.data;
+  },
+};
+
+// ── Interview Management APIs (HR Only) ───────────────────────────────────────
+export const interviewsApi = {
+  create: async (data: {
+    match_result_id: number;
+    interview_date: string;
+    interview_type: string;
+    feedback?: string;
+    send_notification?: boolean;
+  }): Promise<Interview> => {
+    const res = await apiClient.post<Interview>("/api/interviews", data);
+    return res.data;
+  },
+  list: async (status?: string): Promise<Interview[]> => {
+    const params = status ? { status } : {};
+    const res = await apiClient.get<Interview[]>("/api/interviews", { params });
+    return res.data;
+  },
+  getMyInterviews: async (): Promise<Interview[]> => {
+    const res = await apiClient.get<Interview[]>("/api/interviews/my");
+    return res.data;
+  },
+  getById: async (id: number): Promise<Interview> => {
+    const res = await apiClient.get<Interview>(`/api/interviews/${id}`);
+    return res.data;
+  },
+  update: async (
+    id: number,
+    data: {
+      interview_date?: string;
+      interview_type?: string;
+      feedback?: string;
+      status?: string;
+    }
+  ): Promise<Interview> => {
+    const res = await apiClient.patch<Interview>(`/api/interviews/${id}`, data);
+    return res.data;
+  },
+};
+
+// ── Notification APIs (HR & Candidates) ──────────────────────────────────────
+export const notificationsApi = {
+  create: async (data: {
+    user_id: number;
+    subject: string;
+    body: string;
+    channel?: string;
+  }): Promise<Notification> => {
+    const res = await apiClient.post<Notification>("/api/notifications", data);
+    return res.data;
+  },
+  getMyNotifications: async (): Promise<Notification[]> => {
+    const res = await apiClient.get<Notification[]>("/api/notifications/my");
+    return res.data;
+  },
+  list: async (userId?: number): Promise<Notification[]> => {
+    const params = userId ? { user_id: userId } : {};
+    const res = await apiClient.get<Notification[]>("/api/notifications", { params });
     return res.data;
   },
 };

@@ -21,7 +21,8 @@ from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
 from app.core.rate_limit import limiter
-from app.routers import auth, users, skills, jobs, candidates, matching
+from app.routers import auth, users, skills, jobs, candidates, matching, interviews, notifications, match_results, resume
+from app.routers import admin as admin_router
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -54,7 +55,12 @@ app.include_router(users.router)
 app.include_router(skills.router)
 app.include_router(jobs.router)
 app.include_router(candidates.router)
+app.include_router(resume.router)
 app.include_router(matching.router)
+app.include_router(match_results.router)
+app.include_router(interviews.router)
+app.include_router(notifications.router)
+app.include_router(admin_router.router)
 
 
 # ── Global Health Endpoint ───────────────────────────────────────────────────

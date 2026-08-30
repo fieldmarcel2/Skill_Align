@@ -11,8 +11,9 @@ Extended profile for users who hold the 'Candidate' role.
   engine to check min_experience_years on the job.
 """
 
+from datetime import datetime
 from sqlalchemy import (
-    ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+    DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -36,7 +37,10 @@ class Candidate(Base):
     )
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     phone: Mapped[str] = mapped_column(String(30), nullable=True)
-    resume_file_path: Mapped[str] = mapped_column(Text, nullable=True)
+    resume_file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resume_s3_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    resume_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    resume_uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     total_experience_years: Mapped[float] = mapped_column(
         Numeric(4, 1), nullable=False, default=0
     )

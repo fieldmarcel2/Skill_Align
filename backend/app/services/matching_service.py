@@ -2,29 +2,15 @@
 Matching Engine Service
 =======================
 
-Implements the candidate-job matching algorithm for SkillAlign.
+Implements the candidate-job matching algorithm and pipeline lifecycle for SkillAlign.
 
-Algorithm Specification:
-------------------------
-1. Proficiency Scores:
-     Beginner      = 0.40
-     Intermediate  = 0.70
-     Expert        = 1.00
-     Missing Skill = 0.00
-
-2. Overall Score Formula:
-     overall_score = ( SUM(skill_score * weight) / SUM(weight) ) * 100
-     Result is rounded to 2 decimal places (0.00 to 100.00).
-
-3. Experience Check:
-     Compares candidate.total_experience_years >= job.min_experience_years.
-     Result is surfaced in the match output (meets_experience).
-
-4. Upsert Strategy:
-     When matching is re-run for a job:
-     - Updates existing MatchResult record if one exists for (job_id, candidate_id)
-     - Or inserts a new MatchResult record if none exists.
-     - Resets status to 'matched' for fresh evaluation.
+Roles & Permissions Workflow:
+-----------------------------
+1. Recruiter triggers match -> status = 'matched' (with recruiter_id set to recruiter's user id).
+2. Recruiter reviews candidate resume -> updates status to 'screened' or 'rejected'.
+3. HR views 'screened' candidates -> updates status to 'approved_by_hr' or 'rejected'.
+4. HR schedules interview -> creates Interview record, updates status to 'interview_scheduled'.
+5. Final decisions -> 'offer', 'hired', or 'rejected'.
 """
 
 from typing import List, Dict, Any, Optional
@@ -34,9 +20,12 @@ from fastapi import HTTPException, status
 
 from app.models.job import Job
 from app.models.candidate import Candidate
-from app.models.match_result import MatchResult
+from app.models.match_result import MatchResult, PIPELINE_STATUSES
+from app.models.candidate_scorecard import CandidateScorecard
+from app.models.interview import Interview
 from app.models.user import User
-from app.schemas.matching import MatchResultOut, MatchRunResponse, SkillMatchDetail
+from app.schemas.matching import MatchResultOut, MatchRunResponse, SkillMatchDetail, ScorecardCreate, ScorecardOut
+from app.schemas.interview import InterviewOut
 
 
 PROFICIENCY_MAP: Dict[str, float] = {
@@ -46,6 +35,17 @@ PROFICIENCY_MAP: Dict[str, float] = {
 }
 
 
+def _build_match_result_out(record: MatchResult) -> MatchResultOut:
+    """Helper to construct MatchResultOut with computed fields and relationships."""
+    meets_exp = True
+    if record.job and record.candidate:
+        meets_exp = float(record.candidate.total_experience_years or 0) >= float(record.job.min_experience_years or 0)
+
+    item = MatchResultOut.model_validate(record)
+    item.meets_experience = meets_exp
+    return item
+
+
 def calculate_candidate_match_score(job: Job, candidate: Candidate) -> tuple[float, list[dict], bool]:
     """
     Calculate the overall score for a candidate against a job.
@@ -53,12 +53,16 @@ def calculate_candidate_match_score(job: Job, candidate: Candidate) -> tuple[flo
     Returns:
         (overall_score, skill_breakdown, meets_experience)
     """
+    cand_exp = float(candidate.total_experience_years or 0)
+    job_exp = float(job.min_experience_years or 0)
+    meets_experience = cand_exp >= job_exp
+
     if not job.job_skills:
-        return 0.0, [], float(candidate.total_experience_years) >= float(job.min_experience_years)
+        return 0.0, [], meets_experience
 
     # Map candidate skills for O(1) lookup
     candidate_skills_dict = {
-        cs.skill_id: (cs.proficiency_level, float(cs.years_experience))
+        cs.skill_id: (cs.proficiency_level, float(cs.years_experience or 0))
         for cs in candidate.skills
     }
 
@@ -96,20 +100,26 @@ def calculate_candidate_match_score(job: Job, candidate: Candidate) -> tuple[flo
     else:
         overall_score = 0.0
 
-    meets_experience = float(candidate.total_experience_years) >= float(job.min_experience_years)
     return overall_score, breakdown, meets_experience
 
 
-def run_job_matching(db: Session, job_id: int, matched_by_user: User) -> MatchRunResponse:
+def run_job_matching(db: Session, job_id: int, recruiter_user: User) -> MatchRunResponse:
     """
     Executes the matching engine for all candidate profiles against the specified job.
-    Upserts match_results into the database and returns ranked candidates.
+    Accessible by Recruiter (or Admin). Sets recruiter_id to the recruiter's ID and status to 'matched'.
     """
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Job with id {job_id} not found."
+        )
+
+    # If user is Recruiter, check ownership
+    if recruiter_user.role.name == "Recruiter" and job.created_by != recruiter_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Recruiters can only run matching for their own jobs."
         )
 
     candidates = db.query(Candidate).all()
@@ -121,7 +131,6 @@ def run_job_matching(db: Session, job_id: int, matched_by_user: User) -> MatchRu
     for cand in candidates:
         overall_score, breakdown, meets_experience = calculate_candidate_match_score(job, cand)
 
-        # Upsert into match_results table
         existing_result = db.query(MatchResult).filter(
             MatchResult.job_id == job.id,
             MatchResult.candidate_id == cand.id
@@ -129,14 +138,16 @@ def run_job_matching(db: Session, job_id: int, matched_by_user: User) -> MatchRu
 
         if existing_result:
             existing_result.overall_score = Decimal(str(overall_score))
-            existing_result.matched_by = matched_by_user.id
+            existing_result.recruiter_id = recruiter_user.id
+            existing_result.matched_by = recruiter_user.id
             existing_result.status = "matched"
             db_record = existing_result
         else:
             db_record = MatchResult(
                 job_id=job.id,
                 candidate_id=cand.id,
-                matched_by=matched_by_user.id,
+                recruiter_id=recruiter_user.id,
+                matched_by=recruiter_user.id,
                 overall_score=Decimal(str(overall_score)),
                 status="matched"
             )
@@ -145,9 +156,7 @@ def run_job_matching(db: Session, job_id: int, matched_by_user: User) -> MatchRu
         db.flush()
         db.refresh(db_record)
 
-        # Build response item
-        result_out = MatchResultOut.model_validate(db_record)
-        result_out.meets_experience = meets_experience
+        result_out = _build_match_result_out(db_record)
         match_results_out.append(result_out)
 
     db.commit()
@@ -176,20 +185,38 @@ def get_job_matches(db: Session, job_id: int, status_filter: Optional[str] = Non
         query = query.filter(MatchResult.status == status_filter)
 
     results = query.order_by(MatchResult.overall_score.desc()).all()
-    output: List[MatchResultOut] = []
-    for r in results:
-        meets_exp = float(r.candidate.total_experience_years) >= float(job.min_experience_years)
-        item = MatchResultOut.model_validate(r)
-        item.meets_experience = meets_exp
-        output.append(item)
-    return output
+    return [_build_match_result_out(r) for r in results]
+
+
+def get_screened_matches(db: Session, job_id: Optional[int] = None) -> List[MatchResultOut]:
+    """Retrieve all candidates screened by recruiters (ready for HR strategic review & approval)."""
+    query = db.query(MatchResult).filter(MatchResult.status.in_(["screened", "approved_by_hr", "interview_scheduled"]))
+    if job_id:
+        query = query.filter(MatchResult.job_id == job_id)
+
+    results = query.order_by(MatchResult.overall_score.desc()).all()
+    return [_build_match_result_out(r) for r in results]
+
+
+def get_match_result_by_id(db: Session, match_id: int) -> MatchResultOut:
+    """Fetch single match result by ID."""
+    match_record = db.query(MatchResult).filter(MatchResult.id == match_id).first()
+    if not match_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Match result with id {match_id} not found."
+        )
+    return _build_match_result_out(match_record)
 
 
 def update_match_status(db: Session, match_id: int, new_status: str, user: User) -> MatchResultOut:
     """
-    Update match result status:
-    - HR can transition: matched -> shortlisted, matched -> rejected
-    - Recruiter can transition: shortlisted -> rejected
+    Update match result pipeline status.
+
+    Role Permissions:
+    - Recruiter: Can transition candidates for jobs they created to 'screened' or 'rejected'.
+    - HR: Can transition candidates from 'screened' to 'approved_by_hr', 'interview_scheduled', 'offer', 'hired', or 'rejected'.
+    - Admin: Full pipeline update privileges.
     """
     match_record = db.query(MatchResult).filter(MatchResult.id == match_id).first()
     if not match_record:
@@ -198,26 +225,33 @@ def update_match_status(db: Session, match_id: int, new_status: str, user: User)
             detail=f"Match result with id {match_id} not found."
         )
 
-    user_role = user.role.name
-    current_status = match_record.status
+    if new_status not in PIPELINE_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid status: {new_status}. Must be one of: {', '.join(sorted(PIPELINE_STATUSES))}."
+        )
 
-    if user_role == "HR":
-        if new_status not in ["shortlisted", "rejected", "matched"]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid status transition for HR: {new_status}"
-            )
-    elif user_role == "Recruiter":
-        # Recruiter can only reject candidates or review their own jobs
+    user_role = user.role.name
+
+    if user_role == "Recruiter":
+        # Recruiter can only manage their own job's candidates
         if match_record.job.created_by != user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Recruiter can only manage shortlists for jobs they created."
+                detail="Recruiter can only manage candidates for jobs they created."
             )
-        if new_status != "rejected" and new_status != "shortlisted":
+        # Recruiter can screen or reject initial matches
+        if new_status not in ("screened", "rejected", "matched"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Recruiter can only update candidate status to 'screened' or 'rejected'."
+            )
+    elif user_role == "HR":
+        # HR strategic approval / rejection / interviews / offers
+        if new_status not in ("approved_by_hr", "rejected", "interview_scheduled", "technical_interview", "hr_interview", "offer", "hired", "screened", "shortlisted"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Recruiter can only shortlist or reject candidates."
+                detail="HR can only approve candidates ('approved_by_hr'), schedule interviews, make offers, hire, or reject."
             )
     elif user_role != "Admin":
         raise HTTPException(
@@ -229,8 +263,48 @@ def update_match_status(db: Session, match_id: int, new_status: str, user: User)
     db.commit()
     db.refresh(match_record)
 
-    job = match_record.job
-    meets_exp = float(match_record.candidate.total_experience_years) >= float(job.min_experience_years)
-    item = MatchResultOut.model_validate(match_record)
-    item.meets_experience = meets_exp
-    return item
+    return _build_match_result_out(match_record)
+
+
+# ── Scorecard CRUD ────────────────────────────────────────────────────────────
+
+def create_scorecard(
+    db: Session, match_id: int, data: ScorecardCreate, reviewer: User
+) -> ScorecardOut:
+    """Add a new feedback scorecard for a match result."""
+    match_record = db.query(MatchResult).filter(MatchResult.id == match_id).first()
+    if not match_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Match result with id {match_id} not found."
+        )
+
+    scorecard = CandidateScorecard(
+        match_result_id=match_id,
+        reviewer_id=reviewer.id,
+        communication_score=data.communication_score,
+        technical_score=data.technical_score,
+        overall_impression=data.overall_impression,
+    )
+    db.add(scorecard)
+    db.commit()
+    db.refresh(scorecard)
+    return ScorecardOut.model_validate(scorecard)
+
+
+def get_scorecards(db: Session, match_id: int) -> List[ScorecardOut]:
+    """Retrieve all scorecards for a specific match result."""
+    match_record = db.query(MatchResult).filter(MatchResult.id == match_id).first()
+    if not match_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Match result with id {match_id} not found."
+        )
+
+    scorecards = (
+        db.query(CandidateScorecard)
+        .filter(CandidateScorecard.match_result_id == match_id)
+        .order_by(CandidateScorecard.created_at.desc())
+        .all()
+    )
+    return [ScorecardOut.model_validate(s) for s in scorecards]

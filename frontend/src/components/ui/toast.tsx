@@ -15,6 +15,7 @@ interface ToastContextType {
   toast: (options: { title?: string; message: string; type?: ToastType; duration?: number }) => void;
   success: (message: string, title?: string) => void;
   error: (message: string, title?: string) => void;
+  warning: (message: string, title?: string) => void;
   info: (message: string, title?: string) => void;
 }
 
@@ -50,6 +51,7 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const success = (message: string, title?: string) => toast({ title, message, type: "success" });
   const error = (message: string, title?: string) => toast({ title, message, type: "error" });
+  const warning = (message: string, title?: string) => toast({ title, message, type: "warning" });
   const info = (message: string, title?: string) => toast({ title, message, type: "info" });
 
   const getIcon = (type: ToastType) => {
@@ -79,7 +81,7 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   return (
-    <ToastContext.Provider value={{ toast, success, error, info }}>
+    <ToastContext.Provider value={{ toast, success, error, warning, info }}>
       {children}
       {/* Toast viewport */}
       <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-md w-full px-4 pointer-events-none">

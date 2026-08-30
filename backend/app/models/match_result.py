@@ -1,25 +1,14 @@
 """
 Model: MatchResult
 
-Stores the outcome of the matching engine for a specific
-(job, candidate) pair.
+Stores the outcome of the matching engine for a specific (job, candidate) pair.
 
-Upsert behaviour:
-  When HR re-runs matching for the same job, the engine performs an
-  INSERT … ON CONFLICT (job_id, candidate_id) DO UPDATE.
-  This preserves the unique constraint while updating the score.
-  The `status` is reset to 'matched' on re-run so HR can
-  re-review; if preserving the previous status is desired,
-  this can be adjusted in the service layer.
-
-overall_score:
-  Computed by matching_service.py using the weighted proficiency
-  formula (0–100). Rounded to 2 decimal places.
-
-status transitions:
-  matched → shortlisted  (HR action)
-  matched → rejected     (HR action)
-  shortlisted → rejected (Recruiter action)
+Roles & Pipeline Workflow:
+1. Recruiter triggers match -> status = 'matched' (with recruiter_id set to recruiter's user id).
+2. Recruiter reviews candidate & resume -> updates status to 'screened' (or 'rejected').
+3. HR views 'screened' candidates -> updates status to 'approved_by_hr' (or 'rejected').
+4. HR schedules interview -> creates Interview record, updates status to 'interview_scheduled'.
+5. Final decisions -> 'offer', 'hired', or 'rejected'.
 """
 
 from datetime import datetime
@@ -31,16 +20,26 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
 
+PIPELINE_STATUSES = (
+    "matched",
+    "screened",
+    "approved_by_hr",
+    "interview_scheduled",
+    "shortlisted",
+    "screening",
+    "technical_interview",
+    "hr_interview",
+    "offer",
+    "hired",
+    "rejected",
+)
+
 
 class MatchResult(Base):
     __tablename__ = "match_results"
 
     __table_args__ = (
         UniqueConstraint("job_id", "candidate_id", name="uq_match_result"),
-        CheckConstraint(
-            "status IN ('matched', 'shortlisted', 'rejected')",
-            name="ck_match_result_status",
-        ),
         CheckConstraint(
             "overall_score >= 0 AND overall_score <= 100",
             name="ck_match_result_score_range",
@@ -54,17 +53,26 @@ class MatchResult(Base):
     candidate_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    matched_by: Mapped[int] = mapped_column(
+    recruiter_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    matched_by: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     overall_score: Mapped[float] = mapped_column(
         Numeric(5, 2), nullable=False, default=0
     )
     status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="matched", index=True
+        String(50), nullable=False, default="matched", index=True
     )
     matched_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
     )
 
     # ── Relationships ─────────────────────────────────────────────────────────
@@ -74,12 +82,23 @@ class MatchResult(Base):
     candidate: Mapped["Candidate"] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "Candidate", back_populates="match_results", lazy="joined"
     )
+    recruiter: Mapped["User"] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        "User", foreign_keys=[recruiter_id], lazy="joined"
+    )
     matched_by_user: Mapped["User"] = relationship(  # type: ignore[name-defined]  # noqa: F821
-        "User", back_populates="match_results_triggered", lazy="joined"
+        "User", foreign_keys=[matched_by], back_populates="match_results_triggered", lazy="joined"
+    )
+    scorecards: Mapped[list["CandidateScorecard"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        "CandidateScorecard", back_populates="match_result",
+        lazy="select", cascade="all, delete-orphan"
+    )
+    interviews: Mapped[list["Interview"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        "Interview", back_populates="match_result",
+        lazy="select", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
         return (
             f"<MatchResult job_id={self.job_id} candidate_id={self.candidate_id} "
-            f"score={self.overall_score} status={self.status!r}>"
+            f"recruiter_id={self.recruiter_id} score={self.overall_score} status={self.status!r}>"
         )

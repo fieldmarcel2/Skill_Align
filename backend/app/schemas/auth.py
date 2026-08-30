@@ -102,6 +102,12 @@ class UserResponse(BaseModel):
     created_at: datetime
 
 
+class UserUpdateMeRequest(BaseModel):
+    name: Optional[str] = None
+    phone_number: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+
 # ── OTP Schemas ──────────────────────────────────────────────────────────────
 
 class SendOTPRequest(BaseModel):

@@ -7,11 +7,15 @@ cannot access or modify other candidates' data.
 """
 
 import os
+import re
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
+
+from app.services.s3_service import s3_service
 
 from app.core.config import settings
 from app.models.candidate import Candidate
@@ -47,13 +51,20 @@ def create_profile(db: Session, user: User, data: CandidateProfileCreate) -> Can
         )
     candidate = Candidate(
         user_id=user.id,
-        full_name=data.full_name,
-        phone=data.phone,
+        full_name=data.full_name.strip(),
+        phone=data.phone.strip() if data.phone else None,
         total_experience_years=data.total_experience_years,
     )
+    # Synchronize User model name and phone number
+    user.name = data.full_name.strip()
+    if data.phone:
+        user.phone_number = data.phone.strip()
+
     db.add(candidate)
+    db.add(user)
     db.commit()
     db.refresh(candidate)
+    db.refresh(user)
     return CandidateOut.model_validate(candidate)
 
 
@@ -65,14 +76,22 @@ def update_profile(db: Session, user: User, data: CandidateProfileUpdate) -> Can
             detail="Profile not found. Create it first with POST.",
         )
     if data.full_name is not None:
-        candidate.full_name = data.full_name.strip()
+        clean_name = data.full_name.strip()
+        candidate.full_name = clean_name
+        user.name = clean_name
     if data.phone is not None:
-        candidate.phone = data.phone
+        clean_phone = data.phone.strip() if data.phone else None
+        candidate.phone = clean_phone
+        if clean_phone:
+            user.phone_number = clean_phone
     if data.total_experience_years is not None:
         candidate.total_experience_years = data.total_experience_years
 
+    db.add(user)
+    db.add(candidate)
     db.commit()
     db.refresh(candidate)
+    db.refresh(user)
     return CandidateOut.model_validate(candidate)
 
 
@@ -127,20 +146,35 @@ def upload_resume(db: Session, user: User, file: UploadFile) -> CandidateOut:
             detail=f"File too large. Maximum allowed size is {settings.MAX_UPLOAD_SIZE_MB} MB.",
         )
 
-    # Build storage path (relative, safe)
-    upload_root = Path(settings.UPLOAD_DIR) / "resumes" / str(user.id)
-    upload_root.mkdir(parents=True, exist_ok=True)
+    # Delete previous S3 resume if present
+    if candidate.resume_s3_key:
+        try:
+            s3_service.delete_file(candidate.resume_s3_key)
+        except Exception:
+            pass
 
-    # Use a fixed filename per user so re-uploads replace previous file
-    safe_filename = f"resume_{user.id}{ext}"
-    dest = upload_root / safe_filename
+    # Upload directly to AWS S3
+    original_filename = file.filename or "resume.pdf"
+    clean_name = re.sub(r"[^a-zA-Z0-9._-]", "_", Path(original_filename).name) or "resume.pdf"
+    s3_key = f"resumes/candidates/{candidate.id}/{clean_name}"
 
-    with open(dest, "wb") as f:
-        f.write(content)
+    file.file.seek(0)
+    try:
+        s3_service.upload_file(
+            file_obj=file.file,
+            s3_key=s3_key,
+            content_type=file.content_type or "application/pdf"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload resume to S3: {str(e)}"
+        )
 
-    # Store a relative path only — never an absolute filesystem path
-    relative_path = str(Path("resumes") / str(user.id) / safe_filename)
-    candidate.resume_file_path = relative_path
+    candidate.resume_s3_key = s3_key
+    candidate.resume_filename = original_filename
+    candidate.resume_uploaded_at = datetime.now(timezone.utc)
+    candidate.resume_file_path = s3_key
 
     db.commit()
     db.refresh(candidate)
