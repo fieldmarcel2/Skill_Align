@@ -82,3 +82,18 @@ def update_job(
     recruiter: User = Depends(require_recruiter)
 ):
     return job_service.update_job(db, job_id, data, requester=recruiter)
+
+
+@router.delete(
+    "/{job_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a job (Recruiter only)",
+    description="Recruiter deletes their own job. This will also remove all associated job skills and match results."
+)
+def delete_job(
+    job_id: int,
+    db: Session = Depends(get_db),
+    recruiter: User = Depends(require_recruiter)
+):
+    job_service.delete_job(db, job_id, requester=recruiter)
+

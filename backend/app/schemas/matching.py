@@ -2,13 +2,13 @@
 Pydantic schemas for Matching endpoints.
 
 MatchRunResponse    → result of POST /api/matching/jobs/{job_id}/run
-MatchResultOut      → single match result item (includes pipeline status, candidate, job, interviews)
+MatchResultOut      → single match result item (includes pipeline status, candidate, job, interviews, matched/missing skills)
 MatchStatusUpdate   → PATCH status (pipeline stage transition)
 ScorecardCreate     → POST /api/matching/{id}/scorecard
 ScorecardOut        → GET /api/matching/{id}/scorecards
 """
 
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, field_validator, ConfigDict
 from datetime import datetime
 
@@ -88,6 +88,10 @@ class MatchResultOut(BaseModel):
     matched_at: datetime
     updated_at: Optional[datetime] = None
     meets_experience: bool = True   # computed, not stored
+    matched_skills: List[str] = []
+    missing_skills: List[str] = []
+    skill_breakdown: List[SkillMatchDetail] = []
+    explanation: Optional[str] = None
     candidate: Optional[CandidateOut] = None
     job: Optional[JobOut] = None
     interviews: List[InterviewOut] = []

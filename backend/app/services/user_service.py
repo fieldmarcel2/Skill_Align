@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from fastapi import HTTPException, status
 
-from app.core.security import hash_password
+from app.core.security import hash_password, normalize_phone
 from app.models.user import User
 from app.models.role import Role
 from app.schemas.user import UserCreate, UserUpdate, UserOut, PaginatedUsersResponse
@@ -38,17 +38,34 @@ def create_user(db: Session, data: UserCreate) -> UserOut:
             detail=f"Role with id={data.role_id} does not exist.",
         )
 
+    clean_email = data.email.strip().lower()
     # Prevent duplicate email
-    if db.query(User).filter(User.email == data.email).first():
+    if db.query(User).filter(User.email.ilike(clean_email)).first():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="An account with this email already exists.",
         )
 
+    norm_phone = None
+    if data.phone_number and data.phone_number.strip():
+        try:
+            norm_phone = normalize_phone(data.phone_number.strip())
+            if db.query(User).filter(User.phone_number == norm_phone).first():
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="An account with this phone number already exists.",
+                )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            )
+
     user = User(
-        name=data.name,
-        email=data.email,
+        name=data.name.strip(),
+        email=clean_email,
         password_hash=hash_password(data.password),
+        phone_number=norm_phone,
         role_id=data.role_id,
         is_active=True,
     )
@@ -176,4 +193,78 @@ def get_dashboard_stats(db: Session) -> dict:
         "recruiters": recruiter_count,
         "candidates": candidate_count,
         "total_skills": skill_count,
+    }
+
+
+def delete_user(db: Session, user_id: int, current_admin_id: Optional[int] = None) -> dict:
+    """
+    Permanently delete a user account and safely cascade all related candidate profiles,
+    skills, evaluations, and job records.
+    """
+    from app.models.candidate import Candidate
+    from app.models.candidate_skill import CandidateSkill
+    from app.models.candidate_scorecard import CandidateScorecard
+    from app.models.interview import Interview
+    from app.models.job import Job
+    from app.models.job_skill import JobSkill
+    from app.models.match_result import MatchResult
+    from app.models.notification import Notification
+    from app.models.otp_verification import OTPVerification
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+    if current_admin_id and user.id == current_admin_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You cannot delete your own admin account.",
+        )
+
+    if user.role.name == "Admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator accounts cannot be deleted.",
+        )
+
+    user_name = user.name
+
+    # 1. Cascade Candidate profile and evaluations
+    candidate = db.query(Candidate).filter(Candidate.user_id == user.id).first()
+    if candidate:
+        mr_ids = [m[0] for m in db.query(MatchResult.id).filter(MatchResult.candidate_id == candidate.id).all()]
+        if mr_ids:
+            db.query(Interview).filter(Interview.match_result_id.in_(mr_ids)).delete(synchronize_session=False)
+            db.query(CandidateScorecard).filter(CandidateScorecard.match_result_id.in_(mr_ids)).delete(synchronize_session=False)
+            db.query(MatchResult).filter(MatchResult.candidate_id == candidate.id).delete(synchronize_session=False)
+        db.query(CandidateSkill).filter(CandidateSkill.candidate_id == candidate.id).delete(synchronize_session=False)
+        db.delete(candidate)
+
+    # 2. Cascade Recruiter jobs and associated matches
+    jobs = db.query(Job).filter(Job.created_by == user.id).all()
+    for j in jobs:
+        mr_ids = [m[0] for m in db.query(MatchResult.id).filter(MatchResult.job_id == j.id).all()]
+        if mr_ids:
+            db.query(Interview).filter(Interview.match_result_id.in_(mr_ids)).delete(synchronize_session=False)
+            db.query(CandidateScorecard).filter(CandidateScorecard.match_result_id.in_(mr_ids)).delete(synchronize_session=False)
+            db.query(MatchResult).filter(MatchResult.job_id == j.id).delete(synchronize_session=False)
+        db.query(JobSkill).filter(JobSkill.job_id == j.id).delete(synchronize_session=False)
+        db.delete(j)
+
+    # 3. Cascade HR evaluation scorecards & interviews
+    db.query(CandidateScorecard).filter(CandidateScorecard.reviewer_id == user.id).delete(synchronize_session=False)
+    db.query(Interview).filter(Interview.scheduled_by == user.id).delete(synchronize_session=False)
+
+    # 4. Cleanup Notifications & OTPs
+    db.query(Notification).filter(Notification.user_id == user.id).delete(synchronize_session=False)
+    if user.phone_number:
+        db.query(OTPVerification).filter(OTPVerification.phone_number == user.phone_number).delete(synchronize_session=False)
+
+    # 5. Delete User record
+    db.delete(user)
+    db.commit()
+
+    return {
+        "message": f"User '{user_name}' (ID: {user_id}) permanently removed successfully.",
+        "id": user_id,
     }

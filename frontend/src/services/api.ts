@@ -7,6 +7,8 @@ import {
   Candidate,
   ResumeUrlResponse,
   ResumeUploadResponse,
+  ResumeTextResponse,
+  ParsedResumeResponse,
   CandidateSkill,
   MatchResult,
   MatchRunResponse,
@@ -56,7 +58,7 @@ apiClient.interceptors.response.use(
 
 // ── Auth APIs ────────────────────────────────────────────────────────────────
 export const authApi = {
-  register: async (data: { name: string; email: string; password: string; phone?: string }): Promise<User> => {
+  register: async (data: { name: string; email: string; password: string; phone: string }): Promise<User> => {
     const res = await apiClient.post<User>("/api/auth/register", data);
     return res.data;
   },
@@ -88,7 +90,7 @@ export const authApi = {
 
 // ── User Management APIs (Admin) ─────────────────────────────────────────────
 export const usersApi = {
-  create: async (data: { name: string; email: string; password: string; role_id: number }): Promise<User> => {
+  create: async (data: { name: string; email: string; password: string; role_id: number; phone_number?: string }): Promise<User> => {
     const res = await apiClient.post<User>("/api/users", data);
     return res.data;
   },
@@ -121,6 +123,14 @@ export const adminApi = {
   },
   toggleUserStatus: async (userId: number): Promise<User> => {
     const res = await apiClient.patch<User>(`/api/admin/users/${userId}/toggle-status`);
+    return res.data;
+  },
+  getUserDetail: async (userId: number): Promise<any> => {
+    const res = await apiClient.get<any>(`/api/admin/users/${userId}/detail`);
+    return res.data;
+  },
+  deleteUser: async (userId: number): Promise<{ message: string; id: number }> => {
+    const res = await apiClient.delete<{ message: string; id: number }>(`/api/admin/users/${userId}`);
     return res.data;
   },
 };
@@ -161,6 +171,13 @@ export const jobsApi = {
     department?: string;
     client_name?: string;
     min_experience_years: number;
+    work_mode?: string;
+    location_city?: string;
+    location_state?: string;
+    location_country?: string;
+    urgency?: string;
+    shift_timing?: string;
+    travel_requirements?: string;
     status: string;
     skills: JobSkillIn[];
   }): Promise<Job> => {
@@ -175,12 +192,22 @@ export const jobsApi = {
       department?: string;
       client_name?: string;
       min_experience_years?: number;
+      work_mode?: string;
+      location_city?: string;
+      location_state?: string;
+      location_country?: string;
+      urgency?: string;
+      shift_timing?: string;
+      travel_requirements?: string;
       status?: string;
       skills?: JobSkillIn[];
     }
   ): Promise<Job> => {
     const res = await apiClient.put<Job>(`/api/jobs/${id}`, data);
     return res.data;
+  },
+  delete: async (id: number): Promise<void> => {
+    await apiClient.delete(`/api/jobs/${id}`);
   },
 };
 
@@ -198,6 +225,16 @@ export const candidatesApi = {
     full_name: string;
     phone?: string;
     total_experience_years: number;
+    address?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+    country?: string;
+    work_authorization?: string;
+    preferred_work_mode?: string;
+    notice_period?: string;
+    current_ctc?: number;
+    expected_ctc?: number;
   }): Promise<Candidate> => {
     const res = await apiClient.post<Candidate>("/api/candidates/me", data);
     return res.data;
@@ -206,6 +243,16 @@ export const candidatesApi = {
     full_name?: string;
     phone?: string;
     total_experience_years?: number;
+    address?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+    country?: string;
+    work_authorization?: string;
+    preferred_work_mode?: string;
+    notice_period?: string;
+    current_ctc?: number;
+    expected_ctc?: number;
   }): Promise<Candidate> => {
     const res = await apiClient.put<Candidate>("/api/candidates/me", data);
     return res.data;
@@ -246,7 +293,7 @@ export const candidatesApi = {
   },
 };
 
-// ── AWS S3 Resume Management APIs ───────────────────────────────────────────
+// ── AWS S3 & Parsing Resume Management APIs ────────────────────────────────
 export const resumeApi = {
   upload: async (candidateId: number, file: File): Promise<ResumeUploadResponse> => {
     const formData = new FormData();
@@ -258,6 +305,14 @@ export const resumeApi = {
   },
   getUrl: async (candidateId: number): Promise<ResumeUrlResponse> => {
     const res = await apiClient.get<ResumeUrlResponse>(`/api/candidates/${candidateId}/resume`);
+    return res.data;
+  },
+  getText: async (candidateId: number): Promise<ResumeTextResponse> => {
+    const res = await apiClient.get<ResumeTextResponse>(`/api/candidates/${candidateId}/resume/text`);
+    return res.data;
+  },
+  getParsed: async (candidateId: number): Promise<ParsedResumeResponse> => {
+    const res = await apiClient.get<ParsedResumeResponse>(`/api/candidates/${candidateId}/resume/parsed`);
     return res.data;
   },
   delete: async (candidateId: number): Promise<{ message: string; candidate_id: number }> => {
@@ -275,6 +330,10 @@ export const matchingApi = {
   getMatches: async (jobId: number, status?: string): Promise<MatchResult[]> => {
     const params = status ? { status } : {};
     const res = await apiClient.get<MatchResult[]>(`/api/matching/jobs/${jobId}`, { params });
+    return res.data;
+  },
+  getMatchById: async (matchId: number): Promise<MatchResult> => {
+    const res = await apiClient.get<MatchResult>(`/api/match_results/${matchId}`);
     return res.data;
   },
   getScreenedMatches: async (jobId?: number): Promise<MatchResult[]> => {
@@ -302,6 +361,20 @@ export const matchingApi = {
     const res = await apiClient.get<Scorecard[]>(`/api/matching/${matchId}/scorecards`);
     return res.data;
   },
+  getAiAnalysis: async (matchId: number): Promise<{
+    match_id: number;
+    job_title: string;
+    candidate_name: string;
+    algorithmic_score: number;
+    semantic_fit_score: number;
+    ai_summary: string;
+    key_strengths: string[];
+    skill_gaps: string[];
+    suggested_interview_questions: string[];
+  }> => {
+    const res = await apiClient.get(`/api/matching/${matchId}/ai-analysis`);
+    return res.data;
+  },
 };
 
 // ── Interview Management APIs (HR Only) ───────────────────────────────────────
@@ -310,6 +383,9 @@ export const interviewsApi = {
     match_result_id: number;
     interview_date: string;
     interview_type: string;
+    meeting_link?: string;
+    interview_mode?: string;
+    scheduled_end?: string;
     feedback?: string;
     send_notification?: boolean;
   }): Promise<Interview> => {
@@ -334,6 +410,9 @@ export const interviewsApi = {
     data: {
       interview_date?: string;
       interview_type?: string;
+      meeting_link?: string;
+      interview_mode?: string;
+      scheduled_end?: string;
       feedback?: string;
       status?: string;
     }

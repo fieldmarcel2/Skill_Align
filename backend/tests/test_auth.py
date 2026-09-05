@@ -3,6 +3,7 @@ Authentication & Authorization Tests
 """
 
 import uuid
+import random
 import pytest
 
 
@@ -17,7 +18,8 @@ def test_candidate_registration_and_login(client):
     payload = {
         "name": "Test Candidate",
         "email": unique_email,
-        "password": "Password@123"
+        "password": "Password@123",
+        "phone": f"+9198{random.randint(10000000, 99999999)}",
     }
 
     # 1. Register

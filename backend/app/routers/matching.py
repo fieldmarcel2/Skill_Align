@@ -158,3 +158,16 @@ def get_scorecards(
     user: User = Depends(require_hr_or_recruiter)
 ):
     return matching_service.get_scorecards(db, match_id)
+
+
+@router.get(
+    "/{match_id}/ai-analysis",
+    status_code=status.HTTP_200_OK,
+    summary="Get Gemini AI candidate fit analysis & tailored interview questions (HR & Recruiter)"
+)
+def get_ai_analysis(
+    match_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_hr_or_recruiter)
+):
+    return matching_service.get_match_ai_analysis(db, match_id)

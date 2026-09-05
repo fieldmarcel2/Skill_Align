@@ -39,6 +39,13 @@ def create_job(db: Session, data: JobCreate, creator: User) -> JobOut:
         department=data.department,
         client_name=data.client_name,
         min_experience_years=data.min_experience_years,
+        work_mode=data.work_mode or "Hybrid",
+        location_city=data.location_city,
+        location_state=data.location_state,
+        location_country=data.location_country or "India",
+        urgency=data.urgency or "30 days",
+        shift_timing=data.shift_timing or "Day",
+        travel_requirements=data.travel_requirements or "None",
         status=data.status,
         created_by=creator.id,
     )
@@ -107,6 +114,20 @@ def update_job(db: Session, job_id: int, data: JobUpdate, requester: User) -> Jo
         job.client_name = data.client_name
     if data.min_experience_years is not None:
         job.min_experience_years = data.min_experience_years
+    if data.work_mode is not None:
+        job.work_mode = data.work_mode
+    if data.location_city is not None:
+        job.location_city = data.location_city
+    if data.location_state is not None:
+        job.location_state = data.location_state
+    if data.location_country is not None:
+        job.location_country = data.location_country
+    if data.urgency is not None:
+        job.urgency = data.urgency
+    if data.shift_timing is not None:
+        job.shift_timing = data.shift_timing
+    if data.travel_requirements is not None:
+        job.travel_requirements = data.travel_requirements
     if data.status is not None:
         job.status = data.status
 
@@ -127,3 +148,26 @@ def update_job(db: Session, job_id: int, data: JobUpdate, requester: User) -> Jo
     db.commit()
     db.refresh(job)
     return JobOut.model_validate(job)
+
+
+def delete_job(db: Session, job_id: int, requester: User) -> None:
+    """
+    Delete a job and all its associated skills.
+    Recruiters can only delete their own jobs.
+    """
+    job = get_job(db, job_id)
+
+    # Ownership check
+    if requester.role.name == "Recruiter" and job.created_by != requester.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete your own jobs.",
+        )
+
+    # Delete associated job_skills first (cascade should handle this but explicit is safer)
+    for js in list(job.job_skills):
+        db.delete(js)
+    db.flush()
+
+    db.delete(job)
+    db.commit()

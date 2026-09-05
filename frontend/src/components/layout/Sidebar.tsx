@@ -6,14 +6,13 @@ import {
   LayoutDashboard,
   Users,
   Cpu,
-  Briefcase,
   PlusCircle,
-  Sparkles,
   BookmarkCheck,
   UserCheck,
   Layers,
   FileSpreadsheet,
   Kanban,
+  X,
 } from "lucide-react";
 
 interface NavItem {
@@ -22,7 +21,15 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-export const Sidebar: React.FC = () => {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({
+  isOpen = false,
+  onClose,
+}) => {
   const { user } = useAuth();
   if (!user) return null;
 
@@ -34,7 +41,7 @@ export const Sidebar: React.FC = () => {
     case "Admin":
       navItems = [
         { title: "Admin Overview", to: "/admin", icon: LayoutDashboard },
-        { title: "User Management", to: "/admin/users", icon: Users },
+        { title: "User Directory", to: "/admin/users", icon: Users },
         { title: "Master Skills Taxonomy", to: "/admin/skills", icon: Cpu },
       ];
       break;
@@ -48,7 +55,7 @@ export const Sidebar: React.FC = () => {
     case "Recruiter":
       navItems = [
         { title: "Recruiter Dashboard", to: "/recruiter", icon: LayoutDashboard },
-        { title: "Post New Job", to: "/recruiter/jobs/create", icon: PlusCircle },
+        { title: "Create Job Requisition", to: "/recruiter/jobs/create", icon: PlusCircle },
         { title: "Shortlisted Talents", to: "/recruiter/shortlists", icon: UserCheck },
       ];
       break;
@@ -61,12 +68,26 @@ export const Sidebar: React.FC = () => {
       break;
   }
 
-  return (
-    <aside className="w-64 shrink-0 border-r border-slate-200/80 bg-white flex flex-col justify-between p-4 min-h-[calc(100vh-4rem)]">
-      <div className="space-y-6">
+  const sidebarContent = (
+    <div className="flex flex-col justify-between h-full p-4 space-y-6">
+      <div className="space-y-4">
+        {/* Mobile Header with Close Button */}
+        <div className="flex md:hidden items-center justify-between pb-2 border-b border-border/70">
+          <span className="text-xs font-bold uppercase tracking-wider text-primary">
+            Navigation Menu
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
         <div>
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 px-3 mb-2">
-            {role} Portal
+          <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground px-3 mb-2">
+            {role} Workspace
           </h4>
           <nav className="space-y-1">
             {navItems.map((item) => (
@@ -74,12 +95,13 @@ export const Sidebar: React.FC = () => {
                 key={item.to}
                 to={item.to}
                 end={item.to === "/admin" || item.to === "/hr" || item.to === "/recruiter" || item.to === "/candidate"}
+                onClick={() => onClose?.()}
                 className={({ isActive }) =>
                   cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group",
                     isActive
-                      ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20 font-semibold"
-                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                      ? "bg-primary text-primary-foreground shadow-md shadow-primary/25 font-semibold"
+                      : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
                   )
                 }
               >
@@ -92,16 +114,40 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* Role info card at bottom */}
-      <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50">
+      <div className="p-3.5 rounded-xl border border-border/80 bg-card/60">
         <div className="flex items-center gap-2 mb-1">
-          <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
-          <span className="text-xs font-semibold text-slate-800">Logged in as</span>
+          <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-xs font-bold text-foreground">Logged in</span>
         </div>
-        <p className="text-xs text-slate-500 truncate">{user.name}</p>
-        <span className="inline-block mt-1 text-[10px] font-mono text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md font-semibold">
+        <p className="text-xs text-muted-foreground truncate font-medium">{user.name}</p>
+        <span className="inline-block mt-1 text-[10px] font-mono text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-md font-semibold">
           {user.role.name}
         </span>
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar (hidden on mobile) */}
+      <aside className="hidden md:flex w-64 shrink-0 border-r border-border/80 bg-card/40 backdrop-blur-md flex-col justify-between min-h-[calc(100vh-4rem)]">
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile Slide-Over Drawer with Overlay */}
+      {isOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-background/80 backdrop-blur-sm transition-opacity animate-in fade-in"
+            onClick={onClose}
+          />
+          {/* Drawer content */}
+          <aside className="relative w-72 max-w-[80vw] bg-card border-r border-border shadow-2xl z-10 flex flex-col h-full animate-in slide-in-from-left duration-200">
+            {sidebarContent}
+          </aside>
+        </div>
+      )}
+    </>
   );
 };

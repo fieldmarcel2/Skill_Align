@@ -28,6 +28,13 @@ class Job(Base):
     min_experience_years: Mapped[float] = mapped_column(
         Numeric(4, 1), nullable=False, default=0
     )
+    work_mode: Mapped[str | None] = mapped_column(String(50), nullable=True, default="Hybrid")  # WFH, WFO, Hybrid
+    location_city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    location_state: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    location_country: Mapped[str | None] = mapped_column(String(50), nullable=True, default="India")
+    urgency: Mapped[str | None] = mapped_column(String(50), nullable=True, default="30 days")
+    shift_timing: Mapped[str | None] = mapped_column(String(50), nullable=True, default="Day")
+    travel_requirements: Mapped[str | None] = mapped_column(String(100), nullable=True, default="None")
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="draft", index=True
     )

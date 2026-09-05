@@ -1,22 +1,24 @@
 """
-Router: AWS S3 Resume Management for Candidates
-================================================
-Implements secure resume upload, pre-signed URL generation, and deletion using AWS S3 & Boto3.
+Router: Resume Management, Text Extraction & Deterministic Parsing
+===================================================================
+Implements secure resume upload, text extraction, TXT generation, rule-based parsing,
+pre-signed URL generation, text preview, and deletion using AWS S3 & Boto3.
 
 Endpoints:
-- POST   /api/candidates/{candidate_id}/resume  - Upload resume (PDF/DOCX) to S3
-- GET    /api/candidates/{candidate_id}/resume  - Get temporary pre-signed URL (ExpiresIn=300)
-- DELETE /api/candidates/{candidate_id}/resume  - Delete resume from S3 & clear database fields
+- POST   /api/candidates/{candidate_id}/resume       - Upload resume (PDF/DOCX/TXT), extract text, parse data
+- GET    /api/candidates/{candidate_id}/resume       - Get temporary pre-signed URL (ExpiresIn=300) for original file
+- GET    /api/candidates/{candidate_id}/resume/text  - Get extracted plain text (.txt) content
+- GET    /api/candidates/{candidate_id}/resume/parsed- Get structured parsed resume data (skills, exp, edu, certs)
+- DELETE /api/candidates/{candidate_id}/resume       - Delete original & TXT from storage & clear DB fields
 
 Security Rules:
-- Candidates can only upload, view, or delete their own resume.
-- Recruiters, HR, and Admins can view/generate pre-signed URLs to download resumes.
+- Candidates can only upload, view, or delete their own resume and extracted text.
+- Recruiters, HR, and Admins can view/generate pre-signed URLs to download resumes and view parsed data.
 - AWS credentials are NEVER exposed to the client.
 """
 
-import os
-import re
-from datetime import datetime, timezone
+import json
+import logging
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.orm import Session
 
@@ -28,39 +30,25 @@ from app.models.candidate import Candidate
 from app.schemas.resume import (
     ResumeUploadResponse,
     ResumeUrlResponse,
+    ResumeTextResponse,
+    ParsedResumeResponse,
     ResumeDeleteResponse,
 )
 from app.services.s3_service import s3_service
+from app.services import resume_service
+
+logger = logging.getLogger("skillalign.resume_router")
 
 router = APIRouter(prefix="/api/candidates", tags=["Candidate Resumes"])
 
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".doc"}
-ALLOWED_MIME_TYPES = {
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/octet-stream",
-}
 
-
-def sanitize_filename(filename: str) -> str:
-    """
-    Sanitize the uploaded filename to prevent directory traversal and remove unsafe chars.
-    """
-    # Extract only the base name (strip any paths)
-    base = os.path.basename(filename)
-    # Remove any non-alphanumeric characters except dot, dash, underscore
-    clean = re.sub(r"[^a-zA-Z0-9._-]", "_", base)
-    return clean or "resume.pdf"
-
-
-# ── Endpoint A: Upload Resume ─────────────────────────────────────────────────
+# ── Endpoint A: Upload Resume (with Extraction & Deterministic Parsing) ──────
 
 @router.post(
     "/{candidate_id}/resume",
     response_model=ResumeUploadResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Upload Candidate Resume to AWS S3",
+    summary="Upload Candidate Resume (PDF, DOCX, TXT) and Run Extraction & Parsing",
 )
 async def upload_candidate_resume(
     candidate_id: int,
@@ -69,8 +57,9 @@ async def upload_candidate_resume(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Uploads candidate resume to AWS S3 under `resumes/candidates/{candidate_id}/{filename}`.
-    Deletes the old S3 object if an existing resume is on file.
+    Uploads candidate resume, stores original in S3, extracts readable text,
+    stores extracted TXT in S3, parses structured data using deterministic rules,
+    and auto-synchronizes skills with the master database taxonomy.
     """
     # 1. Fetch candidate
     candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
@@ -81,7 +70,7 @@ async def upload_candidate_resume(
         )
 
     # 2. Role & Ownership Authorization
-    # Only the candidate owner or Admin can upload
+    # Only candidate owner or Admin can upload
     user_role = current_user.role.name if current_user.role else ""
     if user_role != "Admin" and candidate.user_id != current_user.id:
         raise HTTPException(
@@ -89,85 +78,23 @@ async def upload_candidate_resume(
             detail="Forbidden: You can only upload a resume for your own profile."
         )
 
-    # 3. File extension & MIME validation
-    original_filename = file.filename or "resume.pdf"
-    file_ext = os.path.splitext(original_filename)[1].lower()
-
-    if file_ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid file type '{file_ext}'. Allowed formats: PDF, DOCX, DOC."
-        )
-
-    content_type = file.content_type or "application/pdf"
-    if content_type not in ALLOWED_MIME_TYPES and content_type != "application/octet-stream":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid MIME content type: {content_type}"
-        )
-
-    # 4. File size check
-    # Read file content into memory stream (limit 10MB)
-    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
-    content = await file.read()
-    if len(content) > max_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File exceeds maximum allowed size of {settings.MAX_UPLOAD_SIZE_MB}MB."
-        )
-
-    # 5. Delete previous S3 resume if one already exists
-    if candidate.resume_s3_key:
-        try:
-            s3_service.delete_file(candidate.resume_s3_key)
-        except Exception as e:
-            # Non-blocking warning
-            pass
-
-    # 6. Prepare S3 Key
-    safe_name = sanitize_filename(original_filename)
-    s3_key = f"resumes/candidates/{candidate_id}/{safe_name}"
-
-    # 7. Upload to S3
-    file.file.seek(0)
-    try:
-        s3_service.upload_file(
-            file_obj=file.file,
-            s3_key=s3_key,
-            content_type=content_type,
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload resume to S3: {str(e)}"
-        )
-
-    # 8. Update database record
-    now_utc = datetime.now(timezone.utc)
-    candidate.resume_s3_key = s3_key
-    candidate.resume_filename = original_filename
-    candidate.resume_uploaded_at = now_utc
-    candidate.resume_file_path = s3_key  # for backward compatibility
-
-    db.commit()
-    db.refresh(candidate)
-
-    return ResumeUploadResponse(
-        message="Resume uploaded successfully to AWS S3",
-        candidate_id=candidate.id,
-        resume_filename=candidate.resume_filename,
-        resume_s3_key=candidate.resume_s3_key,
-        resume_uploaded_at=candidate.resume_uploaded_at,
+    # 3. Delegate to coordinator service
+    result = await resume_service.process_and_store_resume(
+        db=db,
+        candidate=candidate,
+        file=file,
     )
 
+    return ResumeUploadResponse(**result)
 
-# ── Endpoint B: Get Pre-signed URL ───────────────────────────────────────────
+
+# ── Endpoint B: Get Pre-signed URL for Original Resume ────────────────────────
 
 @router.get(
     "/{candidate_id}/resume",
     response_model=ResumeUrlResponse,
     status_code=status.HTTP_200_OK,
-    summary="Get Pre-signed S3 URL to View/Download Resume",
+    summary="Get Pre-signed S3 URL to View/Download Original Resume",
 )
 def get_candidate_resume_url(
     candidate_id: int,
@@ -194,7 +121,6 @@ def get_candidate_resume_url(
         )
 
     # 3. Role Authorization check
-    # Recruiter, HR, Admin, or Candidate Owner
     user_role = current_user.role.name if current_user.role else ""
     is_privileged = user_role in ["HR", "Recruiter", "Admin"]
     is_owner = candidate.user_id == current_user.id
@@ -226,24 +152,23 @@ def get_candidate_resume_url(
     )
 
 
-# ── Endpoint C: Delete Resume ─────────────────────────────────────────────────
+# ── Endpoint C: Get Extracted Text (.txt) ────────────────────────────────────
 
-@router.delete(
-    "/{candidate_id}/resume",
-    response_model=ResumeDeleteResponse,
+@router.get(
+    "/{candidate_id}/resume/text",
+    response_model=ResumeTextResponse,
     status_code=status.HTTP_200_OK,
-    summary="Delete Candidate Resume from AWS S3",
+    summary="Get Extracted Plain Text (.txt) of Candidate Resume",
 )
-def delete_candidate_resume(
+def get_candidate_resume_text(
     candidate_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Deletes the resume from S3 and clears database columns.
-    Accessible only by the Candidate owner or Admin.
+    Returns the clean extracted plain text representation of the resume.
+    Accessible by Candidate (own profile), Recruiter, HR, and Admin.
     """
-    # 1. Fetch candidate
     candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not candidate:
         raise HTTPException(
@@ -251,7 +176,114 @@ def delete_candidate_resume(
             detail=f"Candidate with id {candidate_id} not found."
         )
 
-    # 2. Role Authorization check
+    user_role = current_user.role.name if current_user.role else ""
+    is_privileged = user_role in ["HR", "Recruiter", "Admin"]
+    is_owner = candidate.user_id == current_user.id
+
+    if not is_privileged and not is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: You do not have permission to view this extracted text."
+        )
+
+    raw_text = candidate.resume_raw_text
+    if not raw_text and candidate.resume_extracted_text_s3_key:
+        try:
+            raw_text = s3_service.get_text(candidate.resume_extracted_text_s3_key)
+        except Exception:
+            raw_text = None
+
+    if not raw_text:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No extracted text available for this candidate's resume."
+        )
+
+    return ResumeTextResponse(
+        candidate_id=candidate.id,
+        filename=candidate.resume_filename,
+        raw_text=raw_text,
+        extracted_text_s3_key=candidate.resume_extracted_text_s3_key,
+        parsed_at=candidate.resume_parsed_at,
+    )
+
+
+# ── Endpoint D: Get Structured Parsed Resume Data ────────────────────────────
+
+@router.get(
+    "/{candidate_id}/resume/parsed",
+    response_model=ParsedResumeResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get Structured Parsed Data (Skills, Experience, Education, Certifications)",
+)
+def get_candidate_parsed_resume(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Returns structured parsed fields extracted deterministically from resume text.
+    Accessible by Candidate (own profile), Recruiter, HR, and Admin.
+    """
+    candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+    if not candidate:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Candidate with id {candidate_id} not found."
+        )
+
+    user_role = current_user.role.name if current_user.role else ""
+    is_privileged = user_role in ["HR", "Recruiter", "Admin"]
+    is_owner = candidate.user_id == current_user.id
+
+    if not is_privileged and not is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: You do not have permission to view this parsed data."
+        )
+
+    if not candidate.extracted_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No parsed resume data available for this candidate."
+        )
+
+    try:
+        parsed_dict = json.loads(candidate.extracted_data)
+    except Exception:
+        parsed_dict = {}
+
+    return ParsedResumeResponse(
+        candidate_id=candidate.id,
+        parsed_data=parsed_dict,
+        parsed_at=candidate.resume_parsed_at,
+    )
+
+
+# ── Endpoint E: Delete Resume & Extracted Artifacts ──────────────────────────
+
+@router.delete(
+    "/{candidate_id}/resume",
+    response_model=ResumeDeleteResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Delete Candidate Resume & Extracted Documents from Storage",
+)
+def delete_candidate_resume(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Deletes original file and extracted TXT from storage and clears database columns.
+    Accessible only by the Candidate owner or Admin.
+    """
+    candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+    if not candidate:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Candidate with id {candidate_id} not found."
+        )
+
     user_role = current_user.role.name if current_user.role else ""
     if user_role != "Admin" and candidate.user_id != current_user.id:
         raise HTTPException(
@@ -259,22 +291,26 @@ def delete_candidate_resume(
             detail="Forbidden: You can only delete your own resume."
         )
 
-    # 3. Delete from S3 if key exists
+    # Delete original from S3
     if candidate.resume_s3_key:
-        try:
-            s3_service.delete_file(candidate.resume_s3_key)
-        except Exception:
-            pass
+        s3_service.delete_file(candidate.resume_s3_key)
+    # Delete extracted text from S3
+    if candidate.resume_extracted_text_s3_key:
+        s3_service.delete_file(candidate.resume_extracted_text_s3_key)
 
-    # 4. Clear database columns
+    # Clear database columns
     candidate.resume_s3_key = None
+    candidate.resume_extracted_text_s3_key = None
     candidate.resume_filename = None
     candidate.resume_uploaded_at = None
+    candidate.resume_parsed_at = None
+    candidate.resume_raw_text = None
+    candidate.extracted_data = None
     candidate.resume_file_path = None
 
     db.commit()
 
     return ResumeDeleteResponse(
-        message="Resume deleted successfully",
+        message="Resume and extracted documents deleted successfully",
         candidate_id=candidate.id,
     )

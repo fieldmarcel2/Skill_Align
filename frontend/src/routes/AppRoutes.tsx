@@ -12,6 +12,7 @@ import { RegisterPage } from "../pages/auth/RegisterPage";
 import { AdminDashboard } from "../pages/admin/AdminDashboard";
 import { UsersPage } from "../pages/admin/UsersPage";
 import { SkillsPage } from "../pages/admin/SkillsPage";
+import { AdminUserDetailPage } from "../pages/admin/AdminUserDetailPage";
 
 // HR pages
 import { HRDashboard } from "../pages/hr/HRDashboard";
@@ -49,6 +50,7 @@ export const AppRoutes: React.FC = () => {
       >
         <Route index element={<AdminDashboard />} />
         <Route path="users" element={<UsersPage />} />
+        <Route path="users/:id" element={<AdminUserDetailPage />} />
         <Route path="skills" element={<SkillsPage />} />
       </Route>
 

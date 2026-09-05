@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import confetti from "canvas-confetti";
-import { jobsApi, matchingApi, candidatesApi } from "../../services/api";
+import { jobsApi, matchingApi, candidatesApi, resumeApi } from "../../services/api";
 import { Job, MatchResult, PipelineStatus } from "../../types";
 import { useToast } from "../../components/ui/toast";
 import { Button } from "../../components/ui/button";
@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "../../components/ui/dialog";
 import {
   ArrowLeft,
@@ -30,6 +31,10 @@ import {
   Layers,
   Loader2,
   TrendingUp,
+  FileCode,
+  Copy,
+  Check,
+  ExternalLink,
 } from "lucide-react";
 
 export const HRJobMatchesPage: React.FC = () => {
@@ -42,9 +47,13 @@ export const HRJobMatchesPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("all");
-
-  // Candidate detail modal
   const [selectedMatch, setSelectedMatch] = useState<MatchResult | null>(null);
+
+  // Resume viewing states
+  const [isTextModalOpen, setIsTextModalOpen] = useState(false);
+  const [extractedRawText, setExtractedRawText] = useState("");
+  const [isLoadingText, setIsLoadingText] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -455,22 +464,55 @@ export const HRJobMatchesPage: React.FC = () => {
                     <div>
                       <h4 className="text-sm font-semibold text-foreground">Candidate Resume</h4>
                       <p className="text-xs text-muted-foreground">
-                        {selectedMatch.candidate.resume_file_path
-                          ? "Resume uploaded on file"
+                        {selectedMatch.candidate.resume_file_path || selectedMatch.candidate.resume_s3_key
+                          ? "Resume uploaded and text extracted"
                           : "No resume uploaded yet"}
                       </p>
                     </div>
                   </div>
-                  {selectedMatch.candidate.resume_file_path && (
-                    <a
-                      href={candidatesApi.getResumeUrl(selectedMatch.candidate.id)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <Button variant="outline" size="sm" className="gap-1.5">
-                        Download / View
+                  {(selectedMatch.candidate.resume_file_path || selectedMatch.candidate.resume_s3_key) && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 text-xs text-primary border-primary/40 hover:bg-primary/10"
+                        onClick={async () => {
+                          try {
+                            const data = await resumeApi.getUrl(selectedMatch.candidate.id);
+                            if (data.resume_url) {
+                              window.open(data.resume_url, "_blank", "noopener,noreferrer");
+                            } else {
+                              toast.error("Resume URL not found.");
+                            }
+                          } catch {
+                            toast.error("Failed to load secure resume URL.");
+                          }
+                        }}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" /> View File
                       </Button>
-                    </a>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isLoadingText}
+                        className="gap-1.5 text-xs text-indigo-300 border-indigo-500/40 hover:bg-indigo-500/10"
+                        onClick={async () => {
+                          setIsLoadingText(true);
+                          try {
+                            const data = await resumeApi.getText(selectedMatch.candidate.id);
+                            setExtractedRawText(data.raw_text || "");
+                            setIsTextModalOpen(true);
+                          } catch {
+                            toast.error("Failed to load extracted resume text.");
+                          } finally {
+                            setIsLoadingText(false);
+                          }
+                        }}
+                      >
+                        {isLoadingText ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileCode className="h-3.5 w-3.5" />}
+                        View .TXT
+                      </Button>
+                    </div>
                   )}
                 </div>
 
@@ -512,6 +554,48 @@ export const HRJobMatchesPage: React.FC = () => {
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Extracted Resume Plain Text (.txt) Modal */}
+      <Dialog open={isTextModalOpen} onOpenChange={setIsTextModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <FileCode className="h-5 w-5 text-indigo-400" />
+                Extracted Resume Plain Text (.txt)
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (!extractedRawText) return;
+                  navigator.clipboard.writeText(extractedRawText);
+                  setIsCopied(true);
+                  setTimeout(() => setIsCopied(false), 2000);
+                  toast.success("Copied to clipboard.");
+                }}
+                className="gap-1.5 text-xs"
+              >
+                {isCopied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                {isCopied ? "Copied" : "Copy Text"}
+              </Button>
+            </DialogTitle>
+            <DialogDescription>
+              Clean, readable text extracted from candidate resume document.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto p-4 rounded-xl bg-secondary/40 border border-border/80 font-mono text-xs text-foreground whitespace-pre-wrap leading-relaxed">
+            {extractedRawText || "No text content available."}
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button variant="outline" onClick={() => setIsTextModalOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

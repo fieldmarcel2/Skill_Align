@@ -44,15 +44,14 @@ def _validate_password(value: str) -> str:
 
 class RegisterRequest(BaseModel):
     """
-    Public candidate self-registration.
-    The backend ALWAYS assigns role = Candidate.
-    Clients cannot submit role_id.
-    Phone number is optional during email+password registration.
+    Public self-registration strictly for Candidates only.
+    Both Email and Phone are required.
+    Privileged roles (HR, Recruiter) must be provisioned by an Administrator.
     """
     name: str
     email: EmailStr
     password: str
-    phone: Optional[str] = None
+    phone: str
 
     @field_validator("password")
     @classmethod
@@ -67,19 +66,20 @@ class RegisterRequest(BaseModel):
             raise ValueError("Name cannot be blank.")
         return v
 
+    @field_validator("phone")
+    @classmethod
+    def non_empty_phone(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Phone number is required.")
+        return v
+
 
 # ── Login ─────────────────────────────────────────────────────────────────────
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
-
-
-# ── Token response ────────────────────────────────────────────────────────────
-
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
 
 
 # ── User profile (safe — no password_hash) ───────────────────────────────────
@@ -100,6 +100,14 @@ class UserResponse(BaseModel):
     role: RoleOut
     is_active: bool
     created_at: datetime
+
+
+# ── Token response ────────────────────────────────────────────────────────────
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: Optional[UserResponse] = None
 
 
 class UserUpdateMeRequest(BaseModel):

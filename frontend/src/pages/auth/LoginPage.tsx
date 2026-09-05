@@ -11,6 +11,7 @@ import { Input } from "../../components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../../components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import { HeroBackground } from "../../components/effects/HeroBackground";
+import { SkillAlignLogo } from "../../components/common/SkillAlignLogo";
 import {
   Sparkles,
   Loader2,
@@ -23,6 +24,8 @@ import {
   KeyRound,
   ArrowRight,
   RotateCcw,
+  MessageSquare,
+  CheckCircle2,
 } from "lucide-react";
 
 // ── Email Login Schema ───────────────────────────────────────────────────────
@@ -36,8 +39,8 @@ type LoginFormData = z.infer<typeof loginSchema>;
 const phoneSchema = z.object({
   phone: z
     .string()
-    .min(8, "Please enter a valid phone number")
-    .regex(/^\+?[1-9]\d{7,14}$/, "Please enter a valid phone number in E.164 format (e.g. +919876543210)"),
+    .min(10, "Please enter at least 10 digits")
+    .regex(/^[\d\s+\-()]{10,20}$/, "Please enter a valid phone number (e.g. 9876543210 or +91 9876543210)"),
 });
 type PhoneFormData = z.infer<typeof phoneSchema>;
 
@@ -109,7 +112,29 @@ export const LoginPage: React.FC = () => {
   const onEmailSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      const res = await authApi.login(data);
+      const cleanData = {
+        email: data.email.trim(),
+        password: data.password,
+      };
+      const res = await authApi.login(cleanData);
+      const user = await login(res.access_token);
+      toast.success(`Welcome back, ${user.name}!`, "Signed In");
+      handleRoleRedirect(user.role.name);
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.detail || "Invalid email or password.";
+      toast.error(errorMsg, "Sign In Failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ── Quick Role Login (Admin, HR, Recruiter) ────────────────────────────────
+  const handleQuickRoleLogin = async (email: string, password: string) => {
+    setEmailValue("email", email);
+    setEmailValue("password", password);
+    setIsLoading(true);
+    try {
+      const res = await authApi.login({ email, password });
       const user = await login(res.access_token);
       toast.success(`Welcome back, ${user.name}!`, "Signed In");
       handleRoleRedirect(user.role.name);
@@ -126,7 +151,7 @@ export const LoginPage: React.FC = () => {
     setIsLoading(true);
     setOtpError("");
     try {
-      let formattedPhone = data.phone.trim();
+      let formattedPhone = data.phone.trim().replace(/[\s\-()]/g, "");
       // Auto-prefix +91 if 10 digits entered without country code
       if (/^\d{10}$/.test(formattedPhone)) {
         formattedPhone = `+91${formattedPhone}`;
@@ -204,25 +229,12 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  // ── Quick Fill Demo Accounts ──────────────────────────────────────────────
-  const handleQuickFill = (email: string, pass: string) => {
-    setActiveTab("email");
-    setEmailValue("email", email);
-    setEmailValue("password", pass);
-    onEmailSubmit({ email, password: pass });
-  };
-
   return (
     <HeroBackground>
       <div className="min-h-screen flex flex-col justify-center items-center px-4 py-12">
-        <Link to="/" className="flex items-center gap-2.5 mb-8 group">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-500 text-white shadow-lg shadow-indigo-500/25 group-hover:scale-105 transition-transform">
-            <Sparkles className="h-5 w-5" />
-          </div>
-          <span className="font-outfit text-2xl font-bold tracking-tight text-foreground">
-            Skill<span className="text-primary">Align</span>
-          </span>
-        </Link>
+        <div className="mb-8">
+          <SkillAlignLogo size="lg" showBadge badgeText="Portal" />
+        </div>
 
         <Card className="w-full max-w-md border-border/80 bg-card/80 backdrop-blur-xl shadow-2xl">
           <CardHeader className="text-center pb-3">
@@ -303,30 +315,36 @@ export const LoginPage: React.FC = () => {
                   <form onSubmit={handleSubmitPhone(onSendOtpSubmit)} className="space-y-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-semibold text-foreground flex items-center justify-between">
-                        <span>Mobile Phone Number</span>
-                        <span className="text-[10px] text-muted-foreground">E.164 (e.g. +919876543210)</span>
+                        <span>Registered Mobile Phone</span>
+                        <span className="text-[10px] text-muted-foreground font-mono">e.g. +91 98765 43210</span>
                       </label>
-                      <div className="relative">
-                        <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          type="tel"
-                          placeholder="+91 98765 43210"
-                          {...registerPhone("phone")}
-                          className={`pl-9 ${phoneErrors.phone ? "border-rose-500" : ""}`}
-                        />
+                      <div className="flex gap-2">
+                        <div className="h-10 px-3 rounded-lg border border-border/80 bg-secondary/40 flex items-center gap-1.5 text-xs font-semibold text-foreground shrink-0 select-none">
+                          <span>🇮🇳</span>
+                          <span>+91</span>
+                        </div>
+                        <div className="relative flex-1">
+                          <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            type="tel"
+                            placeholder="98765 43210"
+                            {...registerPhone("phone")}
+                            className={`pl-9 ${phoneErrors.phone ? "border-rose-500" : ""}`}
+                          />
+                        </div>
                       </div>
                       {phoneErrors.phone && (
-                        <p className="text-xs text-rose-400">{phoneErrors.phone.message}</p>
+                        <p className="text-xs text-rose-400 font-medium">{phoneErrors.phone.message}</p>
                       )}
-                      <p className="text-[11px] text-muted-foreground">
-                        We'll send a 6-digit one-time password (OTP) via SMS. If you are new, a candidate account will be automatically set up.
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        We will send a cryptographically secure 6-digit one-time password (OTP).
                       </p>
                     </div>
 
                     <Button
                       type="submit"
                       variant="gradient"
-                      className="w-full h-11 text-base font-semibold gap-2"
+                      className="w-full h-11 text-base font-semibold gap-2 shadow-md shadow-indigo-500/20"
                       disabled={isLoading}
                     >
                       {isLoading ? (
@@ -342,16 +360,16 @@ export const LoginPage: React.FC = () => {
                   </form>
                 ) : (
                   <form onSubmit={handleVerifyOtp} className="space-y-4">
-                    <div className="p-3 bg-primary/10 border border-primary/20 rounded-xl text-xs flex items-center justify-between">
+                    <div className="p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-xl text-xs flex items-center justify-between">
                       <div>
-                        <p className="text-muted-foreground">OTP code sent to:</p>
-                        <p className="font-semibold font-mono text-foreground">{phoneNumber}</p>
+                        <p className="text-indigo-300/80 text-[11px]">OTP verification sent to:</p>
+                        <p className="font-semibold font-mono text-white text-sm">{phoneNumber}</p>
                       </div>
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="text-xs h-7 px-2 text-primary hover:text-primary"
+                        className="text-xs h-7 px-2.5 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-900/30 font-semibold"
                         onClick={() => {
                           setOtpSent(false);
                           setOtpCode("");
@@ -359,21 +377,25 @@ export const LoginPage: React.FC = () => {
                           setOtpError("");
                         }}
                       >
-                        Change
+                        Change Number
                       </Button>
                     </div>
 
                     {devOtp && (
-                      <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between animate-in fade-in">
-                        <div className="text-xs">
-                          <span className="font-semibold text-amber-600 dark:text-amber-400">⚡ Dev Mode Code: </span>
-                          <span className="font-mono font-bold text-amber-700 dark:text-amber-300 text-sm tracking-widest ml-1">{devOtp}</span>
+                      <div className="p-3.5 bg-gradient-to-r from-indigo-950/80 to-purple-950/80 border border-indigo-500/40 rounded-xl flex items-center justify-between shadow-lg shadow-indigo-950/40 animate-in fade-in">
+                        <div className="text-xs space-y-0.5">
+                          <div className="flex items-center gap-1.5 text-indigo-400 font-semibold text-[11px]">
+                            <MessageSquare className="w-3.5 h-3.5" /> SMS Delivered
+                          </div>
+                          <p className="text-slate-300 text-[11px]">
+                            Code: <span className="font-mono font-black text-white text-base tracking-widest ml-1">{devOtp}</span>
+                          </p>
                         </div>
                         <Button
                           type="button"
                           size="sm"
                           variant="secondary"
-                          className="h-7 text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-100 border-none font-semibold"
+                          className="h-8 text-xs bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/30 font-bold px-3"
                           onClick={() => {
                             setOtpCode(devOtp);
                             if (otpError) setOtpError("");
@@ -399,7 +421,7 @@ export const LoginPage: React.FC = () => {
                           setOtpCode(val);
                           if (otpError) setOtpError("");
                         }}
-                        className="text-center font-mono text-xl tracking-[0.35em] font-bold h-12"
+                        className="text-center font-mono text-xl tracking-[0.35em] font-bold h-12 bg-background/80 border-indigo-500/30 focus:border-indigo-500"
                         autoFocus
                       />
                       {otpError && <p className="text-xs text-rose-400 font-medium">{otpError}</p>}
@@ -413,7 +435,7 @@ export const LoginPage: React.FC = () => {
                         size="sm"
                         disabled={countdown > 0 || isLoading}
                         onClick={handleResendOtp}
-                        className="text-xs h-7 px-2 text-primary hover:text-primary gap-1"
+                        className="text-xs h-7 px-2.5 text-primary hover:text-primary gap-1 font-semibold"
                       >
                         <RotateCcw className="w-3 h-3" />
                         {countdown > 0 ? `Resend in ${countdown}s` : "Resend OTP"}
@@ -423,15 +445,17 @@ export const LoginPage: React.FC = () => {
                     <Button
                       type="submit"
                       variant="gradient"
-                      className="w-full h-11 text-base font-semibold gap-2"
+                      className="w-full h-11 text-base font-semibold gap-2 shadow-md shadow-indigo-500/20"
                       disabled={isLoading || otpCode.length !== 6}
                     >
                       {isLoading ? (
                         <>
-                          <Loader2 className="h-4 w-4 animate-spin" /> Verifying...
+                          <Loader2 className="h-4 w-4 animate-spin" /> Verifying Code...
                         </>
                       ) : (
-                        "Verify & Sign In"
+                        <>
+                          Verify & Sign In <CheckCircle2 className="h-4 w-4" />
+                        </>
                       )}
                     </Button>
                   </form>
@@ -439,55 +463,73 @@ export const LoginPage: React.FC = () => {
               </TabsContent>
             </Tabs>
 
-            {/* Quick 1-Click Role Login for instant reviewer testing */}
-            <div className="pt-4 border-t border-slate-200">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 text-center mb-3">
-                Quick 1-Click Demo Login
-              </p>
-              <div className="grid grid-cols-2 gap-2">
+            {/* ── Quick Role Login for Admin / HR / Recruiter ───────────── */}
+            <div className="pt-4 border-t border-border/60">
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" /> Instant Role Access
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono">1-Click Dev Fill</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="gap-1.5 text-xs text-purple-700 hover:bg-purple-100 bg-purple-50 border-purple-200 font-semibold"
-                  onClick={() => handleQuickFill("admin@skillaign.dev", "Admin@123")}
+                  disabled={isLoading}
+                  onClick={() => handleQuickRoleLogin("admin@skillaign.dev", "Admin@123")}
+                  className="h-auto py-2 px-1.5 flex flex-col items-center gap-1 border-purple-500/40 bg-purple-950/20 hover:border-purple-500 hover:bg-purple-500/15 text-purple-300 rounded-xl transition-all shadow-sm"
                 >
-                  <Shield className="h-3.5 w-3.5 text-purple-600" /> Admin
+                  <Shield className="h-4 w-4 text-purple-400" />
+                  <span className="text-xs font-bold text-white">Admin</span>
+                  <span className="text-[9px] text-purple-300/70 truncate max-w-full font-mono">admin@...</span>
                 </Button>
+
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="gap-1.5 text-xs text-blue-700 hover:bg-blue-100 bg-blue-50 border-blue-200 font-semibold"
-                  onClick={() => handleQuickFill("hr@skillaign.dev", "HR@12345")}
+                  disabled={isLoading}
+                  onClick={() => handleQuickRoleLogin("hr@skillaign.dev", "HR@12345")}
+                  className="h-auto py-2 px-1.5 flex flex-col items-center gap-1 border-blue-500/40 bg-blue-950/20 hover:border-blue-500 hover:bg-blue-500/15 text-blue-300 rounded-xl transition-all shadow-sm"
                 >
-                  <Users className="h-3.5 w-3.5 text-blue-600" /> HR Manager
+                  <Users className="h-4 w-4 text-blue-400" />
+                  <span className="text-xs font-bold text-white">HR Manager</span>
+                  <span className="text-[9px] text-blue-300/70 truncate max-w-full font-mono">hr@...</span>
                 </Button>
+
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="gap-1.5 text-xs text-emerald-700 hover:bg-emerald-100 bg-emerald-50 border-emerald-200 font-semibold"
-                  onClick={() => handleQuickFill("recruiter@skillaign.dev", "Rec@12345")}
+                  disabled={isLoading}
+                  onClick={() => handleQuickRoleLogin("recruiter@skillaign.dev", "Rec@12345")}
+                  className="h-auto py-2 px-1.5 flex flex-col items-center gap-1 border-emerald-500/40 bg-emerald-950/20 hover:border-emerald-500 hover:bg-emerald-500/15 text-emerald-300 rounded-xl transition-all shadow-sm"
                 >
-                  <Briefcase className="h-3.5 w-3.5 text-emerald-600" /> Recruiter
+                  <Briefcase className="h-4 w-4 text-emerald-400" />
+                  <span className="text-xs font-bold text-white">Recruiter</span>
+                  <span className="text-[9px] text-emerald-300/70 truncate max-w-full font-mono">recruiter@...</span>
                 </Button>
+
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="gap-1.5 text-xs text-amber-800 hover:bg-amber-100 bg-amber-50 border-amber-200 font-semibold"
-                  onClick={() => handleQuickFill("alice@candidate.dev", "Alice@123")}
+                  disabled={isLoading}
+                  onClick={() => handleQuickRoleLogin("shiva4850t@gmail.com", "Password123!")}
+                  className="h-auto py-2 px-1.5 flex flex-col items-center gap-1 border-amber-500/40 bg-amber-950/20 hover:border-amber-500 hover:bg-amber-500/15 text-amber-300 rounded-xl transition-all shadow-sm"
                 >
-                  <UserCheck className="h-3.5 w-3.5 text-amber-600" /> Candidate
+                  <UserCheck className="h-4 w-4 text-amber-400" />
+                  <span className="text-xs font-bold text-white">Candidate</span>
+                  <span className="text-[9px] text-amber-300/70 truncate max-w-full font-mono">shiva@...</span>
                 </Button>
               </div>
             </div>
 
-            <div className="text-center text-xs text-muted-foreground pt-2">
+            <div className="text-center text-xs text-muted-foreground pt-4 border-t border-border/40">
               Are you a new candidate?{" "}
               <Link to="/register" className="text-primary hover:underline font-semibold">
-                Register here
+                Register as Candidate
               </Link>
             </div>
           </CardContent>

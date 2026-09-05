@@ -117,7 +117,7 @@ def test_matching_score_accuracy(client, hr_token, recruiter_token):
     results = run_res.json()["results"]
 
     alice_result = next((r for r in results if r["candidate"]["id"] == 1 or r["candidate"]["full_name"] in ("Alice Johnson", "Shivanshu Tripathi")), None)
-    assert alice_result is not None
     # Candidate has Python (Expert -> 1.0) and FastAPI (Intermediate -> 0.7)
-    # Score = 7.8 / 9 * 100 = 86.67
-    assert alice_result["overall_score"] == 86.67
+    # Skill Score = 7.8 / 9 * 100 = 86.67%
+    # Multi-factor score: 60% skill (52.0) + 20% exp (20.0) + 10% edu (0) + 10% loc (10.0) = 82.0%
+    assert alice_result["overall_score"] == 82.0

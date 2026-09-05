@@ -21,6 +21,28 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
+const normalizeMessage = (msg: any): string => {
+  if (!msg) return "";
+  if (typeof msg === "string") return msg;
+  if (Array.isArray(msg)) {
+    return msg
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (typeof item === "object" && item !== null) {
+          return item.msg || item.detail || JSON.stringify(item);
+        }
+        return String(item);
+      })
+      .join(", ");
+  }
+  if (typeof msg === "object") {
+    if (msg.msg) return String(msg.msg);
+    if (msg.detail) return normalizeMessage(msg.detail);
+    return JSON.stringify(msg);
+  }
+  return String(msg);
+};
+
 export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -35,12 +57,13 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     duration = 4000,
   }: {
     title?: string;
-    message: string;
+    message: any;
     type?: ToastType;
     duration?: number;
   }) => {
     const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, title, message, type }]);
+    const safeMessage = normalizeMessage(message);
+    setToasts((prev) => [...prev, { id, title, message: safeMessage, type }]);
 
     if (duration > 0) {
       setTimeout(() => {
@@ -49,10 +72,10 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
-  const success = (message: string, title?: string) => toast({ title, message, type: "success" });
-  const error = (message: string, title?: string) => toast({ title, message, type: "error" });
-  const warning = (message: string, title?: string) => toast({ title, message, type: "warning" });
-  const info = (message: string, title?: string) => toast({ title, message, type: "info" });
+  const success = (message: any, title?: string) => toast({ title, message, type: "success" });
+  const error = (message: any, title?: string) => toast({ title, message, type: "error" });
+  const warning = (message: any, title?: string) => toast({ title, message, type: "warning" });
+  const info = (message: any, title?: string) => toast({ title, message, type: "info" });
 
   const getIcon = (type: ToastType) => {
     switch (type) {

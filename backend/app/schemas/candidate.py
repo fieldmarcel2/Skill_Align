@@ -75,6 +75,16 @@ class CandidateProfileCreate(BaseModel):
     full_name: str
     phone: Optional[str] = None
     total_experience_years: float = 0
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    country: Optional[str] = "India"
+    work_authorization: Optional[str] = None
+    preferred_work_mode: Optional[str] = None
+    notice_period: Optional[str] = None
+    current_ctc: Optional[float] = None
+    expected_ctc: Optional[float] = None
 
     @field_validator("full_name")
     @classmethod
@@ -96,6 +106,16 @@ class CandidateProfileUpdate(BaseModel):
     full_name: Optional[str] = None
     phone: Optional[str] = None
     total_experience_years: Optional[float] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    country: Optional[str] = None
+    work_authorization: Optional[str] = None
+    preferred_work_mode: Optional[str] = None
+    notice_period: Optional[str] = None
+    current_ctc: Optional[float] = None
+    expected_ctc: Optional[float] = None
 
     @field_validator("total_experience_years")
     @classmethod
@@ -110,10 +130,25 @@ class CandidateOut(BaseModel):
 
     id: int
     full_name: str
-    phone: Optional[str]
+    phone: Optional[str] = None
     resume_file_path: Optional[str] = None
     resume_s3_key: Optional[str] = None
+    resume_extracted_text_s3_key: Optional[str] = None
     resume_filename: Optional[str] = None
     resume_uploaded_at: Optional[datetime] = None
+    resume_parsed_at: Optional[datetime] = None
+    education_degree: Optional[str] = None
+    education_institution: Optional[str] = None
+    extracted_data: Optional[str] = None
     total_experience_years: float
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    country: Optional[str] = None
+    work_authorization: Optional[str] = None
+    preferred_work_mode: Optional[str] = None
+    notice_period: Optional[str] = None
+    current_ctc: Optional[float] = None
+    expected_ctc: Optional[float] = None
     skills: list[CandidateSkillOut]

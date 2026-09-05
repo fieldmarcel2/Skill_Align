@@ -11,6 +11,7 @@ import { Input } from "../../components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../../components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import { HeroBackground } from "../../components/effects/HeroBackground";
+import { SkillAlignLogo } from "../../components/common/SkillAlignLogo";
 import {
   Sparkles,
   Loader2,
@@ -20,19 +21,26 @@ import {
   ArrowRight,
   RotateCcw,
   CheckCircle2,
+  UserCheck,
+  Briefcase,
+  Building,
+  Shield,
 } from "lucide-react";
 
-// ── Email Registration Schema (Phone is OPTIONAL) ───────────────────────────
+// ── Email Registration Schema (Email & Phone BOTH strictly REQUIRED) ────────
 const registerSchema = z
   .object({
     name: z.string().min(2, "Name must be at least 2 characters"),
     email: z.string().email("Please enter a valid email address"),
     phone: z
       .string()
-      .optional()
+      .min(10, "Phone number is required (min 10 digits)")
       .refine(
-        (val) => !val || /^\+?[1-9]\d{7,14}$/.test(val) || /^\d{10}$/.test(val),
-        "Please enter a valid mobile phone number (e.g. +919876543210)"
+        (val) => {
+          const clean = val.replace(/[\s\-\(\)]/g, "");
+          return /^(\+91)?[6-9]\d{9}$/.test(clean) || /^\+?[1-9]\d{9,14}$/.test(clean);
+        },
+        "Please enter a valid mobile phone number (e.g. +91 9876543210)"
       ),
     password: z
       .string()
@@ -101,21 +109,21 @@ export const RegisterPage: React.FC = () => {
     resolver: zodResolver(phoneOtpSchema),
   });
 
-  // ── Email Submit ──────────────────────────────────────────────────────────
+  // ── Email Submit (Candidate Self-Registration Only) ───────────────────────
   const onEmailSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
     try {
-      let formattedPhone = data.phone ? data.phone.trim() : undefined;
-      if (formattedPhone && /^\d{10}$/.test(formattedPhone)) {
+      let formattedPhone = data.phone.trim();
+      if (/^\d{10}$/.test(formattedPhone)) {
         formattedPhone = `+91${formattedPhone}`;
       }
 
-      // 1. Register candidate
+      // 1. Register candidate (email + phone required)
       await authApi.register({
         name: data.name,
         email: data.email,
         password: data.password,
-        phone: formattedPhone || undefined,
+        phone: formattedPhone,
       });
 
       // 2. Auto login
@@ -125,7 +133,12 @@ export const RegisterPage: React.FC = () => {
       });
 
       await login(loginRes.access_token);
-      toast.success("Account created successfully! Welcome to SkillAlign.", "Registered");
+      toast.success(
+        "Candidate account created successfully! Welcome to SkillAlign.",
+        "Registration Complete"
+      );
+
+      // Public registration strictly routes to candidate portal
       navigate("/candidate");
     } catch (err: any) {
       const errorMsg = err.response?.data?.detail || "Registration failed. Please try again.";
@@ -220,23 +233,27 @@ export const RegisterPage: React.FC = () => {
   return (
     <HeroBackground>
       <div className="min-h-screen flex flex-col justify-center items-center px-4 py-12">
-        <Link to="/" className="flex items-center gap-2.5 mb-8 group">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-500 text-white shadow-lg shadow-indigo-500/25 group-hover:scale-105 transition-transform">
-            <Sparkles className="h-5 w-5" />
-          </div>
-          <span className="font-outfit text-2xl font-bold tracking-tight text-foreground">
-            Skill<span className="text-primary">Align</span>
-          </span>
-        </Link>
+        <div className="mb-8">
+          <SkillAlignLogo size="lg" showBadge badgeText="Signup" />
+        </div>
 
-        <Card className="w-full max-w-md border-border/80 bg-card/80 backdrop-blur-xl shadow-2xl">
+        <Card className="w-full max-w-lg border-border/80 bg-card/80 backdrop-blur-xl shadow-2xl">
           <CardHeader className="text-center pb-3">
-            <CardTitle className="text-2xl font-bold">Candidate Registration</CardTitle>
+            <CardTitle className="text-2xl font-bold font-outfit">Candidate Registration</CardTitle>
             <CardDescription>
-              Create your account with email or instant phone OTP.
+              Create your candidate talent profile. Email and mobile phone number are both required.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Enterprise Access Guardrail Notice */}
+            <div className="p-3.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-xs text-muted-foreground flex items-start gap-2.5">
+              <Shield className="h-4 w-4 text-indigo-400 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold text-foreground block mb-0.5">Enterprise Security Policy</span>
+                HR Manager and Recruiter accounts cannot self-register. Privileged organizational accounts must be provisioned directly by your company's System Administrator.
+              </div>
+            </div>
+
             <Tabs
               value={activeTab}
               onValueChange={(v) => {
@@ -247,7 +264,7 @@ export const RegisterPage: React.FC = () => {
             >
               <TabsList className="grid grid-cols-2 w-full">
                 <TabsTrigger value="email" className="gap-2">
-                  <Mail className="w-4 h-4" /> Email Signup
+                  <Mail className="w-4 h-4" /> Email & Phone Signup
                 </TabsTrigger>
                 <TabsTrigger value="phone" className="gap-2">
                   <Phone className="w-4 h-4" /> Phone OTP
@@ -258,7 +275,7 @@ export const RegisterPage: React.FC = () => {
               <TabsContent value="email" className="space-y-4 pt-2">
                 <form onSubmit={handleSubmitEmail(onEmailSubmit)} className="space-y-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-foreground">Full Name</label>
+                    <label className="text-xs font-semibold text-foreground">Full Name *</label>
                     <Input
                       type="text"
                       placeholder="e.g. John Doe"
@@ -270,37 +287,39 @@ export const RegisterPage: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-foreground">Email Address</label>
-                    <Input
-                      type="email"
-                      placeholder="john@example.com"
-                      {...registerEmail("email")}
-                      className={emailErrors.email ? "border-rose-500" : ""}
-                    />
-                    {emailErrors.email && (
-                      <p className="text-xs text-rose-600 font-medium">{emailErrors.email.message}</p>
-                    )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-foreground">Email Address *</label>
+                      <Input
+                        type="email"
+                        placeholder="name@company.com"
+                        {...registerEmail("email")}
+                        className={emailErrors.email ? "border-rose-500" : ""}
+                      />
+                      {emailErrors.email && (
+                        <p className="text-xs text-rose-600 font-medium">{emailErrors.email.message}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                        <span>Mobile Phone *</span>
+                        <span className="text-[10px] text-muted-foreground">Required</span>
+                      </label>
+                      <Input
+                        type="tel"
+                        placeholder="+91 98765 43210"
+                        {...registerEmail("phone")}
+                        className={emailErrors.phone ? "border-rose-500" : ""}
+                      />
+                      {emailErrors.phone && (
+                        <p className="text-xs text-rose-600 font-medium">{emailErrors.phone.message}</p>
+                      )}
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-foreground flex items-center justify-between">
-                      <span>Phone Number <span className="text-muted-foreground font-normal">(Optional)</span></span>
-                      <span className="text-[10px] text-muted-foreground">For 1-click SMS login</span>
-                    </label>
-                    <Input
-                      type="tel"
-                      placeholder="+91 98765 43210"
-                      {...registerEmail("phone")}
-                      className={emailErrors.phone ? "border-rose-500" : ""}
-                    />
-                    {emailErrors.phone && (
-                      <p className="text-xs text-rose-600 font-medium">{emailErrors.phone.message}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-foreground">Password</label>
+                    <label className="text-xs font-semibold text-foreground">Password *</label>
                     <Input
                       type="password"
                       placeholder="Min 8 chars, 1 uppercase, 1 number"
@@ -313,7 +332,7 @@ export const RegisterPage: React.FC = () => {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-foreground">Confirm Password</label>
+                    <label className="text-xs font-semibold text-foreground">Confirm Password *</label>
                     <Input
                       type="password"
                       placeholder="Re-enter password"
@@ -330,15 +349,15 @@ export const RegisterPage: React.FC = () => {
                   <Button
                     type="submit"
                     variant="gradient"
-                    className="w-full h-11 text-base font-semibold mt-2"
+                    className="w-full h-11 text-base font-semibold mt-2 shadow-lg shadow-indigo-500/20"
                     disabled={isLoading}
                   >
                     {isLoading ? (
                       <>
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" /> Creating Account...
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" /> Creating Candidate Account...
                       </>
                     ) : (
-                      "Create Candidate Account"
+                      "Register as Candidate"
                     )}
                   </Button>
                 </form>

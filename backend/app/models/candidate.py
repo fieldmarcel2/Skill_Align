@@ -39,11 +39,29 @@ class Candidate(Base):
     phone: Mapped[str] = mapped_column(String(30), nullable=True)
     resume_file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     resume_s3_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    resume_extracted_text_s3_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
     resume_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     resume_uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resume_parsed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resume_raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    extracted_data: Mapped[str | None] = mapped_column(Text, nullable=True)
+    education_degree: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    education_institution: Mapped[str | None] = mapped_column(String(255), nullable=True)
     total_experience_years: Mapped[float] = mapped_column(
         Numeric(4, 1), nullable=False, default=0
     )
+
+    # ── Extended Profile Fields ───────────────────────────────────────────────
+    address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    state: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    pincode: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    country: Mapped[str | None] = mapped_column(String(50), nullable=True, default="India")
+    work_authorization: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    preferred_work_mode: Mapped[str | None] = mapped_column(String(50), nullable=True)  # WFH, WFO, Hybrid
+    notice_period: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    current_ctc: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    expected_ctc: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
 
     # ── Relationships ─────────────────────────────────────────────────────────
     user: Mapped["User"] = relationship(  # type: ignore[name-defined]  # noqa: F821

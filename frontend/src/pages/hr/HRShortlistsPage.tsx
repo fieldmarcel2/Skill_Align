@@ -16,12 +16,16 @@ import {
   ArrowLeft,
   ArrowRight,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 export const HRShortlistsPage: React.FC = () => {
   const toast = useToast();
   const [shortlists, setShortlists] = useState<MatchResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   useEffect(() => {
     const loadShortlists = async () => {
@@ -44,6 +48,9 @@ export const HRShortlistsPage: React.FC = () => {
       </div>
     );
   }
+
+  const totalPages = Math.max(1, Math.ceil(shortlists.length / PAGE_SIZE));
+  const paginatedShortlists = shortlists.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -77,7 +84,11 @@ export const HRShortlistsPage: React.FC = () => {
         </Card>
       ) : (
         <div className="space-y-4">
-          {shortlists.map((match) => (
+          <div className="text-xs text-muted-foreground">
+            Showing {paginatedShortlists.length} of {shortlists.length} shortlisted candidates
+          </div>
+
+          {paginatedShortlists.map((match) => (
             <Card
               key={match.id}
               className="border-border/80 bg-card/70 backdrop-blur-xl p-6 hover:border-primary/40 transition-all"
@@ -121,6 +132,36 @@ export const HRShortlistsPage: React.FC = () => {
               </div>
             </Card>
           ))}
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between py-3 border-t border-border/60">
+              <p className="text-xs text-muted-foreground">
+                Page {page} of {totalPages}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                  className="gap-1 text-xs h-8"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" /> Prev
+                </Button>
+                <span className="text-xs font-semibold text-foreground px-2">{page}</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="gap-1 text-xs h-8"
+                >
+                  Next <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

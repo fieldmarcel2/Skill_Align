@@ -34,6 +34,9 @@ class Interview(Base):
     interview_type: Mapped[str] = mapped_column(
         String(50), nullable=False, default="technical"
     )
+    meeting_link: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    interview_mode: Mapped[str | None] = mapped_column(String(50), nullable=True, default="online")
+    scheduled_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(
         String(30), nullable=False, default="scheduled", index=True

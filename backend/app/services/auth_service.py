@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.core.security import hash_password, verify_password, create_access_token, normalize_phone
 from app.models.user import User
 from app.models.role import Role
+from app.models.candidate import Candidate
 from app.schemas.auth import (
     RegisterRequest, LoginRequest, TokenResponse, UserResponse, UserUpdateMeRequest,
     SendOTPRequest, VerifyOTPRequest, OTPResponse, OTPLoginResponse,
@@ -28,38 +29,39 @@ logger = logging.getLogger(__name__)
 
 def register_candidate(db: Session, data: RegisterRequest) -> UserResponse:
     """
-    Create a new Candidate user account.
-
-    Security guarantees:
-    - The Candidate role is looked up from the DB (never trusted from client).
-    - Duplicate email raises 409 Conflict.
-    - Password is bcrypt-hashed before storage.
-    - Optional phone number is normalized and checked for uniqueness.
+    Register a user account (Candidate, Recruiter, or HR).
+    Both Email and Phone are required.
     """
-    # Prevent duplicate registration
+    # Prevent duplicate email registration
     if db.query(User).filter(User.email == data.email).first():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="An account with this email already exists.",
         )
 
-    # Check phone uniqueness if provided
-    normalized_phone = None
-    if data.phone:
-        try:
-            normalized_phone = normalize_phone(data.phone)
-        except ValueError as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(e),
-            )
-        if db.query(User).filter(User.phone_number == normalized_phone).first():
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="An account with this phone number already exists.",
-            )
+    # Check phone requirement and uniqueness
+    if not data.phone or not data.phone.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Phone number is required.",
+        )
 
-    # Fetch the Candidate role — fail hard if seed data is missing
+    try:
+        normalized_phone = normalize_phone(data.phone)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    if db.query(User).filter(User.phone_number == normalized_phone).first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this phone number already exists.",
+        )
+
+    # Public self-registration ALWAYS assigns the Candidate role.
+    # Privileged roles (HR, Recruiter, Admin) CANNOT be created here.
     candidate_role = db.query(Role).filter(Role.name == "Candidate").first()
     if candidate_role is None:
         raise HTTPException(
@@ -68,7 +70,7 @@ def register_candidate(db: Session, data: RegisterRequest) -> UserResponse:
         )
 
     user = User(
-        name=data.name,
+        name=data.name.strip(),
         email=data.email,
         password_hash=hash_password(data.password),
         phone_number=normalized_phone,
@@ -96,7 +98,8 @@ def login(db: Session, data: LoginRequest) -> TokenResponse:
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    user = db.query(User).filter(User.email == data.email).first()
+    clean_email = data.email.strip().lower()
+    user = db.query(User).filter(User.email.ilike(clean_email)).first()
     if user is None:
         raise _auth_error
 
@@ -110,7 +113,11 @@ def login(db: Session, data: LoginRequest) -> TokenResponse:
         )
 
     token = create_access_token({"sub": str(user.id), "role": user.role.name})
-    return TokenResponse(access_token=token)
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        user=UserResponse.model_validate(user),
+    )
 
 
 # ── OTP: Send ─────────────────────────────────────────────────────────────────
@@ -132,20 +139,43 @@ def send_otp(db: Session, data: SendOTPRequest) -> OTPResponse:
 
     # Send OTP via SMS provider
     sms = get_sms_service()
+    fallback_otp = None
     try:
         sms.send_otp(phone, otp)
     except Exception as e:
         logger.error("SMS delivery failed for %s: %s", phone, e)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Failed to send OTP. Please try again later.",
-        )
+        err_msg = str(e)
+        # Twilio Error 21608: Trial accounts cannot send messages to unverified numbers
+        if "21608" in err_msg or "unverified" in err_msg.lower():
+            logger.warning("Twilio trial recipient unverified for %s. Using fallback OTP.", phone)
+            fallback_otp = otp
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Failed to send SMS: {err_msg}",
+            )
 
     return OTPResponse(
-        message="OTP sent successfully.",
-        dev_otp=otp if settings.OTP_DEV_MODE else None,
+        message="OTP sent successfully." if not fallback_otp else "OTP generated (Twilio Trial sandbox allows SMS to verified numbers only).",
+        dev_otp=otp if (settings.OTP_DEV_MODE or fallback_otp) else None,
     )
 
+
+
+def find_user_by_phone(db: Session, phone: str):
+    """Find user by phone supporting exact E.164 match and clean 10-digit suffix."""
+    user = db.query(User).filter(User.phone_number == phone).first()
+    if user:
+        return user
+    clean_digits = "".join(filter(str.isdigit, phone))
+    if len(clean_digits) >= 10:
+        last10 = clean_digits[-10:]
+        for u in db.query(User).all():
+            if u.phone_number:
+                u_digits = "".join(filter(str.isdigit, u.phone_number))
+                if u_digits.endswith(last10):
+                    return u
+    return None
 
 
 # ── OTP: Verify & Login ──────────────────────────────────────────────────────
@@ -171,7 +201,7 @@ def verify_otp_and_login(db: Session, data: VerifyOTPRequest) -> OTPLoginRespons
 
     # ── Find or create user ──────────────────────────────────────────────────
     is_new_user = False
-    user = db.query(User).filter(User.phone_number == phone).first()
+    user = find_user_by_phone(db, phone)
 
     if user is None:
         # Create a new Candidate user (phone-only, no email/password)
@@ -183,7 +213,7 @@ def verify_otp_and_login(db: Session, data: VerifyOTPRequest) -> OTPLoginRespons
             )
 
         user = User(
-            name=f"User-{phone[-4:]}",  # default name from last 4 digits
+            name=f"Candidate {phone[-4:]}",
             email=None,
             password_hash=None,
             phone_number=phone,

@@ -16,6 +16,11 @@ import {
   Loader2,
   Sliders,
   CheckCircle2,
+  MapPin,
+  Laptop,
+  Building2,
+  Clock,
+  Navigation,
 } from "lucide-react";
 
 interface SelectedSkillRow {
@@ -40,6 +45,15 @@ export const CreateJobPage: React.FC = () => {
   const [minExpYears, setMinExpYears] = useState<number>(2);
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<"draft" | "active">("active");
+
+  // Extended Logistics & Working Conditions
+  const [workMode, setWorkMode] = useState<"WFH" | "WFO" | "Hybrid">("Hybrid");
+  const [locationCity, setLocationCity] = useState("");
+  const [locationState, setLocationState] = useState("");
+  const [locationCountry, setLocationCountry] = useState("India");
+  const [urgency, setUrgency] = useState("30 Days");
+  const [shiftTiming, setShiftTiming] = useState("Day Shift");
+  const [travelRequirements, setTravelRequirements] = useState("None");
 
   // Selected Skills array
   const [selectedSkills, setSelectedSkills] = useState<SelectedSkillRow[]>([]);
@@ -123,6 +137,13 @@ export const CreateJobPage: React.FC = () => {
         min_experience_years: Number(minExpYears),
         description,
         status,
+        work_mode: workMode,
+        location_city: locationCity.trim() || undefined,
+        location_state: locationState.trim() || undefined,
+        location_country: locationCountry.trim() || undefined,
+        urgency,
+        shift_timing: shiftTiming,
+        travel_requirements: travelRequirements,
         skills: skillsPayload,
       });
 
@@ -229,6 +250,132 @@ export const CreateJobPage: React.FC = () => {
               />
             </div>
           </div>
+
+          {/* Working Conditions & Logistics */}
+          <div className="pt-4 border-t border-border/60 space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Laptop className="h-3.5 w-3.5 text-primary" /> Working Conditions & Location
+            </h4>
+
+            {/* Work Mode */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-foreground block">Work Mode *</label>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { id: "WFH", label: "Remote (WFH)", icon: Laptop },
+                  { id: "WFO", label: "On-site (WFO)", icon: Building2 },
+                  { id: "Hybrid", label: "Hybrid", icon: Briefcase },
+                ].map((mode) => {
+                  const Icon = mode.icon;
+                  const isSelected = workMode === mode.id;
+                  return (
+                    <label
+                      key={mode.id}
+                      className={`flex flex-col items-center justify-center p-3 rounded-xl border cursor-pointer text-center transition-all ${
+                        isSelected
+                          ? "border-primary bg-primary/10 text-primary shadow-sm"
+                          : "border-border bg-card/40 text-muted-foreground hover:border-border/80"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="work_mode"
+                        value={mode.id}
+                        checked={isSelected}
+                        onChange={() => setWorkMode(mode.id as any)}
+                        className="sr-only"
+                      />
+                      <Icon className="h-4 w-4 mb-1" />
+                      <span className="text-xs font-semibold">{mode.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Location Fields */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-foreground flex items-center gap-1">
+                  <MapPin className="h-3 w-3 text-muted-foreground" /> City
+                </label>
+                <Input
+                  type="text"
+                  placeholder="e.g. Bangalore"
+                  value={locationCity}
+                  onChange={(e) => setLocationCity(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-foreground">State</label>
+                <Input
+                  type="text"
+                  placeholder="e.g. Karnataka"
+                  value={locationState}
+                  onChange={(e) => setLocationState(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-foreground">Country</label>
+                <Input
+                  type="text"
+                  placeholder="e.g. India"
+                  value={locationCountry}
+                  onChange={(e) => setLocationCountry(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Urgency, Shift Timing & Travel Requirements */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-foreground flex items-center gap-1">
+                  <Clock className="h-3 w-3 text-amber-400" /> Hiring Urgency
+                </label>
+                <select
+                  value={urgency}
+                  onChange={(e) => setUrgency(e.target.value)}
+                  className="w-full h-10 px-3 rounded-lg border border-border bg-secondary/50 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="Immediate">Immediate (0-7 days)</option>
+                  <option value="15 Days">15 Days</option>
+                  <option value="30 Days">30 Days</option>
+                  <option value="60 Days">60 Days</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-foreground flex items-center gap-1">
+                  <Clock className="h-3 w-3 text-indigo-400" /> Shift Timings
+                </label>
+                <select
+                  value={shiftTiming}
+                  onChange={(e) => setShiftTiming(e.target.value)}
+                  className="w-full h-10 px-3 rounded-lg border border-border bg-secondary/50 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="Day Shift">Day Shift (Regular)</option>
+                  <option value="Night Shift">Night Shift</option>
+                  <option value="Rotational">Rotational Shift</option>
+                  <option value="Flexible">Flexible Hours</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-foreground flex items-center gap-1">
+                  <Navigation className="h-3 w-3 text-emerald-400" /> Travel Requirements
+                </label>
+                <select
+                  value={travelRequirements}
+                  onChange={(e) => setTravelRequirements(e.target.value)}
+                  className="w-full h-10 px-3 rounded-lg border border-border bg-secondary/50 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="None">None (0%)</option>
+                  <option value="Occasional">Occasional (&lt; 20%)</option>
+                  <option value="Frequent">Frequent (&gt; 50%)</option>
+                </select>
+              </div>
+            </div>
+          </div>
         </Card>
 
         {/* Weighted Skills Criteria Builder Card */}
@@ -288,7 +435,7 @@ export const CreateJobPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                     {/* Requirement Type */}
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">Type:</span>

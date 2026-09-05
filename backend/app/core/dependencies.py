@@ -24,7 +24,7 @@ from app.database.session import get_db
 from app.models.user import User
 
 # HTTP Bearer scheme — reads "Authorization: Bearer <token>" header
-_bearer_scheme = HTTPBearer(auto_error=True)
+_bearer_scheme = HTTPBearer(auto_error=False)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -32,22 +32,18 @@ _bearer_scheme = HTTPBearer(auto_error=True)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
-    """
-    Decode the Bearer JWT and return the corresponding User row.
 
-    Raises 401 if:
-    - Token is missing, malformed, or expired.
-    - The user referenced by the token no longer exists.
-    - The user account has been deactivated.
-    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials.",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    if not credentials:
+        raise credentials_exception
 
     try:
         payload = decode_access_token(credentials.credentials)
@@ -68,9 +64,7 @@ def get_current_user(
     return user
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Role-specific guards
-# ─────────────────────────────────────────────────────────────────────────────
 
 def _require_role(role_name: str):
     """Factory that returns a dependency checking for a specific role name."""
@@ -104,10 +98,10 @@ def require_admin_or_hr(current_user: User = Depends(get_current_user)) -> User:
 
 
 def require_hr_or_recruiter(current_user: User = Depends(get_current_user)) -> User:
-    """Allow HR OR Recruiter — used for shared read endpoints."""
-    if current_user.role.name not in ("HR", "Recruiter"):
+    """Allow HR OR Recruiter OR Admin — used for shared read endpoints."""
+    if current_user.role.name not in ("HR", "Recruiter", "Admin"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access restricted to HR or Recruiter users.",
+            detail="Access restricted to HR, Recruiter, or Admin users.",
         )
     return current_user

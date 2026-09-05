@@ -58,6 +58,13 @@ class JobCreate(BaseModel):
     department: Optional[str] = None
     client_name: Optional[str] = None
     min_experience_years: float = 0
+    work_mode: Optional[str] = "Hybrid"
+    location_city: Optional[str] = None
+    location_state: Optional[str] = None
+    location_country: Optional[str] = "India"
+    urgency: Optional[str] = "30 days"
+    shift_timing: Optional[str] = "Day"
+    travel_requirements: Optional[str] = "None"
     status: str = "draft"
     skills: list[JobSkillIn] = []
 
@@ -91,6 +98,13 @@ class JobUpdate(BaseModel):
     department: Optional[str] = None
     client_name: Optional[str] = None
     min_experience_years: Optional[float] = None
+    work_mode: Optional[str] = None
+    location_city: Optional[str] = None
+    location_state: Optional[str] = None
+    location_country: Optional[str] = None
+    urgency: Optional[str] = None
+    shift_timing: Optional[str] = None
+    travel_requirements: Optional[str] = None
     status: Optional[str] = None
     skills: Optional[list[JobSkillIn]] = None
 
@@ -122,6 +136,13 @@ class JobOut(BaseModel):
     department: Optional[str]
     client_name: Optional[str]
     min_experience_years: float
+    work_mode: Optional[str] = "Hybrid"
+    location_city: Optional[str] = None
+    location_state: Optional[str] = None
+    location_country: Optional[str] = "India"
+    urgency: Optional[str] = "30 days"
+    shift_timing: Optional[str] = "Day"
+    travel_requirements: Optional[str] = "None"
     status: str
     creator: JobCreatorOut
     job_skills: list[JobSkillOut]

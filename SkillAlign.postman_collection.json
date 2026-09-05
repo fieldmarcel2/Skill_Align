@@ -1,0 +1,3360 @@
+{
+  "info": {
+    "name": "SkillAlign API - Complete Collection",
+    "_postman_id": "skillalign-api-collection-v2",
+    "description": "Comprehensive Postman Collection for SkillAlign Recruitment & ATS Platform Backend APIs (FastAPI).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "admin_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "recruiter_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "hr_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "candidate_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "otp_code",
+      "value": "123456",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "00 - Automated Role Logins (Run First)",
+      "item": [
+        {
+          "name": "01 - Login as System Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@skillaign.dev\",\n  \"password\": \"Admin@123\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Admin Login Successful', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "var json = pm.response.json();",
+                  "if (json.access_token) pm.collectionVariables.set('admin_token', json.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02 - Login as Sarah HR",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"hr@skillaign.dev\",\n  \"password\": \"HR@12345\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HR Login Successful', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "var json = pm.response.json();",
+                  "if (json.access_token) pm.collectionVariables.set('hr_token', json.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03 - Login as James Recruiter",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"recruiter@skillaign.dev\",\n  \"password\": \"Rec@12345\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Recruiter Login Successful', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "var json = pm.response.json();",
+                  "if (json.access_token) pm.collectionVariables.set('recruiter_token', json.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04 - Login as Candidate (Alice)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"alice@candidate.dev\",\n  \"password\": \"Alice@123\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Candidate Login Successful', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "var json = pm.response.json();",
+                  "if (json.access_token) pm.collectionVariables.set('candidate_token', json.access_token);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "POST - Candidate self-registration",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Allows public users to register as a Candidate. Privileged roles cannot be created here.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Candidate {{$randomInt}}\",\n  \"email\": \"cand_{{$timestamp}}@example.com\",\n  \"password\": \"Password@123\",\n  \"phone\": \"+91 98{{$randomInt}}\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST - User login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Authenticates credentials and returns a signed JWT access token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@skillaign.dev\",\n  \"password\": \"Admin@123\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - Get current user profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Returns the profile information and role of the currently authenticated user."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT - Update current user profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Updates the profile information (name, phone, email) of the authenticated user.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST - Request OTP for phone login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/send-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "send-otp"
+              ]
+            },
+            "description": "Sends a 6-digit OTP to the provided phone number. Valid for 5 minutes.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+91 88402 26477\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST - Verify OTP and login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "verify-otp"
+              ]
+            },
+            "description": "Verifies the OTP. If the phone is new, creates a Candidate account. Returns a JWT.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+91 88402 26477\",\n  \"otp\": \"{{otp_code}}\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST - Resend OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/resend-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "resend-otp"
+              ]
+            },
+            "description": "Resends OTP to the phone number. Subject to cooldown period.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+91 88402 26477\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Users (Admin)",
+      "item": [
+        {
+          "name": "POST - Create HR or Recruiter user",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users"
+              ]
+            },
+            "description": "Admin creates a new privileged account (HR or Recruiter). Role must be 2 (HR) or 3 (Recruiter).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Recruiter {{$randomInt}}\",\n  \"email\": \"rec_{{$timestamp}}@example.com\",\n  \"password\": \"Recruiter@123\",\n  \"role_id\": 3\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - List all users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users"
+              ]
+            },
+            "description": "Returns all registered users with optional role filtering."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - Admin dashboard statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/stats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "stats"
+              ]
+            },
+            "description": "Returns aggregate counts of total users, active users, HRs, recruiters, candidates, and skills."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - Get user by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "2"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT - Update user",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "2"
+              ]
+            },
+            "description": "Update user name or toggle is_active status (activate/deactivate).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Recruiter {{$randomInt}}\",\n  \"email\": \"rec_{{$timestamp}}@example.com\",\n  \"password\": \"Recruiter@123\",\n  \"role_id\": 3\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Skills",
+      "item": [
+        {
+          "name": "POST - Create skill (Admin only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/skills",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "skills"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"TechSkill_{{$randomInt}}\",\n  \"category\": \"Backend\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - List all skills (All authenticated roles)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/skills",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "skills"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - Get skill by ID (All authenticated roles)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/skills/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "skills",
+                "1"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT - Update skill (Admin only)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/skills/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "skills",
+                "1"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"TechSkill_{{$randomInt}}\",\n  \"category\": \"Backend\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE - Delete skill (Admin only)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/skills/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "skills",
+                "1"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Jobs",
+      "item": [
+        {
+          "name": "POST - Create a new job (Recruiter only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{recruiter_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs"
+              ]
+            },
+            "description": "Recruiter creates a job with title, min experience, description, and required/preferred skills with weights.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Software Engineer {{$randomInt}}\",\n  \"department\": \"Engineering\",\n  \"description\": \"High-scale engineering role.\",\n  \"min_experience_years\": 2.0,\n  \"work_mode\": \"Hybrid\",\n  \"location_city\": \"Noida\",\n  \"location_state\": \"UP\",\n  \"location_country\": \"India\",\n  \"urgency\": \"Immediate\",\n  \"status\": \"active\",\n  \"required_skills\": [\n    {\n      \"skill_id\": 1,\n      \"min_proficiency\": 3,\n      \"is_mandatory\": true\n    }\n  ]\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - List jobs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs"
+              ]
+            },
+            "description": "List jobs. Recruiters can filter by their own jobs, HR can view active jobs for matching."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - Get job by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "50"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT - Update job (Recruiter only)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{recruiter_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "50"
+              ]
+            },
+            "description": "Recruiter updates their own job specifications and associated skills.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Software Engineer {{$randomInt}}\",\n  \"department\": \"Engineering\",\n  \"description\": \"High-scale engineering role.\",\n  \"min_experience_years\": 2.0,\n  \"work_mode\": \"Hybrid\",\n  \"location_city\": \"Noida\",\n  \"location_state\": \"UP\",\n  \"location_country\": \"India\",\n  \"urgency\": \"Immediate\",\n  \"status\": \"active\",\n  \"required_skills\": [\n    {\n      \"skill_id\": 1,\n      \"min_proficiency\": 3,\n      \"is_mandatory\": true\n    }\n  ]\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE - Delete a job (Recruiter only)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{recruiter_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "50"
+              ]
+            },
+            "description": "Recruiter deletes their own job. This will also remove all associated job skills and match results."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Candidates",
+      "item": [
+        {
+          "name": "GET - Get own candidate profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidate_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/candidates/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "candidates",
+                "me"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT - Update candidate profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidate_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/candidates/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "candidates",
+                "me"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"total_experience_years\": 3.0,\n  \"education_degree\": \"B.Tech Computer Science\",\n  \"education_institution\": \"AKTU\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST - Create candidate profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidate_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/candidates/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "candidates",
+                "me"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"total_experience_years\": 3.0,\n  \"education_degree\": \"B.Tech Computer Science\",\n  \"education_institution\": \"AKTU\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - Get candidate's job matches and pipeline statuses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidate_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/candidates/me/pipeline",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "candidates",
+                "me",
+                "pipeline"
+              ]
+            },
+            "description": "Returns all job matches, current pipeline stage (Matched -> Screened -> HR Approved -> Interview Scheduled), and interview details for the logged-in candidate."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST - Upload resume (PDF/DOC/DOCX)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidate_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/candidates/me/resume",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "candidates",
+                "me",
+                "resume"
+              ]
+            },
+            "description": "Secure resume upload outside database. Validates type and size limits.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"total_experience_years\": 3.0,\n  \"education_degree\": \"B.Tech Computer Science\",\n  \"education_institution\": \"AKTU\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST - Add skill to profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidate_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/candidates/me/skills",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "candidates",
+                "me",
+                "skills"
+              ]
+            },
+            "description": "Add a skill with proficiency (Beginner, Intermediate, Expert) and years of experience.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"skill_id\": 2,\n  \"proficiency_level\": 4,\n  \"years_experience\": 2.5\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT - Update skill proficiency or years",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidate_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/candidates/me/skills/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "candidates",
+                "me",
+                "skills",
+                "1"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"skill_id\": 2,\n  \"proficiency_level\": 4,\n  \"years_experience\": 2.5\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE - Remove skill from profile",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidate_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/candidates/me/skills/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "candidates",
+                "me",
+                "skills",
+                "1"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - View candidate profile by ID (HR & Recruiter)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/candidates/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "candidates",
+                "1"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Candidate Resumes",
+      "item": [
+        {
+          "name": "POST - Upload Candidate Resume (PDF, DOCX, TXT) and Run Extraction & Parsing",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/candidates/1/resume",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "candidates",
+                "1",
+                "resume"
+              ]
+            },
+            "description": "Uploads candidate resume, stores original in S3, extracts readable text,\nstores extracted TXT in S3, parses structured data using deterministic rules,\nand auto-synchronizes skills with the master database taxonomy.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - Get Pre-signed S3 URL to View/Download Original Resume",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/candidates/1/resume",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "candidates",
+                "1",
+                "resume"
+              ]
+            },
+            "description": "Generates a secure, temporary pre-signed URL with ExpiresIn=300 (5 minutes).\nAccessible by Candidate (own profile), Recruiter, HR, and Admin."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE - Delete Candidate Resume & Extracted Documents from Storage",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/candidates/1/resume",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "candidates",
+                "1",
+                "resume"
+              ]
+            },
+            "description": "Deletes original file and extracted TXT from storage and clears database columns.\nAccessible only by the Candidate owner or Admin."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - Get Extracted Plain Text (.txt) of Candidate Resume",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/candidates/1/resume/text",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "candidates",
+                "1",
+                "resume",
+                "text"
+              ]
+            },
+            "description": "Returns the clean extracted plain text representation of the resume.\nAccessible by Candidate (own profile), Recruiter, HR, and Admin."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - Get Structured Parsed Data (Skills, Experience, Education, Certifications)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/candidates/1/resume/parsed",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "candidates",
+                "1",
+                "resume",
+                "parsed"
+              ]
+            },
+            "description": "Returns structured parsed fields extracted deterministically from resume text.\nAccessible by Candidate (own profile), Recruiter, HR, and Admin."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Matching Engine",
+      "item": [
+        {
+          "name": "POST - Run matching engine for a job (Recruiter)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{recruiter_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/matching/jobs/50/run",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matching",
+                "jobs",
+                "50",
+                "run"
+              ]
+            },
+            "description": "Scores all candidates against job requirements using weighted proficiency matching, saves results to match_results setting recruiter_id, and returns ranked candidates.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - Get match results for a job (HR & Recruiter)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/matching/jobs/50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matching",
+                "jobs",
+                "50"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - List screened candidates ready for HR approval (HR)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/matching/screened",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matching",
+                "screened"
+              ]
+            },
+            "description": "Returns all candidate matches that have been screened by recruiters and are awaiting HR approval or interview scheduling."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH - Update candidate pipeline status (Role-checked)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/matching/405/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matching",
+                "405",
+                "status"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pipeline_stage\": \"interview_scheduled\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - List active pipeline candidates (Recruiter & HR)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/matching/shortlists",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matching",
+                "shortlists"
+              ]
+            },
+            "description": "Returns candidates advancing through the hiring pipeline."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST - Add feedback scorecard for a candidate (HR & Recruiter)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hr_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/matching/405/scorecard",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matching",
+                "405",
+                "scorecard"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"communication_score\": 8,\n  \"technical_score\": 9,\n  \"overall_impression\": \"Strong candidate performance.\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - Get all scorecards for a match result (HR & Recruiter)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hr_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/matching/405/scorecards",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "matching",
+                "405",
+                "scorecards"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Match Results",
+      "item": [
+        {
+          "name": "GET - List screened candidates for HR",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/match_results/screened",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "match_results",
+                "screened"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - Get match result by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/match_results/405",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "match_results",
+                "405"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH - Update candidate pipeline status (Role-checked)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/match_results/405/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "match_results",
+                "405",
+                "status"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Interviews",
+      "item": [
+        {
+          "name": "POST - Schedule an interview (HR Only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hr_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/interviews",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "interviews"
+              ]
+            },
+            "description": "HR schedules an interview for a candidate, transitions match status to 'interview_scheduled', and dispatches candidate notification via SendGrid and in-app alert.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"match_result_id\": 405,\n  \"interview_date\": \"2026-09-15T10:00:00Z\",\n  \"interview_type\": \"technical\",\n  \"interview_mode\": \"online\",\n  \"meeting_link\": \"https://meet.google.com/test-meet\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - List all interviews (HR & Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hr_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/interviews",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "interviews"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - List candidate's scheduled interviews (Candidate)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hr_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/interviews/my",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "interviews",
+                "my"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - Get interview by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hr_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/interviews/6",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "interviews",
+                "6"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH - Update interview status or feedback (HR & Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hr_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/interviews/6",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "interviews",
+                "6"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"match_result_id\": 405,\n  \"interview_date\": \"2026-09-15T10:00:00Z\",\n  \"interview_type\": \"technical\",\n  \"interview_mode\": \"online\",\n  \"meeting_link\": \"https://meet.google.com/test-meet\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "POST - Create and dispatch notification (HR Only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hr_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications"
+              ]
+            },
+            "description": "HR dispatches email notifications to candidates regarding interview schedules, status updates, or rejections.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 4,\n  \"title\": \"Update on your application\",\n  \"message\": \"Your profile has advanced in the pipeline.\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - List all notifications (HR & Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - Get current user's notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/my",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "my"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Admin Management",
+      "item": [
+        {
+          "name": "GET - List all users with pagination, search, and filters (Admin only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users"
+              ]
+            },
+            "description": "Returns a paginated list of all users. Supports server-side filtering by role, status (active/deactivated), and search by name or email. Response includes pagination metadata."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET - Get extended user detail (Admin only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/2/detail",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "2",
+                "detail"
+              ]
+            },
+            "description": "Returns full user profile including candidate resume info, recruiter jobs, skills."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH - Toggle user active/deactivated status (Admin only)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/2/toggle-status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "2",
+                "toggle-status"
+              ]
+            },
+            "description": "Quickly activates or deactivates a user account. Admin accounts cannot be toggled.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE - Permanently delete a user (Admin only)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "2"
+              ]
+            },
+            "description": "Permanently deletes a user account and cascades all related candidate data, skills, and applications."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET - Health Check",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Liveness check returning current service health status."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Endpoint executed successfully (Status: ' + pm.response.code + ')', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204, 400, 404, 409]);",
+                  "});",
+                  "",
+                  "// If send-otp, save dev_otp automatically",
+                  "if (pm.response.code === 200 && pm.request.url.path.includes('send-otp')) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.dev_otp) pm.collectionVariables.set('otp_code', json.dev_otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

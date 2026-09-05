@@ -60,6 +60,13 @@ export interface Job {
   department?: string;
   client_name?: string;
   min_experience_years: number;
+  work_mode?: string | null;
+  location_city?: string | null;
+  location_state?: string | null;
+  location_country?: string | null;
+  urgency?: string | null;
+  shift_timing?: string | null;
+  travel_requirements?: string | null;
   status: "draft" | "active" | "closed";
   created_at: string;
   updated_at: string;
@@ -79,16 +86,58 @@ export interface CandidateSkill {
   years_experience: number;
 }
 
+export interface ParsedEducation {
+  degree: string;
+  institution: string;
+  year?: string | null;
+}
+
+export interface ParsedExperience {
+  title: string;
+  company?: string;
+  duration?: string;
+  years?: number;
+}
+
+export interface ParsedResumeData {
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  skills: { name: string; category: string }[];
+  total_experience_years: number;
+  education: ParsedEducation[];
+  education_degree?: string | null;
+  education_institution?: string | null;
+  experience: ParsedExperience[];
+  certifications: string[];
+  projects: string[];
+}
+
 export interface Candidate {
   id: number;
   user_id?: number;
   full_name: string;
-  phone?: string;
-  resume_file_path?: string;
+  phone?: string | null;
+  resume_file_path?: string | null;
   resume_s3_key?: string | null;
+  resume_extracted_text_s3_key?: string | null;
   resume_filename?: string | null;
   resume_uploaded_at?: string | null;
+  resume_parsed_at?: string | null;
+  education_degree?: string | null;
+  education_institution?: string | null;
+  extracted_data?: string | null;
   total_experience_years: number;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  pincode?: string | null;
+  country?: string | null;
+  work_authorization?: string | null;
+  preferred_work_mode?: "WFH" | "WFO" | "Hybrid" | null;
+  notice_period?: string | null;
+  current_ctc?: number | null;
+  expected_ctc?: number | null;
   skills: CandidateSkill[];
 }
 
@@ -98,12 +147,32 @@ export interface ResumeUrlResponse {
   expires_in_seconds: number;
 }
 
+export interface ResumeTextResponse {
+  candidate_id: number;
+  filename?: string | null;
+  raw_text: string;
+  extracted_text_s3_key?: string | null;
+  parsed_at?: string | null;
+}
+
+export interface ParsedResumeResponse {
+  candidate_id: number;
+  parsed_data: ParsedResumeData;
+  parsed_at?: string | null;
+}
+
 export interface ResumeUploadResponse {
+  status?: string;
   message: string;
   candidate_id: number;
-  resume_filename: string;
-  resume_s3_key: string;
-  resume_uploaded_at: string;
+  filename: string;
+  format?: string;
+  original_s3_key: string;
+  extracted_text_s3_key?: string | null;
+  uploaded_at: string;
+  parsed_at?: string | null;
+  parsed_data?: ParsedResumeData | null;
+  auto_added_skills?: string[];
 }
 
 export interface Interview {
@@ -112,6 +181,9 @@ export interface Interview {
   scheduled_by: number;
   interview_date: string;
   interview_type: string;
+  meeting_link?: string | null;
+  interview_mode?: string | null;
+  scheduled_end?: string | null;
   feedback?: string | null;
   status: "scheduled" | "completed" | "cancelled";
   created_at: string;
@@ -119,6 +191,7 @@ export interface Interview {
   candidate_name?: string | null;
   job_title?: string | null;
 }
+
 
 export interface Notification {
   id: number;
@@ -128,6 +201,16 @@ export interface Notification {
   body: string;
   status: string;
   created_at: string;
+}
+
+export interface SkillMatchBreakdown {
+  skill_id: number;
+  skill_name: string;
+  requirement_type: string;
+  weight: number;
+  candidate_proficiency?: string | null;
+  candidate_years?: number | null;
+  skill_score: number;
 }
 
 export interface MatchResult {
@@ -140,6 +223,10 @@ export interface MatchResult {
   matched_at: string;
   updated_at?: string;
   meets_experience: boolean;
+  matched_skills?: string[];
+  missing_skills?: string[];
+  skill_breakdown?: SkillMatchBreakdown[];
+  explanation?: string | null;
   job?: Job;
   candidate: Candidate;
   interviews?: Interview[];

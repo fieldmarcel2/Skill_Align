@@ -40,6 +40,7 @@ class UserCreate(BaseModel):
     name: str
     email: EmailStr
     password: str
+    phone_number: Optional[str] = None
     role_id: int
 
     @field_validator("password")

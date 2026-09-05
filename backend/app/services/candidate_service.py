@@ -54,6 +54,16 @@ def create_profile(db: Session, user: User, data: CandidateProfileCreate) -> Can
         full_name=data.full_name.strip(),
         phone=data.phone.strip() if data.phone else None,
         total_experience_years=data.total_experience_years,
+        address=data.address.strip() if data.address else None,
+        city=data.city.strip() if data.city else None,
+        state=data.state.strip() if data.state else None,
+        pincode=data.pincode.strip() if data.pincode else None,
+        country=data.country.strip() if data.country else "India",
+        work_authorization=data.work_authorization.strip() if data.work_authorization else None,
+        preferred_work_mode=data.preferred_work_mode.strip() if data.preferred_work_mode else None,
+        notice_period=data.notice_period.strip() if data.notice_period else None,
+        current_ctc=data.current_ctc,
+        expected_ctc=data.expected_ctc,
     )
     # Synchronize User model name and phone number
     user.name = data.full_name.strip()
@@ -86,6 +96,26 @@ def update_profile(db: Session, user: User, data: CandidateProfileUpdate) -> Can
             user.phone_number = clean_phone
     if data.total_experience_years is not None:
         candidate.total_experience_years = data.total_experience_years
+    if data.address is not None:
+        candidate.address = data.address.strip() if data.address else None
+    if data.city is not None:
+        candidate.city = data.city.strip() if data.city else None
+    if data.state is not None:
+        candidate.state = data.state.strip() if data.state else None
+    if data.pincode is not None:
+        candidate.pincode = data.pincode.strip() if data.pincode else None
+    if data.country is not None:
+        candidate.country = data.country.strip() if data.country else "India"
+    if data.work_authorization is not None:
+        candidate.work_authorization = data.work_authorization.strip() if data.work_authorization else None
+    if data.preferred_work_mode is not None:
+        candidate.preferred_work_mode = data.preferred_work_mode.strip() if data.preferred_work_mode else None
+    if data.notice_period is not None:
+        candidate.notice_period = data.notice_period.strip() if data.notice_period else None
+    if data.current_ctc is not None:
+        candidate.current_ctc = data.current_ctc
+    if data.expected_ctc is not None:
+        candidate.expected_ctc = data.expected_ctc
 
     db.add(user)
     db.add(candidate)
@@ -105,16 +135,11 @@ _ALLOWED_MIME_TYPES = {
 _ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx"}
 
 
-def upload_resume(db: Session, user: User, file: UploadFile) -> CandidateOut:
+async def upload_resume(db: Session, user: User, file: UploadFile) -> CandidateOut:
     """
-    Save the uploaded resume to disk and store the relative path in the DB.
-
-    Security:
-    - File extension and content-type are validated.
-    - File size is checked against MAX_UPLOAD_SIZE_MB.
-    - The path stored in DB is relative (no filesystem disclosure).
-    - Files are stored at: UPLOAD_DIR/resumes/<user_id>/<filename>
+    Delegate upload, text extraction, TXT generation, and parsing to resume_service.
     """
+    from app.services.resume_service import process_and_store_resume
     candidate = db.query(Candidate).filter(Candidate.user_id == user.id).first()
     if not candidate:
         raise HTTPException(
@@ -122,61 +147,7 @@ def upload_resume(db: Session, user: User, file: UploadFile) -> CandidateOut:
             detail="Create your profile before uploading a resume.",
         )
 
-    # Validate extension
-    ext = Path(file.filename or "").suffix.lower()
-    if ext not in _ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid file type. Allowed: {', '.join(_ALLOWED_EXTENSIONS)}",
-        )
-
-    # Validate content-type header (advisory, not authoritative)
-    if file.content_type and file.content_type not in _ALLOWED_MIME_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid file content type.",
-        )
-
-    # Read and check size
-    content = file.file.read()
-    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
-    if len(content) > max_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File too large. Maximum allowed size is {settings.MAX_UPLOAD_SIZE_MB} MB.",
-        )
-
-    # Delete previous S3 resume if present
-    if candidate.resume_s3_key:
-        try:
-            s3_service.delete_file(candidate.resume_s3_key)
-        except Exception:
-            pass
-
-    # Upload directly to AWS S3
-    original_filename = file.filename or "resume.pdf"
-    clean_name = re.sub(r"[^a-zA-Z0-9._-]", "_", Path(original_filename).name) or "resume.pdf"
-    s3_key = f"resumes/candidates/{candidate.id}/{clean_name}"
-
-    file.file.seek(0)
-    try:
-        s3_service.upload_file(
-            file_obj=file.file,
-            s3_key=s3_key,
-            content_type=file.content_type or "application/pdf"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload resume to S3: {str(e)}"
-        )
-
-    candidate.resume_s3_key = s3_key
-    candidate.resume_filename = original_filename
-    candidate.resume_uploaded_at = datetime.now(timezone.utc)
-    candidate.resume_file_path = s3_key
-
-    db.commit()
+    await process_and_store_resume(db, candidate, file)
     db.refresh(candidate)
     return CandidateOut.model_validate(candidate)
 

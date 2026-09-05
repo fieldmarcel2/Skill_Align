@@ -9,7 +9,6 @@ import {
   Users,
   UserCheck,
   Briefcase,
-  Layers,
   Cpu,
   ShieldCheck,
   PlusCircle,
@@ -49,21 +48,21 @@ export const AdminDashboard: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold font-outfit text-foreground tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold font-outfit text-foreground tracking-tight">
             System Administration
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             Global management of user access roles, active accounts, and skill taxonomy.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link to="/admin/users">
-            <Button variant="gradient" className="gap-2 shadow-lg shadow-indigo-500/20">
-              <PlusCircle className="h-4 w-4" /> Create HR / Recruiter
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Link to="/admin/users" className="w-full sm:w-auto">
+            <Button variant="gradient" className="w-full sm:w-auto gap-2 text-xs sm:text-sm shadow-md shadow-indigo-500/20">
+              <PlusCircle className="h-4 w-4" /> Provision Account
             </Button>
           </Link>
-          <Link to="/admin/skills">
-            <Button variant="outline" className="gap-2">
+          <Link to="/admin/skills" className="w-full sm:w-auto">
+            <Button variant="outline" className="w-full sm:w-auto gap-2 text-xs sm:text-sm">
               <Cpu className="h-4 w-4" /> Manage Skills
             </Button>
           </Link>
@@ -106,13 +105,6 @@ export const AdminDashboard: React.FC = () => {
           icon={Cpu}
           color="purple"
           description="Available in taxonomy"
-        />
-        <StatCard
-          title="Platform Status"
-          value="Healthy"
-          icon={Layers}
-          color="emerald"
-          description="FastAPI 0.115 + PostgreSQL 18"
         />
       </div>
 

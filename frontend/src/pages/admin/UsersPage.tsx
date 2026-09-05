@@ -1,18 +1,19 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
-import { usersApi, adminApi } from "../../services/api";
-import { User, PaginatedUsersResponse } from "../../types";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { adminApi, usersApi } from "../../services/api";
+import { User, PaginatedUsersResponse, AdminStats } from "../../types";
 import { useToast } from "../../components/ui/toast";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
-import { Badge } from "../../components/ui/badge";
 import { Card } from "../../components/ui/card";
+import { Badge } from "../../components/ui/badge";
 import {
   Table,
-  TableHeader,
   TableBody,
-  TableRow,
-  TableHead,
   TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "../../components/ui/table";
 import {
   Dialog,
@@ -24,31 +25,40 @@ import {
 } from "../../components/ui/dialog";
 import {
   Users,
-  UserPlus,
   Search,
+  ChevronLeft,
+  ChevronRight,
   Shield,
   Briefcase,
   UserCheck,
   CheckCircle2,
   XCircle,
   Loader2,
-  ChevronLeft,
-  ChevronRight,
+  Filter,
+  UserPlus,
+  ExternalLink,
   Mail,
   Phone,
+  Calendar,
   Copy,
   Check,
-  Calendar,
-  Filter,
+  Activity,
+  UserCog,
+  Sparkles,
+  X,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 10;
 
 export const UsersPage: React.FC = () => {
   const toast = useToast();
+  const navigate = useNavigate();
 
   // Pagination + filter state
   const [data, setData] = useState<PaginatedUsersResponse | null>(null);
+  const [stats, setStats] = useState<AdminStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
@@ -64,9 +74,39 @@ export const UsersPage: React.FC = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createEmail, setCreateEmail] = useState("");
+  const [createPhone, setCreatePhone] = useState("");
   const [createPassword, setCreatePassword] = useState("");
   const [createRoleId, setCreateRoleId] = useState<number>(2);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Delete User state
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleConfirmDelete = async () => {
+    if (!userToDelete) return;
+    setIsDeleting(true);
+    try {
+      const res = await adminApi.deleteUser(userToDelete.id);
+      toast.success(res.message || "User permanently deleted.", "User Removed");
+      setUserToDelete(null);
+      fetchStats();
+      fetchUsers(currentPage, searchTerm, roleFilter, statusFilter);
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to remove user.", "Error");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
+      const s = await usersApi.getStats();
+      setStats(s);
+    } catch {
+      // Non-critical
+    }
+  };
 
   const fetchUsers = useCallback(
     async (page: number, search: string, role: string, status: string) => {
@@ -88,13 +128,17 @@ export const UsersPage: React.FC = () => {
         setIsLoading(false);
       }
     },
-    []
+    [toast]
   );
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
 
   // Initial + page change
   useEffect(() => {
     fetchUsers(currentPage, searchTerm, roleFilter, statusFilter);
-  }, [currentPage, roleFilter, statusFilter]);
+  }, [currentPage, roleFilter, statusFilter, fetchUsers]);
 
   // Debounced search
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -107,8 +151,14 @@ export const UsersPage: React.FC = () => {
     }, 300);
   };
 
-  const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setRoleFilter(e.target.value);
+  const clearSearch = () => {
+    setSearchTerm("");
+    setCurrentPage(1);
+    fetchUsers(1, "", roleFilter, statusFilter);
+  };
+
+  const handleRoleSelect = (role: string) => {
+    setRoleFilter(role);
     setCurrentPage(1);
   };
 
@@ -138,6 +188,7 @@ export const UsersPage: React.FC = () => {
       toast.success(
         `${updated.name} has been ${updated.is_active ? "activated" : "deactivated"}.`
       );
+      fetchStats();
     } catch (err: any) {
       toast.error(err.response?.data?.detail || "Failed to toggle user status.");
     } finally {
@@ -149,21 +200,39 @@ export const UsersPage: React.FC = () => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      let formattedPhone = createPhone.trim();
+      if (formattedPhone && /^\d{10}$/.test(formattedPhone)) {
+        formattedPhone = `+91${formattedPhone}`;
+      }
+
       await usersApi.create({
-        name: createName,
-        email: createEmail,
+        name: createName.trim(),
+        email: createEmail.trim(),
         password: createPassword,
         role_id: Number(createRoleId),
+        phone_number: formattedPhone || undefined,
       });
       toast.success(`Account created successfully.`);
       setIsCreateOpen(false);
       setCreateName("");
       setCreateEmail("");
+      setCreatePhone("");
       setCreatePassword("");
-      // Refresh current page
+      fetchStats();
       fetchUsers(currentPage, searchTerm, roleFilter, statusFilter);
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || "Failed to create user.");
+      const detail = err.response?.data?.detail;
+      let msg = "Failed to create user.";
+      if (typeof detail === "string") {
+        msg = detail;
+      } else if (Array.isArray(detail) && detail.length > 0) {
+        msg = detail
+          .map((d: any) => (d.msg || JSON.stringify(d)).replace(/^Value error,\s*/i, ""))
+          .join(", ");
+      } else if (err.message) {
+        msg = err.message;
+      }
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -197,7 +266,7 @@ export const UsersPage: React.FC = () => {
             <Users className="h-7 w-7 text-primary" /> User Directory & Access Control
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Industry-standard administrative console to inspect credentials, enforce role policies, and manage active accounts.
+            Complete platform directory with verified emails, phones, and role-based access management.
           </p>
         </div>
 
@@ -210,8 +279,90 @@ export const UsersPage: React.FC = () => {
         </Button>
       </div>
 
-      {/* Filter and Search Bar */}
-      <Card className="p-4 border-border/80 bg-card/70 backdrop-blur-xl">
+      {/* Overview Stat Cards */}
+      {stats && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
+          <div className="p-3.5 rounded-xl border border-border/70 bg-card/70 backdrop-blur-xl space-y-1">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-xs font-semibold">Total Accounts</span>
+              <Users className="h-4 w-4 text-primary" />
+            </div>
+            <p className="text-2xl font-extrabold font-outfit text-foreground">{stats.total_users}</p>
+            <p className="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
+              <Activity className="h-2.5 w-2.5" /> {stats.active_users} active
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl border border-border/70 bg-card/70 backdrop-blur-xl space-y-1">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-xs font-semibold">Candidates</span>
+              <UserCheck className="h-4 w-4 text-amber-400" />
+            </div>
+            <p className="text-2xl font-extrabold font-outfit text-foreground">{stats.candidates}</p>
+            <p className="text-[10px] text-muted-foreground">Talent pool</p>
+          </div>
+
+          <div className="p-3.5 rounded-xl border border-border/70 bg-card/70 backdrop-blur-xl space-y-1">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-xs font-semibold">Recruiters</span>
+              <Briefcase className="h-4 w-4 text-emerald-400" />
+            </div>
+            <p className="text-2xl font-extrabold font-outfit text-foreground">{stats.recruiters}</p>
+            <p className="text-[10px] text-muted-foreground">Requisitions</p>
+          </div>
+
+          <div className="p-3.5 rounded-xl border border-border/70 bg-card/70 backdrop-blur-xl space-y-1">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-xs font-semibold">HR Managers</span>
+              <Sparkles className="h-4 w-4 text-blue-400" />
+            </div>
+            <p className="text-2xl font-extrabold font-outfit text-foreground">{stats.hr_users}</p>
+            <p className="text-[10px] text-muted-foreground">Evaluators</p>
+          </div>
+
+          <div className="p-3.5 rounded-xl border border-border/70 bg-card/70 backdrop-blur-xl space-y-1 col-span-2 sm:col-span-1">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-xs font-semibold">Skills Taxonomy</span>
+              <Shield className="h-4 w-4 text-purple-400" />
+            </div>
+            <p className="text-2xl font-extrabold font-outfit text-foreground">{stats.total_skills}</p>
+            <p className="text-[10px] text-muted-foreground">Canonical skills</p>
+          </div>
+        </div>
+      )}
+
+      {/* Role Tabs and Search Bar */}
+      <Card className="p-4 border-border/80 bg-card/70 backdrop-blur-xl space-y-4">
+        {/* Role Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-border/50">
+          {[
+            { id: "all", label: "All Roles", icon: Users },
+            { id: "Candidate", label: "Candidates", icon: UserCheck },
+            { id: "Recruiter", label: "Recruiters", icon: Briefcase },
+            { id: "HR", label: "HR Managers", icon: Sparkles },
+            { id: "Admin", label: "Administrators", icon: Shield },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = roleFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => handleRoleSelect(tab.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 ${
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-xs shadow-primary/30"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search & Status Filter Controls */}
         <div className="flex flex-col md:flex-row items-center gap-3">
           {/* Search bar */}
           <div className="relative flex-1 w-full">
@@ -222,36 +373,28 @@ export const UsersPage: React.FC = () => {
               placeholder="Search users by name, email, or phone number..."
               value={searchTerm}
               onChange={handleSearchChange}
-              className="pl-9 bg-background/50"
+              className="pl-9 pr-8 bg-background/50"
             />
+            {searchTerm && (
+              <button
+                onClick={clearSearch}
+                className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            {/* Role filter */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              <Filter className="h-4 w-4 text-muted-foreground hidden sm:inline" />
-              <select
-                id="user-role-filter"
-                value={roleFilter}
-                onChange={handleRoleChange}
-                className="h-10 px-3 rounded-lg border border-border bg-background/50 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
-              >
-                <option value="all">All Roles</option>
-                <option value="Admin">Admin</option>
-                <option value="HR">HR</option>
-                <option value="Recruiter">Recruiter</option>
-                <option value="Candidate">Candidate</option>
-              </select>
-            </div>
-
-            {/* Status filter */}
+          {/* Status filter */}
+          <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
+            <Filter className="h-4 w-4 text-muted-foreground" />
             <select
               id="user-status-filter"
               value={statusFilter}
               onChange={handleStatusChange}
-              className="h-10 px-3 rounded-lg border border-border bg-background/50 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer shrink-0"
+              className="h-10 px-3 rounded-lg border border-border bg-background/50 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
             >
-              <option value="all">All Status</option>
+              <option value="all">All Statuses</option>
               <option value="active">Active Only</option>
               <option value="deactivated">Deactivated Only</option>
             </select>
@@ -265,7 +408,7 @@ export const UsersPage: React.FC = () => {
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : (
-        <Card className="border-border/80 bg-card/70 backdrop-blur-xl overflow-hidden">
+        <Card className="border-border/80 bg-card/70 backdrop-blur-xl overflow-hidden shadow-sm">
           <Table>
             <TableHeader>
               <TableRow className="border-b border-border/80 bg-secondary/30">
@@ -287,7 +430,7 @@ export const UsersPage: React.FC = () => {
                     <Calendar className="h-3.5 w-3.5 text-muted-foreground" /> Registered
                   </span>
                 </TableHead>
-                <TableHead className="text-right font-bold text-foreground">Action</TableHead>
+                <TableHead className="text-right font-bold text-foreground">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -297,6 +440,11 @@ export const UsersPage: React.FC = () => {
                     <div className="flex flex-col items-center gap-2">
                       <Users className="h-8 w-8 opacity-40 text-muted-foreground" />
                       <p>No user records found matching your query.</p>
+                      {searchTerm && (
+                        <Button variant="ghost" size="sm" onClick={clearSearch} className="text-xs">
+                          Clear search filter
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -306,17 +454,17 @@ export const UsersPage: React.FC = () => {
                     {/* User Name with Initial Avatar */}
                     <TableCell className="font-semibold text-foreground">
                       <div className="flex items-center gap-2.5">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600/20 to-purple-600/20 border border-indigo-500/30 text-primary text-xs font-extrabold font-outfit shadow-xs">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600/20 to-purple-600/20 border border-indigo-500/30 text-primary text-xs font-extrabold font-outfit shadow-xs shrink-0">
                           {u.name ? u.name.charAt(0).toUpperCase() : "U"}
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-foreground leading-tight">{u.name}</p>
+                          <p className="text-sm font-bold text-foreground leading-tight font-outfit">{u.name}</p>
                           <span className="text-[10px] text-muted-foreground">ID #{u.id}</span>
                         </div>
                       </div>
                     </TableCell>
 
-                    {/* Column 1: Email Address */}
+                    {/* Email Address with Click to Copy */}
                     <TableCell>
                       {u.email ? (
                         <div className="flex items-center gap-1.5 group">
@@ -344,7 +492,7 @@ export const UsersPage: React.FC = () => {
                       )}
                     </TableCell>
 
-                    {/* Column 2: Phone Number */}
+                    {/* Phone Number with Click to Copy */}
                     <TableCell>
                       {u.phone_number ? (
                         <div className="flex items-center gap-1.5 group">
@@ -375,53 +523,75 @@ export const UsersPage: React.FC = () => {
                     {/* Status Badge */}
                     <TableCell>
                       {u.is_active ? (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          Active
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                          <CheckCircle2 className="h-3 w-3" /> Active
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/30 px-2 py-0.5 rounded-full">
-                          <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
-                          Deactivated
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full">
+                          <XCircle className="h-3 w-3" /> Deactivated
                         </span>
                       )}
                     </TableCell>
 
                     {/* Registered Date */}
                     <TableCell className="text-xs text-muted-foreground">
-                      {new Date(u.created_at).toLocaleDateString(undefined, {
+                      {new Date(u.created_at).toLocaleDateString("en-US", {
                         year: "numeric",
                         month: "short",
                         day: "numeric",
                       })}
                     </TableCell>
 
-                    {/* Actions: Toggle Status */}
+                    {/* Actions: View Details + Toggle Status */}
                     <TableCell className="text-right">
-                      {u.role.name !== "Admin" ? (
+                      <div className="flex items-center justify-end gap-2">
                         <Button
-                          id={`toggle-user-${u.id}`}
+                          id={`view-user-${u.id}`}
                           size="sm"
-                          variant={u.is_active ? "outline" : "secondary"}
-                          className={
-                            u.is_active
-                              ? "text-xs h-7 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border-rose-500/30"
-                              : "text-xs h-7 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 border-emerald-500/30"
-                          }
-                          disabled={togglingId === u.id}
-                          onClick={() => handleToggleStatus(u)}
+                          variant="ghost"
+                          className="text-xs h-7 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 gap-1"
+                          onClick={() => navigate(`/admin/users/${u.id}`)}
                         >
-                          {togglingId === u.id ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : u.is_active ? (
-                            "Deactivate"
-                          ) : (
-                            "Activate"
-                          )}
+                          <ExternalLink className="h-3 w-3" /> View
                         </Button>
-                      ) : (
-                        <span className="text-[11px] text-muted-foreground italic px-2">Protected</span>
-                      )}
+                        {u.role.name !== "Admin" ? (
+                          <>
+                            <Button
+                              id={`toggle-user-${u.id}`}
+                              size="sm"
+                              variant={u.is_active ? "outline" : "secondary"}
+                              className={
+                                u.is_active
+                                  ? "text-xs h-7 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border-amber-500/30"
+                                  : "text-xs h-7 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 border-emerald-500/30"
+                              }
+                              disabled={togglingId === u.id}
+                              onClick={() => handleToggleStatus(u)}
+                            >
+                              {togglingId === u.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : u.is_active ? (
+                                "Deactivate"
+                              ) : (
+                                "Activate"
+                              )}
+                            </Button>
+
+                            <Button
+                              id={`delete-user-${u.id}`}
+                              size="sm"
+                              variant="ghost"
+                              className="text-xs h-7 text-rose-400 hover:text-rose-300 hover:bg-rose-500/15 border border-rose-500/30 gap-1 px-2.5"
+                              onClick={() => setUserToDelete(u)}
+                              title="Permanently remove user"
+                            >
+                              <Trash2 className="h-3 w-3" /> Remove
+                            </Button>
+                          </>
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground italic px-2">Protected</span>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -465,19 +635,19 @@ export const UsersPage: React.FC = () => {
         </Card>
       )}
 
-      {/* Create User Dialog */}
+      {/* Provision Account Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Provision Team Account</DialogTitle>
+            <DialogTitle className="font-outfit text-xl">Provision Team Account</DialogTitle>
             <DialogDescription>
-              Create a new HR Manager or Recruiter account with defined role privileges.
+              Create a new HR Manager or Recruiter account with verified email and phone number.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleCreateUser} className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">Role Privilege</label>
+              <label className="text-xs font-semibold text-foreground">Role Privilege *</label>
               <select
                 value={createRoleId}
                 onChange={(e) => setCreateRoleId(Number(e.target.value))}
@@ -485,12 +655,11 @@ export const UsersPage: React.FC = () => {
               >
                 <option value={2}>HR Manager</option>
                 <option value={3}>Recruiter</option>
-                <option value={1}>Admin</option>
               </select>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">Full Name</label>
+              <label className="text-xs font-semibold text-foreground">Full Name *</label>
               <Input
                 type="text"
                 placeholder="e.g. Alex Morgan"
@@ -500,19 +669,31 @@ export const UsersPage: React.FC = () => {
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">Email Address</label>
-              <Input
-                type="email"
-                placeholder="alex@company.com"
-                required
-                value={createEmail}
-                onChange={(e) => setCreateEmail(e.target.value)}
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">Email Address *</label>
+                <Input
+                  type="email"
+                  placeholder="alex@company.com"
+                  required
+                  value={createEmail}
+                  onChange={(e) => setCreateEmail(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">Phone Number</label>
+                <Input
+                  type="tel"
+                  placeholder="+91 98765 43210"
+                  value={createPhone}
+                  onChange={(e) => setCreatePhone(e.target.value)}
+                />
+              </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">Temporary Password</label>
+              <label className="text-xs font-semibold text-foreground">Temporary Password *</label>
               <Input
                 type="password"
                 placeholder="Min 8 chars, 1 uppercase, 1 digit"
@@ -520,6 +701,9 @@ export const UsersPage: React.FC = () => {
                 value={createPassword}
                 onChange={(e) => setCreatePassword(e.target.value)}
               />
+              <p className="text-[11px] text-muted-foreground">
+                Must be at least 8 characters with at least 1 uppercase letter, 1 lowercase letter, and 1 digit.
+              </p>
             </div>
 
             <DialogFooter className="pt-3">
@@ -542,6 +726,78 @@ export const UsersPage: React.FC = () => {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Confirmation Dialog */}
+      <Dialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
+        <DialogContent className="sm:max-w-md border-border/80 bg-card/95 backdrop-blur-xl">
+          <DialogHeader>
+            <div className="flex items-center gap-3 text-rose-400 mb-1">
+              <div className="h-10 w-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-bold font-outfit text-foreground">
+                  Permanently Remove User
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  This action is irreversible and purges all related candidate data.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {userToDelete && (
+            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs space-y-2.5 my-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-foreground text-sm">{userToDelete.name}</span>
+                <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider">
+                  {userToDelete.role.name}
+                </Badge>
+              </div>
+              <div className="text-[11px] text-muted-foreground space-y-0.5">
+                <p>Email: {userToDelete.email || <span className="italic">None</span>}</p>
+                <p>Phone: {userToDelete.phone_number || <span className="italic">None</span>}</p>
+              </div>
+              <div className="flex items-start gap-2 pt-2 border-t border-rose-500/20 text-rose-300 text-[11px] leading-relaxed">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-rose-400" />
+                <span>
+                  All candidate profiles, uploaded resumes, skill mappings, match records, and evaluations associated with this user will be deleted permanently.
+                </span>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0 pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setUserToDelete(null)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={isDeleting}
+              onClick={handleConfirmDelete}
+              className="gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Removing...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-3.5 w-3.5" /> Confirm Permanent Delete
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

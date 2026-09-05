@@ -66,3 +66,30 @@ def candidate_token(client):
     })
     assert response.status_code == 200, f"Candidate login failed: {response.text}"
     return response.json()["access_token"]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_test_users():
+    yield
+    # Session teardown: clean up any ephemeral test accounts
+    from app.database.session import SessionLocal
+    from app.models.user import User
+    from app.services.user_service import delete_user
+
+    db = SessionLocal()
+    try:
+        test_users = db.query(User).filter(
+            (User.name.like("Candidate %")) |
+            (User.name.like("Test Candidate%")) |
+            (User.name.like("Candidate A%")) |
+            (User.name.like("Candidate B%")) |
+            (User.name.like("Temp Test%"))
+        ).all()
+        for u in test_users:
+            try:
+                delete_user(db, u.id)
+            except Exception:
+                pass
+    finally:
+        db.close()
+

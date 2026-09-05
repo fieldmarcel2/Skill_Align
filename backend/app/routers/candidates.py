@@ -55,6 +55,9 @@ def get_my_profile(
     return candidate_service.get_my_profile(db, candidate_user)
 
 
+from app.services.matching_service import _build_match_result_out
+
+
 @router.get(
     "/me/pipeline",
     response_model=List[MatchResultOut],
@@ -77,16 +80,7 @@ def get_my_pipeline(
         .all()
     )
 
-    output: List[MatchResultOut] = []
-    for r in results:
-        meets_exp = True
-        if r.job and r.candidate:
-            meets_exp = float(r.candidate.total_experience_years or 0) >= float(r.job.min_experience_years or 0)
-        item = MatchResultOut.model_validate(r)
-        item.meets_experience = meets_exp
-        output.append(item)
-
-    return output
+    return [_build_match_result_out(r) for r in results]
 
 
 @router.post(
@@ -124,12 +118,12 @@ def update_my_profile(
     summary="Upload resume (PDF/DOC/DOCX)",
     description="Secure resume upload outside database. Validates type and size limits."
 )
-def upload_resume(
+async def upload_resume(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     candidate_user: User = Depends(require_candidate)
 ):
-    return candidate_service.upload_resume(db, candidate_user, file)
+    return await candidate_service.upload_resume(db, candidate_user, file)
 
 
 @router.post(
