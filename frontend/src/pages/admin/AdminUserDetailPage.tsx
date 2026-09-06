@@ -39,6 +39,8 @@ import {
   Check,
   Award,
   Code2,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 
 export const AdminUserDetailPage: React.FC = () => {
@@ -85,6 +87,24 @@ export const AdminUserDetailPage: React.FC = () => {
       toast.error(err.response?.data?.detail || "Failed to toggle user status.");
     } finally {
       setIsToggling(false);
+    }
+  };
+
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
+  const handleDeleteUser = async () => {
+    if (!detail) return;
+    setIsDeleting(true);
+    try {
+      await adminApi.deleteUser(userId);
+      toast.success(`${detail.name} has been permanently deleted.`, "User Removed");
+      navigate("/admin/users");
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to remove user.", "Error");
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteModalOpen(false);
     }
   };
 
@@ -223,25 +243,37 @@ export const AdminUserDetailPage: React.FC = () => {
         </div>
 
         {detail.role !== "Admin" && (
-          <Button
-            variant={detail.is_active ? "outline" : "secondary"}
-            className={
-              detail.is_active
-                ? "text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border-rose-500/30 shrink-0"
-                : "text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 border-emerald-500/30 shrink-0"
-            }
-            disabled={isToggling}
-            onClick={handleToggleStatus}
-          >
-            {isToggling ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : detail.is_active ? (
-              <XCircle className="h-4 w-4 mr-2" />
-            ) : (
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-            )}
-            {isToggling ? "Updating..." : detail.is_active ? "Deactivate Account" : "Activate Account"}
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant={detail.is_active ? "outline" : "secondary"}
+              className={
+                detail.is_active
+                  ? "text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border-rose-500/30"
+                  : "text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 border-emerald-500/30"
+              }
+              disabled={isToggling}
+              onClick={handleToggleStatus}
+            >
+              {isToggling ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : detail.is_active ? (
+                <XCircle className="h-4 w-4 mr-2" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+              )}
+              {isToggling ? "Updating..." : detail.is_active ? "Deactivate Account" : "Activate Account"}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs h-9 text-rose-400 hover:text-rose-300 hover:bg-rose-500/15 border border-rose-500/30 gap-1.5 px-3"
+              onClick={() => setIsDeleteModalOpen(true)}
+              title="Permanently remove user"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Remove User
+            </Button>
+          </div>
         )}
       </div>
 
@@ -619,6 +651,78 @@ export const AdminUserDetailPage: React.FC = () => {
           <DialogFooter className="pt-2">
             <Button variant="outline" onClick={() => setIsTextModalOpen(false)}>
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Confirmation Dialog */}
+      <Dialog open={isDeleteModalOpen} onOpenChange={(open) => !open && setIsDeleteModalOpen(false)}>
+        <DialogContent className="sm:max-w-md border-border/80 bg-card/95 backdrop-blur-xl">
+          <DialogHeader>
+            <div className="flex items-center gap-3 text-rose-400 mb-1">
+              <div className="h-10 w-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-bold font-outfit text-foreground">
+                  Permanently Remove User
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  This action is irreversible and purges all related user assignments and records.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {detail && (
+            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs space-y-2.5 my-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-foreground text-sm">{detail.name}</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border border-border">
+                  {detail.role}
+                </span>
+              </div>
+              <div className="text-[11px] text-muted-foreground space-y-0.5">
+                <p>Email: {detail.email || "None"}</p>
+                <p>Phone: {detail.phone_number || "None"}</p>
+              </div>
+              <div className="flex items-start gap-2 pt-2 border-t border-rose-500/20 text-rose-300 text-[11px] leading-relaxed">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-rose-400" />
+                <span>
+                  All job assignments, collaboration tasks, candidate claims, evaluations, and activity associated with this {detail.role} will be permanently removed.
+                </span>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0 pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsDeleteModalOpen(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={isDeleting}
+              onClick={handleDeleteUser}
+              className="gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Removing...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-3.5 w-3.5" /> Permanently Remove User
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

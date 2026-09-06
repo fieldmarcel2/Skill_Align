@@ -64,11 +64,11 @@ def test_authorization_matrix(client, candidate_token, hr_token, recruiter_token
     )
     assert res.status_code == 403
 
-    # HR cannot create jobs
+    # Recruiter cannot create jobs (HR owns requisitions)
     res = client.post(
         "/api/jobs",
-        json={"title": "HR Job Attempt", "skills": []},
-        headers={"Authorization": f"Bearer {hr_token}"}
+        json={"title": "Recruiter Job Attempt", "min_experience_years": 2, "job_skills": []},
+        headers={"Authorization": f"Bearer {recruiter_token}"}
     )
     assert res.status_code == 403
 

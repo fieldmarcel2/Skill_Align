@@ -1,5 +1,5 @@
 """
-Pydantic Schemas for Resume Storage & Deterministic Parsing.
+Pydantic Schemas for Resume Storage & Async Processing Pipeline.
 """
 
 from typing import Optional, Dict, Any, List
@@ -8,17 +8,35 @@ from pydantic import BaseModel, Field
 
 
 class ResumeUploadResponse(BaseModel):
-    status: str = "success"
-    message: str = "Resume uploaded, text extracted, and profile parsed successfully."
+    """
+    Async upload response — returned immediately after file is stored to S3.
+    Processing happens asynchronously via Celery.
+    Poll GET /{candidate_id}/resume/status to check completion.
+    """
+    status: str = "processing"
+    message: str = "Resume uploaded successfully. Processing has been queued."
     candidate_id: int
+    task_id: Optional[str] = None   # Celery task ID for status polling
     filename: str
-    format: Optional[str] = "PDF"
-    original_s3_key: str
-    extracted_text_s3_key: Optional[str] = None
-    uploaded_at: datetime
+    uploaded_at: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class ResumeStatusResponse(BaseModel):
+    """
+    Resume processing status — used for async status polling.
+    processing_status values:
+      not_uploaded  → no resume on file
+      processing    → uploaded but not yet parsed (worker running)
+      completed     → fully parsed, skills extracted, matching triggered
+      failed        → processing encountered an error
+    """
+    candidate_id: int
+    processing_status: str  # not_uploaded | processing | completed | failed
+    filename: Optional[str] = None
+    uploaded_at: Optional[datetime] = None
     parsed_at: Optional[datetime] = None
-    parsed_data: Optional[Dict[str, Any]] = None
-    auto_added_skills: Optional[List[str]] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 

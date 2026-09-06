@@ -12,12 +12,20 @@ import {
   CandidateSkill,
   MatchResult,
   MatchRunResponse,
+  MatchStatusResponse,
+  ResumeStatusResponse,
   AdminStats,
   PaginatedUsersResponse,
   Scorecard,
   PipelineStatus,
   Interview,
   Notification,
+  JobRecruiterAssignment,
+  CandidateRecruiterAssignment,
+  RecruitmentMessage,
+  RecruitmentTask,
+  RecruiterDashboardStats,
+  RecruiterJobItem,
 } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -319,12 +327,20 @@ export const resumeApi = {
     const res = await apiClient.delete<{ message: string; candidate_id: number }>(`/api/candidates/${candidateId}/resume`);
     return res.data;
   },
+  getStatus: async (candidateId: number): Promise<ResumeStatusResponse> => {
+    const res = await apiClient.get<ResumeStatusResponse>(`/api/candidates/${candidateId}/resume/status`);
+    return res.data;
+  },
 };
 
 // ── Matching Engine APIs ─────────────────────────────────────────────────────
 export const matchingApi = {
   runMatch: async (jobId: number): Promise<MatchRunResponse> => {
     const res = await apiClient.post<MatchRunResponse>(`/api/matching/jobs/${jobId}/run`);
+    return res.data;
+  },
+  getMatchStatus: async (jobId: number): Promise<MatchStatusResponse> => {
+    const res = await apiClient.get<MatchStatusResponse>(`/api/matching/jobs/${jobId}/status`);
     return res.data;
   },
   getMatches: async (jobId: number, status?: string): Promise<MatchResult[]> => {
@@ -443,3 +459,171 @@ export const notificationsApi = {
     return res.data;
   },
 };
+
+// ── Multi-Recruiter Job Assignments (HR Only) ────────────────────────────────
+export const recruiterAssignmentApi = {
+  assignRecruiter: async (
+    jobId: number,
+    recruiterId: number,
+    assignmentRole: string = "RECRUITER"
+  ): Promise<JobRecruiterAssignment> => {
+    const res = await apiClient.post<JobRecruiterAssignment>(`/api/jobs/${jobId}/recruiters`, {
+      recruiter_id: recruiterId,
+      assignment_role: assignmentRole,
+    });
+    return res.data;
+  },
+  removeRecruiter: async (jobId: number, recruiterId: number): Promise<void> => {
+    await apiClient.delete(`/api/jobs/${jobId}/recruiters/${recruiterId}`);
+  },
+  updateRole: async (
+    jobId: number,
+    recruiterId: number,
+    assignmentRole: string
+  ): Promise<JobRecruiterAssignment> => {
+    const res = await apiClient.patch<JobRecruiterAssignment>(
+      `/api/jobs/${jobId}/recruiters/${recruiterId}`,
+      { assignment_role: assignmentRole }
+    );
+    return res.data;
+  },
+  listJobRecruiters: async (jobId: number): Promise<JobRecruiterAssignment[]> => {
+    const res = await apiClient.get<JobRecruiterAssignment[]>(`/api/jobs/${jobId}/recruiters`);
+    return res.data;
+  },
+};
+
+// ── Recruiter Operations & Claiming APIs ──────────────────────────────────────
+export const recruiterApi = {
+  getDashboardStats: async (): Promise<RecruiterDashboardStats> => {
+    const res = await apiClient.get<RecruiterDashboardStats>("/api/recruiter/dashboard-stats");
+    return res.data;
+  },
+  getAssignedJobs: async (): Promise<RecruiterJobItem[]> => {
+    const res = await apiClient.get<RecruiterJobItem[]>("/api/recruiter/jobs");
+    return res.data;
+  },
+  getJobCandidates: async (
+    jobId: number,
+    params?: {
+      search?: string;
+      min_score?: number;
+      status?: string;
+      assigned_to_me?: boolean;
+      assignment_status?: string;
+      page?: number;
+      page_size?: number;
+    }
+  ): Promise<MatchResult[]> => {
+    const res = await apiClient.get<MatchResult[]>(`/api/recruiter/jobs/${jobId}/candidates`, { params });
+    return res.data;
+  },
+  getAllCandidates: async (
+    params?: {
+      job_id?: number;
+      search?: string;
+      min_score?: number;
+      status?: string;
+      assigned_to_me?: boolean;
+      assignment_status?: string;
+      page?: number;
+      page_size?: number;
+    }
+  ): Promise<MatchResult[]> => {
+    const res = await apiClient.get<MatchResult[]>("/api/recruiter/candidates", { params });
+    return res.data;
+  },
+  getCandidateDetail: async (jobId: number, candidateId: number): Promise<MatchResult> => {
+    const res = await apiClient.get<MatchResult>(`/api/recruiter/jobs/${jobId}/candidates/${candidateId}`);
+    return res.data;
+  },
+  claimCandidate: async (jobId: number, candidateId: number): Promise<CandidateRecruiterAssignment> => {
+    const res = await apiClient.post<CandidateRecruiterAssignment>(
+      `/api/jobs/${jobId}/candidates/${candidateId}/claim`
+    );
+    return res.data;
+  },
+  assignCandidate: async (
+    jobId: number,
+    candidateId: number,
+    recruiterId: number
+  ): Promise<CandidateRecruiterAssignment> => {
+    const res = await apiClient.post<CandidateRecruiterAssignment>(
+      `/api/jobs/${jobId}/candidates/${candidateId}/assign`,
+      { recruiter_id: recruiterId }
+    );
+    return res.data;
+  },
+  unassignCandidate: async (jobId: number, candidateId: number): Promise<void> => {
+    await apiClient.delete(`/api/jobs/${jobId}/candidates/${candidateId}/assignment`);
+  },
+};
+
+// ── Recruitment Communication APIs ────────────────────────────────────────────
+export const communicationApi = {
+  listJobMessages: async (jobId: number): Promise<RecruitmentMessage[]> => {
+    const res = await apiClient.get<RecruitmentMessage[]>(`/api/jobs/${jobId}/messages`);
+    return res.data;
+  },
+  sendJobMessage: async (
+    jobId: number,
+    data: { message: string; message_type?: string; is_private?: boolean }
+  ): Promise<RecruitmentMessage> => {
+    const res = await apiClient.post<RecruitmentMessage>(`/api/jobs/${jobId}/messages`, data);
+    return res.data;
+  },
+  listCandidateMessages: async (jobId: number, candidateId: number): Promise<RecruitmentMessage[]> => {
+    const res = await apiClient.get<RecruitmentMessage[]>(
+      `/api/jobs/${jobId}/candidates/${candidateId}/messages`
+    );
+    return res.data;
+  },
+  sendCandidateMessage: async (
+    jobId: number,
+    candidateId: number,
+    data: { message: string; message_type?: string; is_private?: boolean }
+  ): Promise<RecruitmentMessage> => {
+    const res = await apiClient.post<RecruitmentMessage>(
+      `/api/jobs/${jobId}/candidates/${candidateId}/messages`,
+      data
+    );
+    return res.data;
+  },
+};
+
+// ── Recruitment Task APIs ─────────────────────────────────────────────────────
+export const tasksApi = {
+  getMyTasks: async (status?: string): Promise<RecruitmentTask[]> => {
+    const params = status ? { status } : {};
+    const res = await apiClient.get<RecruitmentTask[]>("/api/recruiter/tasks", { params });
+    return res.data;
+  },
+  getJobTasks: async (jobId: number, candidateId?: number): Promise<RecruitmentTask[]> => {
+    const params = candidateId ? { candidate_id: candidateId } : {};
+    const res = await apiClient.get<RecruitmentTask[]>(`/api/jobs/${jobId}/tasks`, { params });
+    return res.data;
+  },
+  createTask: async (
+    jobId: number,
+    data: {
+      assigned_to: number;
+      title: string;
+      description?: string;
+      priority?: string;
+      due_at?: string;
+    },
+    candidateId?: number
+  ): Promise<RecruitmentTask> => {
+    const params = candidateId ? { candidate_id: candidateId } : {};
+    const res = await apiClient.post<RecruitmentTask>(`/api/jobs/${jobId}/tasks`, data, { params });
+    return res.data;
+  },
+  updateTask: async (
+    taskId: number,
+    data: { status?: string; priority?: string; description?: string }
+  ): Promise<RecruitmentTask> => {
+    const res = await apiClient.patch<RecruitmentTask>(`/api/tasks/${taskId}`, data);
+    return res.data;
+  },
+};
+

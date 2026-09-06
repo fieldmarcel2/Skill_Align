@@ -95,7 +95,7 @@ export const CandidateSkillsPage: React.FC = () => {
 
   const handleOpenEdit = (cs: CandidateSkill) => {
     setEditingSkill(cs);
-    setEditProficiency(cs.proficiency_level);
+    setEditProficiency(cs.proficiency_level || "Beginner");
     setEditYears(cs.years_experience);
   };
 
@@ -192,9 +192,9 @@ export const CandidateSkillsPage: React.FC = () => {
                 onChange={(e) => setProficiency(e.target.value)}
                 className="w-full h-10 px-3 rounded-lg border border-border bg-secondary/50 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               >
-                <option value="Expert">Expert (1.00 Score Factor)</option>
-                <option value="Intermediate">Intermediate (0.70 Score Factor)</option>
-                <option value="Beginner">Beginner (0.40 Score Factor)</option>
+                <option value="Expert">Expert (5+ yrs / Advanced)</option>
+                <option value="Intermediate">Intermediate (3-5 yrs / Autonomous)</option>
+                <option value="Beginner">Beginner (1-2 yrs / Foundational)</option>
               </select>
             </div>
 
@@ -266,7 +266,7 @@ export const CandidateSkillsPage: React.FC = () => {
                       cs.proficiency_level
                     )}`}
                   >
-                    {cs.proficiency_level}
+                    {cs.proficiency_level || "Extracted"}
                   </span>
                   <Button
                     size="sm"

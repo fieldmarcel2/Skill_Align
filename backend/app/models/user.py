@@ -57,6 +57,9 @@ class User(Base):
     match_results_triggered: Mapped[list["MatchResult"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "MatchResult", foreign_keys="[MatchResult.matched_by]", back_populates="matched_by_user", lazy="select"
     )
+    job_assignments: Mapped[list["JobRecruiterAssignment"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        "JobRecruiterAssignment", foreign_keys="[JobRecruiterAssignment.recruiter_id]", back_populates="recruiter", lazy="select", cascade="all, delete-orphan", passive_deletes=True
+    )
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email!r} phone={self.phone_number!r} role_id={self.role_id}>"

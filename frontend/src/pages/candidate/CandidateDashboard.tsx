@@ -53,6 +53,19 @@ import {
 const MATCH_PAGE_SIZE = 10;
 const INTERVIEW_PAGE_SIZE = 10;
 
+const stageLabels: Record<string, string> = {
+  matched: "Under Review",
+  screened: "Screened",
+  approved_by_hr: "Shortlisted",
+  shortlisted: "Shortlisted",
+  interview_scheduled: "Interview Scheduled",
+  technical_interview: "Technical Round",
+  hr_interview: "HR Round",
+  offer: "Offer Extended",
+  hired: "Hired",
+  rejected: "Not Selected",
+};
+
 export const CandidateDashboard: React.FC = () => {
   const toast = useToast();
   const { refreshUser } = useAuth();
@@ -668,14 +681,14 @@ export const CandidateDashboard: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Match Percentage Display with Prominent Color Coding */}
+                        {/* Candidate Pipeline Stage Badge (Fit score kept confidential) */}
                         <div className="flex items-center gap-3 shrink-0" onClick={(e) => e.stopPropagation()}>
-                          <div className={`px-4 py-2 rounded-xl border text-center ${getScoreColor(score)}`}>
-                            <span className="text-2xl font-extrabold font-outfit">
-                              {score.toFixed(0)}%
+                          <div className="px-3.5 py-2 rounded-xl border border-primary/25 bg-primary/10 text-center">
+                            <span className="text-xs font-black uppercase tracking-wider text-primary block">
+                              {stageLabels[match.status] || match.status.replace(/_/g, " ")}
                             </span>
-                            <span className="block text-[9px] font-semibold uppercase tracking-wider opacity-80">
-                              Fit Score
+                            <span className="block text-[9px] font-semibold text-muted-foreground mt-0.5">
+                              Application Status
                             </span>
                           </div>
                         </div>
@@ -1528,9 +1541,9 @@ export const CandidateDashboard: React.FC = () => {
                     onChange={(e) => setProficiencyLevel(e.target.value as any)}
                     className="w-full h-10 px-3 rounded-lg border border-border bg-secondary/50 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   >
-                    <option value="Beginner">Beginner (Score weight: 40%)</option>
-                    <option value="Intermediate">Intermediate (Score weight: 70%)</option>
-                    <option value="Expert">Expert (Score weight: 100%)</option>
+                    <option value="Beginner">Beginner (1-2 yrs / Foundational)</option>
+                    <option value="Intermediate">Intermediate (3-5 yrs / Autonomous)</option>
+                    <option value="Expert">Expert (5+ yrs / Advanced)</option>
                   </select>
                 </div>
 
@@ -1710,12 +1723,12 @@ export const CandidateDashboard: React.FC = () => {
                     </DialogDescription>
                   </div>
 
-                  <div className={`px-3 py-1.5 rounded-xl border text-center shrink-0 ${getScoreColor(Number(selectedJobMatch.overall_score || 0))}`}>
-                    <span className="text-xl font-extrabold font-outfit">
-                      {Number(selectedJobMatch.overall_score || 0).toFixed(0)}%
+                  <div className="px-3 py-1.5 rounded-xl border border-primary/25 bg-primary/10 text-center shrink-0">
+                    <span className="text-xs font-black uppercase tracking-wider text-primary block">
+                      {stageLabels[selectedJobMatch.status] || selectedJobMatch.status.replace(/_/g, " ")}
                     </span>
-                    <span className="block text-[8px] font-bold uppercase tracking-wider opacity-80">
-                      Match Fit
+                    <span className="block text-[8px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5">
+                      Stage
                     </span>
                   </div>
                 </div>

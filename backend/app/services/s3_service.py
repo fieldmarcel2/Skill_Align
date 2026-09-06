@@ -196,7 +196,29 @@ class S3Service:
                 pass
 
         return True
-4
+
+    def download_bytes(self, s3_key: str) -> bytes:
+        """
+        Download binary content from S3 / local storage as bytes.
+        Used by the async resume worker to retrieve uploaded files.
+        """
+        if self._is_s3_configured():
+            client = self._get_client()
+            try:
+                response = client.get_object(Bucket=self.bucket_name, Key=s3_key)
+                content = response["Body"].read()
+                logger.info(f"Downloaded {len(content)} bytes from S3: {s3_key}")
+                return content
+            except (ClientError, BotoCoreError) as e:
+                logger.error(f"Failed to download from S3 ({s3_key}): {e}")
+                raise RuntimeError(f"S3 download failed: {str(e)}") from e
+        else:
+            # Local fallback
+            local_path = self.local_storage_dir / s3_key
+            if local_path.exists():
+                return local_path.read_bytes()
+            raise FileNotFoundError(f"Local file not found: {local_path}")
+
 
 # Singleton instance for import throughout the backend
 s3_service = S3Service()

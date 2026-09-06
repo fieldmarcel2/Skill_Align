@@ -48,6 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     case "HR":
       navItems = [
         { title: "HR Dashboard", to: "/hr", icon: LayoutDashboard },
+        { title: "Create Job Requisition", to: "/hr/jobs/create", icon: PlusCircle },
         { title: "Hiring Pipeline", to: "/hr/pipeline", icon: Kanban },
         { title: "Shortlisted Candidates", to: "/hr/shortlists", icon: BookmarkCheck },
       ];
@@ -55,7 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     case "Recruiter":
       navItems = [
         { title: "Recruiter Dashboard", to: "/recruiter", icon: LayoutDashboard },
-        { title: "Create Job Requisition", to: "/recruiter/jobs/create", icon: PlusCircle },
+        { title: "Candidate Pool", to: "/recruiter/candidates", icon: Users },
         { title: "Shortlisted Talents", to: "/recruiter/shortlists", icon: UserCheck },
       ];
       break;

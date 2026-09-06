@@ -255,14 +255,53 @@ def delete_user(db: Session, user_id: int, current_admin_id: Optional[int] = Non
     db.query(CandidateScorecard).filter(CandidateScorecard.reviewer_id == user.id).delete(synchronize_session=False)
     db.query(Interview).filter(Interview.scheduled_by == user.id).delete(synchronize_session=False)
 
-    # 4. Cleanup Notifications & OTPs
+    # 4. Cascade Recruiter Assignments, Tasks, and Collaboration
+    from app.models.job_recruiter_assignment import JobRecruiterAssignment
+    from app.models.candidate_recruiter_assignment import CandidateRecruiterAssignment
+    from app.models.recruitment_task import RecruitmentTask
+    from app.models.recruitment_message import RecruitmentMessage
+    from app.models.audit_log import AuditLog
+
+    db.query(JobRecruiterAssignment).filter(
+        (JobRecruiterAssignment.recruiter_id == user.id) | (JobRecruiterAssignment.assigned_by == user.id)
+    ).delete(synchronize_session=False)
+
+    db.query(CandidateRecruiterAssignment).filter(
+        (CandidateRecruiterAssignment.recruiter_id == user.id) | (CandidateRecruiterAssignment.assigned_by == user.id)
+    ).delete(synchronize_session=False)
+
+    db.query(RecruitmentMessage).filter(RecruitmentMessage.sender_id == user.id).delete(synchronize_session=False)
+
+    db.query(RecruitmentTask).filter(
+        (RecruitmentTask.assigned_to == user.id) | (RecruitmentTask.created_by == user.id)
+    ).delete(synchronize_session=False)
+
+    # Nullify references in MatchResult
+    db.query(MatchResult).filter(MatchResult.matched_by == user.id).update(
+        {MatchResult.matched_by: None}, synchronize_session=False
+    )
+    db.query(MatchResult).filter(MatchResult.recruiter_id == user.id).update(
+        {MatchResult.recruiter_id: None}, synchronize_session=False
+    )
+
+    # Nullify references in AuditLog
+    db.query(AuditLog).filter(AuditLog.actor_id == user.id).update(
+        {AuditLog.actor_id: None}, synchronize_session=False
+    )
+
+    # 5. Cleanup Notifications & OTPs
     db.query(Notification).filter(Notification.user_id == user.id).delete(synchronize_session=False)
     if user.phone_number:
         db.query(OTPVerification).filter(OTPVerification.phone_number == user.phone_number).delete(synchronize_session=False)
 
-    # 5. Delete User record
-    db.delete(user)
+    # Commit child cascading deletions to release foreign keys
     db.commit()
+
+    # 6. Delete User record
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        db.delete(user)
+        db.commit()
 
     return {
         "message": f"User '{user_name}' (ID: {user_id}) permanently removed successfully.",

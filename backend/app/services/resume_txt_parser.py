@@ -313,11 +313,22 @@ def extract_education(text: str, edu_section: str) -> List[Dict[str, Any]]:
         if match:
             degree_name = match.group(0).strip()
             
-            # Look for institution near the degree
+            # Look for institution near the degree (evaluate per line to prevent multi-line bleeding)
             institution = "University / College"
-            inst_match = re.search(r"(?:from|at)?\s*([A-Z][A-Za-z\s&,.-]+(?:University|Institute|College|Academy|School))", target_text)
-            if inst_match:
-                institution = inst_match.group(1).strip()
+            lines = [l.strip() for l in target_text.splitlines() if l.strip()]
+            for l in lines:
+                if l.lower() in ["education", "academic background", "academic qualifications", "degrees"]:
+                    continue
+                # Skip pure degree lines unless it contains an institution keyword
+                if any(re.search(p, l, re.IGNORECASE) for p in DEGREE_PATTERNS) and not any(kw in l.lower() for kw in ["university", "institute", "college", "school"]):
+                    continue
+                inst_match = re.search(r"\b([A-Z][A-Za-z0-9\s&,.-]+?(?:University|Institute(?:\s+of\s+[A-Za-z]+)?|College|Academy|School))\b", l)
+                if inst_match:
+                    cand_inst = inst_match.group(1).strip()
+                    cand_inst = re.sub(r"^(?:education|degree|institution|at|from)\s*[:\-]?\s*", "", cand_inst, flags=re.IGNORECASE).strip()
+                    if len(cand_inst) >= 4:
+                        institution = cand_inst
+                        break
 
             # Look for graduation year
             year_match = re.search(r"\b(20\d{2}|19\d{2})\b", target_text)

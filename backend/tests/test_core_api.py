@@ -36,12 +36,12 @@ def test_skills_crud(client, admin_token, candidate_token):
     assert res.status_code == 403
 
 
-def test_recruiter_job_lifecycle(client, recruiter_token):
+def test_hr_job_lifecycle(client, hr_token, recruiter_token):
     # Fetch existing skill
-    skills_res = client.get("/api/skills", headers={"Authorization": f"Bearer {recruiter_token}"})
+    skills_res = client.get("/api/skills", headers={"Authorization": f"Bearer {hr_token}"})
     skill_id = skills_res.json()[0]["id"]
 
-    # Create job with skills & weights
+    # 1. HR creates job with skills & weights
     job_payload = {
         "title": "Cloud Architect",
         "description": "Designing cloud solutions",
@@ -60,13 +60,21 @@ def test_recruiter_job_lifecycle(client, recruiter_token):
     create_res = client.post(
         "/api/jobs",
         json=job_payload,
-        headers={"Authorization": f"Bearer {recruiter_token}"}
+        headers={"Authorization": f"Bearer {hr_token}"}
     )
     assert create_res.status_code == 201
     job_data = create_res.json()
     assert job_data["title"] == "Cloud Architect"
     assert len(job_data["job_skills"]) == 1
     assert job_data["job_skills"][0]["weight"] == 5.0
+
+    # 2. Recruiter attempts to create job -> 403 Forbidden
+    recruiter_attempt = client.post(
+        "/api/jobs",
+        json=job_payload,
+        headers={"Authorization": f"Bearer {recruiter_token}"}
+    )
+    assert recruiter_attempt.status_code == 403
 
 
 def test_matching_engine_and_shortlist(client, hr_token, recruiter_token):
@@ -77,17 +85,23 @@ def test_matching_engine_and_shortlist(client, hr_token, recruiter_token):
     assert len(jobs) > 0
     test_job_id = jobs[0]["id"]
 
-    # 1. HR runs match
+    # 1. HR runs match synchronously
     match_res = client.post(
-        f"/api/matching/jobs/{test_job_id}/run",
+        f"/api/matching/jobs/{test_job_id}/run?sync=true",
         headers={"Authorization": f"Bearer {hr_token}"}
     )
-    assert match_res.status_code == 200
-    match_data = match_res.json()
-    assert match_data["job_id"] == test_job_id
-    assert len(match_data["results"]) > 0
+    assert match_res.status_code in (200, 202)
 
-    first_result = match_data["results"][0]
+    # Fetch matches
+    matches_res = client.get(
+        f"/api/matching/jobs/{test_job_id}",
+        headers={"Authorization": f"Bearer {hr_token}"}
+    )
+    assert matches_res.status_code == 200
+    matches = matches_res.json()
+    assert len(matches) > 0
+
+    first_result = matches[0]
     match_id = first_result["id"]
     assert 0 <= first_result["overall_score"] <= 100
 

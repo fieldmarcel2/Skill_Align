@@ -54,7 +54,26 @@ def clean_extracted_text(raw_text: str) -> str:
     prev_empty = False
     for line in lines:
         if line:
-            cleaned_lines.append(line)
+            # Fix glued punctuation where letters/digits follow without space (e.g. "AWS,Azure" -> "AWS, Azure")
+            line = re.sub(r"([,;:\)])([A-Za-z0-9])", r"\1 \2", line)
+            # Fix opening parenthesis (e.g. "AWS(EC2" -> "AWS (EC2")
+            line = re.sub(r"([A-Za-z0-9])(\()", r"\1 \2", line)
+            # Fix common glued words from PDF glyph concatenation
+            line = re.sub(r"(experience)(with)", r"\1 \2", line, flags=re.IGNORECASE)
+            line = re.sub(r"(worked)(with)", r"\1 \2", line, flags=re.IGNORECASE)
+            line = re.sub(r"(managed)(AWS|Azure|GCP)", r"\1 \2", line, flags=re.IGNORECASE)
+            line = re.sub(r"(and)(CI/CD|Docker|CloudWatch|Linux)", r"\1 \2", line, flags=re.IGNORECASE)
+            line = re.sub(r"(Experienced)(in)", r"\1 \2", line, flags=re.IGNORECASE)
+            line = re.sub(r"(for)(application|deployment)", r"\1 \2", line, flags=re.IGNORECASE)
+            line = re.sub(r"(and)(infrastructure|monitoring)", r"\1 \2", line, flags=re.IGNORECASE)
+            # Ensure tech names are correctly merged if split
+            line = re.sub(r"\bPostgre\s+SQL\b", "PostgreSQL", line, flags=re.IGNORECASE)
+            line = re.sub(r"\bMy\s+SQL\b", "MySQL", line, flags=re.IGNORECASE)
+            line = re.sub(r"\bJava\s+Script\b", "JavaScript", line, flags=re.IGNORECASE)
+            line = re.sub(r"\bType\s+Script\b", "TypeScript", line, flags=re.IGNORECASE)
+            line = re.sub(r"\bDev\s+Ops\b", "DevOps", line, flags=re.IGNORECASE)
+            line = re.sub(r"\bGit\s+Hub\b", "GitHub", line, flags=re.IGNORECASE)
+            cleaned_lines.append(line.strip())
             prev_empty = False
         elif not prev_empty:
             cleaned_lines.append("")

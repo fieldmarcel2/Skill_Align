@@ -39,9 +39,11 @@ class SkillMatchDetail(BaseModel):
     skill_name: str
     requirement_type: str   # required / preferred
     weight: float
-    candidate_proficiency: Optional[str] = None  # None if missing
+    candidate_proficiency: Optional[str] = None  # None if missing or detected without rating
     candidate_years: Optional[float] = None
     skill_score: float       # 0.0 – 1.0
+    source: Optional[str] = None  # 'resume' vs 'manual'
+    evidence_text: Optional[str] = None  # Textual quote from resume proving the skill
 
 
 class ReviewerOut(BaseModel):
@@ -85,6 +87,9 @@ class MatchResultOut(BaseModel):
     recruiter_id: Optional[int] = None
     overall_score: float
     status: str
+    # Async processing state (separate from business pipeline status)
+    # queued | processing | completed | failed | stale
+    processing_status: str = "completed"
     matched_at: datetime
     updated_at: Optional[datetime] = None
     meets_experience: bool = True   # computed, not stored
@@ -96,6 +101,11 @@ class MatchResultOut(BaseModel):
     job: Optional[JobOut] = None
     interviews: List[InterviewOut] = []
     scorecards: List[ScorecardOut] = []
+    assigned_recruiter: Optional[Dict[str, Any]] = None
+    assignment_status: Optional[str] = None
+    resume_detected_skills: List[Dict[str, Any]] = []
+    self_declared_skills: List[Dict[str, Any]] = []
+    pending_tasks_count: int = 0
 
 
 class MatchStatusUpdate(BaseModel):
@@ -113,7 +123,16 @@ class MatchStatusUpdate(BaseModel):
 
 
 class MatchRunResponse(BaseModel):
-    """Response after running the matching engine."""
+    """Response after running the matching engine synchronously (legacy/fallback)."""
     job_id: int
     total_candidates: int
     results: list[MatchResultOut]
+
+
+class MatchQueueResponse(BaseModel):
+    """Response after queuing an async matching task."""
+    status: str  # "queued" | "completed" (fallback)
+    message: str
+    job_id: int
+    task_id: Optional[str] = None
+    total_candidates: Optional[int] = None  # set if run synchronously as fallback

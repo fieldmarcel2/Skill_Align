@@ -63,6 +63,19 @@ class Settings(BaseSettings):
     SENDGRID_API_KEY: str = ""
     SENDGRID_FROM_EMAIL: str = "noreply@skilalign.com"
 
+    # ── Redis / Celery ──────────────────────────────────────────────────────
+    REDIS_URL: str = "redis://localhost:6379/0"
+    CELERY_BROKER_URL: str = ""     # defaults to REDIS_URL if blank
+    CELERY_RESULT_BACKEND: str = "" # defaults to REDIS_URL if blank
+
+    @property
+    def effective_celery_broker(self) -> str:
+        return self.CELERY_BROKER_URL or self.REDIS_URL
+
+    @property
+    def effective_celery_backend(self) -> str:
+        return self.CELERY_RESULT_BACKEND or self.REDIS_URL
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -19,12 +19,14 @@ import { HRDashboard } from "../pages/hr/HRDashboard";
 import { HRJobMatchesPage } from "../pages/hr/HRJobMatchesPage";
 import { HRShortlistsPage } from "../pages/hr/HRShortlistsPage";
 import { HiringPipelinePage } from "../pages/hr/HiringPipelinePage";
+import { HRCreateJobPage } from "../pages/hr/HRCreateJobPage";
 
 // Recruiter pages
 import { RecruiterDashboard } from "../pages/recruiter/RecruiterDashboard";
-import { CreateJobPage } from "../pages/recruiter/CreateJobPage";
 import { JobDetailPage } from "../pages/recruiter/JobDetailPage";
 import { ShortlistsPage } from "../pages/recruiter/ShortlistsPage";
+import { RecruiterCandidatesPage } from "../pages/recruiter/RecruiterCandidatesPage";
+import { RecruiterCandidateDetailPage } from "../pages/recruiter/RecruiterCandidateDetailPage";
 
 // Candidate pages
 import { CandidateDashboard } from "../pages/candidate/CandidateDashboard";
@@ -64,6 +66,7 @@ export const AppRoutes: React.FC = () => {
         }
       >
         <Route index element={<HRDashboard />} />
+        <Route path="jobs/create" element={<HRCreateJobPage />} />
         <Route path="jobs/:id/matches" element={<HRJobMatchesPage />} />
         <Route path="shortlists" element={<HRShortlistsPage />} />
         <Route path="pipeline" element={<HiringPipelinePage />} />
@@ -79,8 +82,10 @@ export const AppRoutes: React.FC = () => {
         }
       >
         <Route index element={<RecruiterDashboard />} />
-        <Route path="jobs/create" element={<CreateJobPage />} />
         <Route path="jobs/:id" element={<JobDetailPage />} />
+        <Route path="candidates" element={<RecruiterCandidatesPage />} />
+        <Route path="jobs/:jobId/candidates/:candidateId" element={<RecruiterCandidateDetailPage />} />
+        <Route path="candidates/:candidateId" element={<RecruiterCandidateDetailPage />} />
         <Route path="shortlists" element={<ShortlistsPage />} />
       </Route>
 

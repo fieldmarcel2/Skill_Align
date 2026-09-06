@@ -13,10 +13,38 @@ import urllib.error
 from typing import Dict, Any, List, Optional
 from app.core.config import settings
 
+import re
+
 logger = logging.getLogger("skillalign.gemini")
 
 GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
-SUPPORTED_MODELS = ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
+SUPPORTED_MODELS = [
+    "gemini-3.5-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-3.5-flash",
+]
+
+
+def _clean_and_parse_json(raw_text: str) -> Dict[str, Any]:
+    text = raw_text.strip()
+    if text.startswith("```json"):
+        text = text[7:]
+    elif text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    text = text.strip()
+
+    # Find the outer JSON object if wrapped in text
+    first_brace = text.find("{")
+    last_brace = text.rfind("}")
+    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+        text = text[first_brace:last_brace + 1]
+
+    # Clean trailing commas
+    text = re.sub(r',\s*([\]}])', r'\1', text)
+    return json.loads(text)
 
 
 def analyze_candidate_job_fit(
@@ -53,24 +81,19 @@ CANDIDATE DETAILS:
 {f'- Resume Notes: {resume_summary}' if resume_summary else ''}
 
 Return ONLY valid JSON matching this exact structure:
-{{
+{
   "semantic_fit_score": 88,
   "ai_summary": "2-sentence executive summary explaining candidate alignment and key advantages.",
   "key_strengths": ["Strength 1", "Strength 2", "Strength 3"],
-  "skill_gaps": ["Gap or area to verify 1", "Area to verify 2"],
-  "suggested_interview_questions": [
-    "Targeted Technical Question 1",
-    "Targeted Architectural or Practical Question 2",
-    "Targeted Behavioral or Problem Solving Question 3"
-  ]
-}}
+  "skill_gaps": ["Gap or area to verify 1", "Area to verify 2"]
+}
 """
 
     payload = json.dumps({
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
             "temperature": 0.2,
-            "maxOutputTokens": 800,
+            "maxOutputTokens": 600,
             "responseMimeType": "application/json"
         }
     }).encode("utf-8")
@@ -84,25 +107,18 @@ Return ONLY valid JSON matching this exact structure:
                 data=payload,
                 headers={"Content-Type": "application/json"}
             )
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=12) as resp:
                 result_json = json.loads(resp.read().decode("utf-8"))
                 candidates = result_json.get("candidates", [])
                 if candidates:
                     raw_text = candidates[0]["content"]["parts"][0]["text"].strip()
-                    # Clean markdown formatting if present
-                    if raw_text.startswith("```json"):
-                        raw_text = raw_text[7:]
-                    if raw_text.startswith("```"):
-                        raw_text = raw_text[3:]
-                    if raw_text.endswith("```"):
-                        raw_text = raw_text[:-3]
-                    parsed = json.loads(raw_text.strip())
+                    parsed = _clean_and_parse_json(raw_text)
                     return parsed
         except urllib.error.HTTPError as e:
-            logger.warning(f"Gemini API model {model} returned HTTP {e.code}: {e.reason}")
+            logger.warning(f"AI API model {model} returned HTTP {e.code}: {e.reason}")
             continue
         except Exception as e:
-            logger.warning(f"Gemini generation error with {model}: {e}")
+            logger.warning(f"AI generation error with {model}: {e}")
             continue
 
     # Graceful fallback if API calls fail
@@ -126,10 +142,5 @@ def _build_fallback_analysis(
         ],
         "skill_gaps": [
             f"Verify hands-on depth in {required_skills[0]}" if required_skills else "Assess system scale"
-        ],
-        "suggested_interview_questions": [
-            f"How have you architected and scaled production applications using {matched[0] if matched else 'your core tech stack'}?",
-            "Can you describe a challenging bug or performance bottleneck you resolved recently?",
-            "How do you approach team collaboration and code reviews in an agile engineering cycle?"
         ]
     }

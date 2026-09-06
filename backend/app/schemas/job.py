@@ -7,8 +7,8 @@ JobUpdate   → PUT  /api/jobs/{id}
 JobOut      → read response with embedded skills
 """
 
-from typing import Optional
-from pydantic import BaseModel, field_validator, ConfigDict
+from typing import Optional, Any
+from pydantic import BaseModel, field_validator, model_validator, ConfigDict
 from datetime import datetime
 
 from app.schemas.skill import SkillOut
@@ -67,6 +67,14 @@ class JobCreate(BaseModel):
     travel_requirements: Optional[str] = "None"
     status: str = "draft"
     skills: list[JobSkillIn] = []
+
+    @model_validator(mode="before")
+    @classmethod
+    def handle_job_skills_alias(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "job_skills" in data and not data.get("skills"):
+                data["skills"] = data["job_skills"]
+        return data
 
     @field_validator("title")
     @classmethod

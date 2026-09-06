@@ -34,16 +34,24 @@ PROFICIENCY_MAP: Dict[str, float] = {
     "Beginner": 0.40,
     "Intermediate": 0.70,
     "Expert": 1.00,
+    # None = resume-detected skill with unknown proficiency
+    # Deliberately between Beginner and Intermediate — evidence present but level unverified
 }
 
+PROFICIENCY_FACTOR_DETECTED = 0.80  # for proficiency_level = None (resume-derived verified skill)
 
-def _build_match_result_out(record: MatchResult) -> MatchResultOut:
-    """Helper to construct MatchResultOut with computed fields, explainable breakdown, and relationships."""
+
+def _build_match_result_out(record: MatchResult, db: Optional[Session] = None) -> MatchResultOut:
+    """Helper to construct MatchResultOut with computed fields, explainable breakdown, evidence, and relationships."""
     meets_exp = True
     matched_skills = []
     missing_skills = []
     breakdown = []
     explanation = None
+    resume_detected = []
+    self_declared = []
+    assigned_recruiter = None
+    assignment_status = "unassigned"
 
     if record.job and record.candidate:
         cand_exp = float(record.candidate.total_experience_years or 0)
@@ -51,8 +59,8 @@ def _build_match_result_out(record: MatchResult) -> MatchResultOut:
         meets_exp = cand_exp >= job_exp
 
         _, breakdown, _ = calculate_candidate_match_score(record.job, record.candidate)
-        matched_skills = [b["skill_name"] for b in breakdown if b["candidate_proficiency"] is not None]
-        missing_skills = [b["skill_name"] for b in breakdown if b["candidate_proficiency"] is None]
+        matched_skills = [b["skill_name"] for b in breakdown if b["candidate_proficiency"] is not None or b["skill_score"] > 0]
+        missing_skills = [b["skill_name"] for b in breakdown if b["candidate_proficiency"] is None and b["skill_score"] == 0]
 
         matched_str = ", ".join(matched_skills) if matched_skills else "None"
         missing_str = ", ".join(missing_skills) if missing_skills else "None"
@@ -62,12 +70,77 @@ def _build_match_result_out(record: MatchResult) -> MatchResultOut:
             f"Missing: {missing_str}. Experience: {cand_exp:.1f} yrs vs {job_exp:.1f} yrs required ({exp_status})."
         )
 
+        for cs in (record.candidate.skills or []):
+            skill_name = cs.skill.name if cs.skill else "Skill"
+            skill_cat = cs.skill.category if cs.skill else "General"
+            if cs.source == "resume" or cs.evidence_text is not None:
+                resume_detected.append({
+                    "id": cs.id,
+                    "skill_id": cs.skill_id,
+                    "name": skill_name,
+                    "category": skill_cat,
+                    "source": "resume",
+                    "evidence_text": cs.evidence_text or f"Detected from resume text in {skill_name} context",
+                    "confidence": "High" if cs.evidence_text else "Medium",
+                    "years_experience": float(cs.years_experience or 0),
+                })
+            else:
+                self_declared.append({
+                    "id": cs.id,
+                    "skill_id": cs.skill_id,
+                    "name": skill_name,
+                    "category": skill_cat,
+                    "source": "manual",
+                    "proficiency_level": cs.proficiency_level or "Not Specified",
+                    "years_experience": float(cs.years_experience or 0),
+                })
+
+        # Check candidate assignment if db provided
+        if db:
+            from app.models.candidate_recruiter_assignment import CandidateRecruiterAssignment
+            assignment = (
+                db.query(CandidateRecruiterAssignment)
+                .filter(
+                    CandidateRecruiterAssignment.job_id == record.job_id,
+                    CandidateRecruiterAssignment.candidate_id == record.candidate_id,
+                    CandidateRecruiterAssignment.status == "active",
+                )
+                .first()
+            )
+            if assignment and assignment.recruiter:
+                assigned_recruiter = {
+                    "id": assignment.recruiter.id,
+                    "name": assignment.recruiter.name,
+                    "email": assignment.recruiter.email,
+                }
+                assignment_status = "claimed"
+
     item = MatchResultOut.model_validate(record)
     item.meets_experience = meets_exp
     item.matched_skills = matched_skills
     item.missing_skills = missing_skills
     item.skill_breakdown = [SkillMatchDetail(**b) for b in breakdown]
     item.explanation = explanation
+    item.resume_detected_skills = resume_detected
+    item.self_declared_skills = self_declared
+    item.assigned_recruiter = assigned_recruiter
+    item.assignment_status = assignment_status
+
+    # Enrich interview details (candidate_name, job_title, scheduler_name)
+    if item.interviews:
+        cand_name = record.candidate.full_name if record.candidate else None
+        job_t = record.job.title if record.job else None
+        for inv in item.interviews:
+            if not inv.candidate_name:
+                inv.candidate_name = cand_name
+            if not inv.job_title:
+                inv.job_title = job_t
+            if not inv.scheduler_name:
+                for rec_inv in (record.interviews or []):
+                    if rec_inv.id == inv.id and rec_inv.scheduler:
+                        inv.scheduler_name = rec_inv.scheduler.name
+                        break
+
     return item
 
 
@@ -90,7 +163,7 @@ def calculate_candidate_match_score(job: Job, candidate: Candidate) -> tuple[flo
         return 0.0, [], meets_experience
 
     candidate_skills_dict = {
-        cs.skill_id: (cs.proficiency_level, float(cs.years_experience or 0))
+        cs.skill_id: cs
         for cs in candidate.skills
     }
 
@@ -103,14 +176,27 @@ def calculate_candidate_match_score(job: Job, candidate: Candidate) -> tuple[flo
         weight = float(js.weight)
         total_weight += weight
 
-        candidate_skill_info = candidate_skills_dict.get(js.skill_id)
-        if candidate_skill_info:
-            prof_level, years_exp = candidate_skill_info
-            score_factor = PROFICIENCY_MAP.get(prof_level, 0.0)
+        cs = candidate_skills_dict.get(js.skill_id)
+        if cs:
+            prof_level = cs.proficiency_level
+            years_exp = float(cs.years_experience or 0)
+            evidence = cs.evidence_text
+            source = "resume" if (cs.source == "resume" or evidence) else "manual"
+            # Resume-detected skills or skills with verified resume evidence receive higher value & credibility
+            if prof_level is None:
+                score_factor = 0.85 if evidence else PROFICIENCY_FACTOR_DETECTED
+            else:
+                base = PROFICIENCY_MAP.get(prof_level, 0.50)
+                if evidence or source == "resume":
+                    score_factor = min(1.00, round(base * 1.15, 2)) if prof_level != "Expert" else 1.00
+                else:
+                    score_factor = base
             has_any_skill_match = True
         else:
             prof_level = None
             years_exp = None
+            source = None
+            evidence = None
             score_factor = 0.0
 
         weighted_score_sum += score_factor * weight
@@ -122,7 +208,9 @@ def calculate_candidate_match_score(job: Job, candidate: Candidate) -> tuple[flo
             "weight": weight,
             "candidate_proficiency": prof_level,
             "candidate_years": years_exp,
-            "skill_score": round(score_factor, 2)
+            "skill_score": round(score_factor, 2),
+            "source": source,
+            "evidence_text": evidence,
         })
 
     # If candidate doesn't match any skill, score is 0.0 (strictly filter out non-matches)
@@ -172,11 +260,12 @@ def run_job_matching(db: Session, job_id: int, recruiter_user: User) -> MatchRun
             detail=f"Job with id {job_id} not found."
         )
 
-    # If user is Recruiter, check ownership
-    if recruiter_user.role.name == "Recruiter" and job.created_by != recruiter_user.id:
+    # Note: Recruiters can trigger manual re-matching for any active job
+    # (they no longer own jobs — HR creates them)
+    if recruiter_user.role.name not in ("Recruiter", "HR", "Admin"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Recruiters can only run matching for their own jobs."
+            detail="Only Recruiter, HR, or Admin can trigger matching."
         )
 
     candidates = db.query(Candidate).all()
@@ -242,7 +331,7 @@ def get_job_matches(db: Session, job_id: int, status_filter: Optional[str] = Non
         query = query.filter(MatchResult.status == status_filter)
 
     results = query.order_by(MatchResult.overall_score.desc()).all()
-    return [_build_match_result_out(r) for r in results]
+    return [_build_match_result_out(r, db=db) for r in results]
 
 
 def get_screened_matches(db: Session, job_id: Optional[int] = None) -> List[MatchResultOut]:
@@ -252,7 +341,7 @@ def get_screened_matches(db: Session, job_id: Optional[int] = None) -> List[Matc
         query = query.filter(MatchResult.job_id == job_id)
 
     results = query.order_by(MatchResult.overall_score.desc()).all()
-    return [_build_match_result_out(r) for r in results]
+    return [_build_match_result_out(r, db=db) for r in results]
 
 
 def get_match_result_by_id(db: Session, match_id: int) -> MatchResultOut:
@@ -263,7 +352,7 @@ def get_match_result_by_id(db: Session, match_id: int) -> MatchResultOut:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Match result with id {match_id} not found."
         )
-    return _build_match_result_out(match_record)
+    return _build_match_result_out(match_record, db=db)
 
 
 def update_match_status(db: Session, match_id: int, new_status: str, user: User) -> MatchResultOut:
@@ -291,13 +380,7 @@ def update_match_status(db: Session, match_id: int, new_status: str, user: User)
     user_role = user.role.name
 
     if user_role == "Recruiter":
-        # Recruiter can only manage their own job's candidates
-        if match_record.job.created_by != user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Recruiter can only manage candidates for jobs they created."
-            )
-        # Recruiter can screen or reject initial matches
+        # Recruiters can screen/reject candidates — no longer tied to job ownership
         if new_status not in ("screened", "rejected", "matched"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -434,7 +517,7 @@ def get_match_ai_analysis(db: Session, match_id: int) -> Dict[str, Any]:
         candidate_name=candidate.full_name,
         candidate_experience_years=float(candidate.total_experience_years or 0),
         candidate_skills=cand_skills,
-        resume_summary=f"Resume filename: {candidate.resume_filename}" if candidate.resume_filename else None
+        resume_summary=candidate.resume_raw_text[:600] if candidate.resume_raw_text else (f"Resume filename: {candidate.resume_filename}" if candidate.resume_filename else None)
     )
     
     return {

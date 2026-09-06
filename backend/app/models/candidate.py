@@ -74,6 +74,9 @@ class Candidate(Base):
     match_results: Mapped[list["MatchResult"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "MatchResult", back_populates="candidate", lazy="select"
     )
+    recruiter_assignments: Mapped[list["CandidateRecruiterAssignment"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        "CandidateRecruiterAssignment", back_populates="candidate", lazy="select", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<Candidate id={self.id} full_name={self.full_name!r}>"

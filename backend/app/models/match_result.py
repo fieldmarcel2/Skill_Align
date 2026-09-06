@@ -65,6 +65,13 @@ class MatchResult(Base):
     status: Mapped[str] = mapped_column(
         String(50), nullable=False, default="matched", index=True
     )
+    # Technical async processing state — separate from business pipeline status
+    # queued | processing | completed | failed | stale
+    processing_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="completed", index=True
+    )
+    # Incremented on each match recalculation — detects stale results
+    matched_by_version: Mapped[int | None] = mapped_column(Integer, nullable=True, default=1)
     matched_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

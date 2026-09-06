@@ -11,7 +11,7 @@ export function formatExperience(years: number): string {
   return `${years} yrs`;
 }
 
-export function getProficiencyBadgeClass(level: string): string {
+export function getProficiencyBadgeClass(level?: string | null): string {
   switch (level?.toLowerCase()) {
     case "expert":
       return "bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold";

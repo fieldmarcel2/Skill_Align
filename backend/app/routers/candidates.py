@@ -170,8 +170,6 @@ def remove_my_skill(
     return candidate_service.remove_skill(db, candidate_user, skill_id)
 
 
-# ── Authorized View Endpoints (HR & Recruiter) ───────────────────────────────
-
 @router.get(
     "/{candidate_id}",
     response_model=CandidateOut,
@@ -183,4 +181,25 @@ def get_candidate_profile(
     db: Session = Depends(get_db),
     user: User = Depends(require_hr_or_recruiter)
 ):
+    if user.role.name == "Recruiter":
+        from app.services import recruiter_assignment_service
+        assigned_job_ids = recruiter_assignment_service.get_recruiter_assigned_job_ids(db, user.id)
+        if not assigned_job_ids:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You are not assigned to any job requisitions.",
+            )
+        matched = (
+            db.query(MatchResult)
+            .filter(
+                MatchResult.candidate_id == candidate_id,
+                MatchResult.job_id.in_(assigned_job_ids),
+            )
+            .first()
+        )
+        if not matched:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: This candidate is not matched with any jobs assigned to you.",
+            )
     return candidate_service.get_candidate_by_id(db, candidate_id)

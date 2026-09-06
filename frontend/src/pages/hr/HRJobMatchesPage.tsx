@@ -35,7 +35,13 @@ import {
   Copy,
   Check,
   ExternalLink,
+  Users,
+  ListTodo,
+  UserCheck,
+  Quote,
 } from "lucide-react";
+import { AssignRecruiterModal } from "../../components/job/AssignRecruiterModal";
+import { RecruitmentTaskModal } from "../../components/task/RecruitmentTaskModal";
 
 export const HRJobMatchesPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -48,6 +54,11 @@ export const HRJobMatchesPage: React.FC = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("all");
   const [selectedMatch, setSelectedMatch] = useState<MatchResult | null>(null);
+
+  // Recruiter assignment & Task modals
+  const [isAssignRecruiterOpen, setIsAssignRecruiterOpen] = useState(false);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [taskCandidate, setTaskCandidate] = useState<{ id: number; name: string } | null>(null);
 
   // Resume viewing states
   const [isTextModalOpen, setIsTextModalOpen] = useState(false);
@@ -79,14 +90,39 @@ export const HRJobMatchesPage: React.FC = () => {
     setIsRunning(true);
     try {
       const result = await matchingApi.runMatch(jobId);
-      setMatches(result.results);
-      toast.success(
-        `Matching re-executed! Refreshed scores for ${result.total_candidates} candidates.`,
-        "Algorithm Updated"
-      );
+      if (result.results && Array.isArray(result.results)) {
+        setMatches(result.results);
+        toast.success(
+          `Matching re-executed! Refreshed scores for ${result.total_candidates} candidates.`,
+          "Algorithm Updated"
+        );
+        setIsRunning(false);
+      } else {
+        toast.info(result.message || "Matching algorithm queued in background.", "Background Match Queued");
+        let attempts = 0;
+        const interval = setInterval(async () => {
+          attempts++;
+          try {
+            const statusData = await matchingApi.getMatchStatus(jobId);
+            if (statusData.processing_status === "completed" || attempts >= 10) {
+              clearInterval(interval);
+              setIsRunning(false);
+              const refreshed = await matchingApi.getMatches(jobId);
+              setMatches(refreshed);
+              if (statusData.processing_status === "completed") {
+                toast.success(`Matching complete! ${statusData.matched_candidates} candidates evaluated.`, "Algorithm Completed");
+              }
+            }
+          } catch {
+            if (attempts >= 5) {
+              clearInterval(interval);
+              setIsRunning(false);
+            }
+          }
+        }, 2500);
+      }
     } catch (err: any) {
       toast.error(err.response?.data?.detail || "Failed to rerun matching.");
-    } finally {
       setIsRunning(false);
     }
   };
@@ -156,22 +192,46 @@ export const HRJobMatchesPage: React.FC = () => {
           </div>
         </div>
 
-        <Button
-          variant="gradient"
-          onClick={handleRunMatchAgain}
-          disabled={isRunning}
-          className="gap-2 shadow-lg shadow-indigo-500/20"
-        >
-          {isRunning ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" /> Recalculating...
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-4 w-4" /> Re-run Matching Engine
-            </>
-          )}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsAssignRecruiterOpen(true)}
+            className="gap-1.5 text-xs font-semibold"
+          >
+            <Users className="h-4 w-4 text-primary" /> Assign Recruiters
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setTaskCandidate(null);
+              setIsTaskModalOpen(true);
+            }}
+            className="gap-1.5 text-xs font-semibold"
+          >
+            <ListTodo className="h-4 w-4 text-primary" /> Dispatch Task
+          </Button>
+
+          <Button
+            variant="gradient"
+            size="sm"
+            onClick={handleRunMatchAgain}
+            disabled={isRunning}
+            className="gap-2 shadow-lg shadow-indigo-500/20 text-xs font-semibold"
+          >
+            {isRunning ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Recalculating...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" /> Re-run Matching Engine
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Required Skills breakdown bar */}
@@ -334,27 +394,54 @@ export const HRJobMatchesPage: React.FC = () => {
                         )}
                       </div>
 
+                      {/* Contact & Experience info */}
+                      <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3.5 w-3.5 text-primary" />
+                          {match.candidate.total_experience_years} Years Experience
+                        </span>
+                        {match.candidate.phone && (
+                          <span className="flex items-center gap-1">
+                            <Phone className="h-3.5 w-3.5 text-primary" />
+                            {match.candidate.phone}
+                          </span>
+                        )}
+                        {match.candidate.education_degree && (
+                          <span className="flex items-center gap-1">
+                            <Layers className="h-3.5 w-3.5 text-primary" />
+                            {match.candidate.education_degree}
+                          </span>
+                        )}
+                      </div>
+
                       {/* Skill Match Breakdown comparison */}
                       <div className="space-y-1.5 pt-1">
-                        <p className="text-xs font-semibold text-muted-foreground">
-                          Matching Breakdown:
-                        </p>
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Job Skills Evaluation:
+                        </span>
                         <div className="flex flex-wrap gap-2">
                           {job?.job_skills.map((js) => {
                             const cs = candSkillsMap.get(js.skill.id);
                             if (cs) {
+                              const isResume = cs.source === "resume";
                               return (
                                 <span
                                   key={js.id}
                                   className={`text-xs px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${getProficiencyBadgeClass(
                                     cs.proficiency_level
                                   )}`}
+                                  title={cs.evidence_text ? `Resume evidence: "${cs.evidence_text}"` : undefined}
                                 >
                                   <CheckCircle2 className="h-3 w-3 shrink-0" />
                                   <span>{js.skill.name}</span>
                                   <span className="font-semibold text-[11px]">
-                                    ({cs.proficiency_level})
+                                    ({cs.proficiency_level || "Detected"})
                                   </span>
+                                  {isResume && (
+                                    <span className="text-[10px] px-1 rounded bg-emerald-500/20 text-emerald-300 font-bold">
+                                      Resume
+                                    </span>
+                                  )}
                                 </span>
                               );
                             } else {
@@ -387,6 +474,18 @@ export const HRJobMatchesPage: React.FC = () => {
                         className="w-full text-xs"
                       >
                         View Full Profile
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setTaskCandidate({ id: match.candidate.id, name: match.candidate.full_name });
+                          setIsTaskModalOpen(true);
+                        }}
+                        className="w-full text-xs gap-1"
+                      >
+                        <ListTodo className="h-3.5 w-3.5 text-primary" /> Assign Task
                       </Button>
 
                       {match.status === "screening" && (
@@ -598,6 +697,29 @@ export const HRJobMatchesPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Recruiter Assignment Modal */}
+      <AssignRecruiterModal
+        isOpen={isAssignRecruiterOpen}
+        onClose={() => setIsAssignRecruiterOpen(false)}
+        jobId={jobId}
+        jobTitle={job?.title || "Requisition"}
+        onAssignmentUpdated={() => fetchData()}
+      />
+
+      {/* Recruitment Task Modal */}
+      <RecruitmentTaskModal
+        isOpen={isTaskModalOpen}
+        onClose={() => {
+          setIsTaskModalOpen(false);
+          setTaskCandidate(null);
+        }}
+        jobId={jobId}
+        jobTitle={job?.title || "Requisition"}
+        candidateId={taskCandidate?.id}
+        candidateName={taskCandidate?.name}
+        onTaskCreated={() => toast.success("Recruitment task dispatched successfully!", "Task Created")}
+      />
     </div>
   );
 };

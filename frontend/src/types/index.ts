@@ -82,8 +82,10 @@ export interface Job {
 export interface CandidateSkill {
   id: number;
   skill: Skill;
-  proficiency_level: "Beginner" | "Intermediate" | "Expert";
+  proficiency_level?: "Beginner" | "Intermediate" | "Expert" | null;
   years_experience: number;
+  source?: "manual" | "resume_extracted" | "ai_inferred" | string;
+  evidence_text?: string | null;
 }
 
 export interface ParsedEducation {
@@ -211,6 +213,8 @@ export interface SkillMatchBreakdown {
   candidate_proficiency?: string | null;
   candidate_years?: number | null;
   skill_score: number;
+  source?: "resume" | "manual" | string | null;
+  evidence_text?: string | null;
 }
 
 export interface MatchResult {
@@ -220,6 +224,8 @@ export interface MatchResult {
   recruiter_id?: number | null;
   overall_score: number;
   status: PipelineStatus;
+  processing_status?: "queued" | "processing" | "completed" | "failed" | "stale" | string;
+  matched_by_version?: string;
   matched_at: string;
   updated_at?: string;
   meets_experience: boolean;
@@ -230,12 +236,49 @@ export interface MatchResult {
   job?: Job;
   candidate: Candidate;
   interviews?: Interview[];
+  assigned_recruiter?: {
+    id: number;
+    name: string;
+    email?: string | null;
+    claimed_at?: string;
+  } | null;
+  assignment_status?: "unassigned" | "claimed" | string | null;
+  resume_detected_skills?: Array<{
+    skill_id: number;
+    skill_name: string;
+    evidence_text?: string | null;
+  }>;
+  self_declared_skills?: Array<{
+    skill_id: number;
+    skill_name: string;
+    proficiency_level?: string | null;
+    years_experience?: number;
+  }>;
+  pending_tasks_count?: number;
 }
 
 export interface MatchRunResponse {
   job_id: number;
+  status?: string;
+  message?: string;
+  task_id?: string | null;
+  total_candidates?: number;
+  results?: MatchResult[];
+}
+
+export interface MatchStatusResponse {
+  job_id: number;
+  processing_status: string;
   total_candidates: number;
-  results: MatchResult[];
+  matched_candidates: number;
+  last_matched_at?: string | null;
+}
+
+export interface ResumeStatusResponse {
+  candidate_id: number;
+  processing_status: string;
+  filename?: string | null;
+  parsed_at?: string | null;
 }
 
 export interface Scorecard {
@@ -279,3 +322,101 @@ export const PIPELINE_COLUMNS: string[] = [
   "offer",
   "hired",
 ];
+
+export interface JobRecruiterAssignment {
+  id: number;
+  job_id: number;
+  recruiter_id: number;
+  assigned_by: number;
+  assignment_role: "PRIMARY_RECRUITER" | "RECRUITER" | "SOURCER" | string;
+  status: "active" | "removed" | string;
+  assigned_at: string;
+  removed_at?: string | null;
+  recruiter?: {
+    id: number;
+    name: string;
+    email?: string | null;
+  } | null;
+  assigner?: {
+    id: number;
+    name: string;
+    email?: string | null;
+  } | null;
+}
+
+export interface CandidateRecruiterAssignment {
+  id: number;
+  job_id: number;
+  candidate_id: number;
+  recruiter_id: number;
+  assigned_by: number;
+  status: "active" | "completed" | "unassigned" | string;
+  assigned_at: string;
+  completed_at?: string | null;
+  recruiter?: {
+    id: number;
+    name: string;
+    email?: string | null;
+  } | null;
+  assigner?: {
+    id: number;
+    name: string;
+    email?: string | null;
+  } | null;
+}
+
+export interface RecruitmentMessage {
+  id: number;
+  job_id: number;
+  candidate_id?: number | null;
+  sender_id: number;
+  message: string;
+  message_type: "GENERAL" | "SCREENING_NOTE" | "HR_REQUEST" | "RECOMMENDATION" | "SYSTEM" | string;
+  is_private: boolean;
+  created_at: string;
+  read_at?: string | null;
+  sender_name?: string | null;
+  sender_role?: string | null;
+}
+
+export interface RecruitmentTask {
+  id: number;
+  job_id: number;
+  candidate_id?: number | null;
+  assigned_to: number;
+  created_by: number;
+  title: string;
+  description?: string | null;
+  status: "OPEN" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | string;
+  priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT" | string;
+  due_at?: string | null;
+  completed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  assignee_name?: string | null;
+  creator_name?: string | null;
+  job_title?: string | null;
+  candidate_name?: string | null;
+}
+
+export interface RecruiterDashboardStats {
+  assigned_jobs_count: number;
+  total_candidates_count: number;
+  pending_review_count: number;
+  screened_count: number;
+  pending_tasks_count: number;
+}
+
+export interface RecruiterJobItem {
+  id: number;
+  title: string;
+  status: string;
+  min_experience_years: number;
+  work_mode?: string | null;
+  created_at: string;
+  assignment_role: string;
+  total_candidates: number;
+  pending_review: number;
+  assigned_to_me: number;
+}
+

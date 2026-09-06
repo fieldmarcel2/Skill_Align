@@ -105,3 +105,14 @@ def require_hr_or_recruiter(current_user: User = Depends(get_current_user)) -> U
             detail="Access restricted to HR, Recruiter, or Admin users.",
         )
     return current_user
+
+
+def require_hr_or_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Allow HR OR Admin — used for job creation/editing/deletion.
+    HR is the owner of job requisition lifecycle."""
+    if current_user.role.name not in ("HR", "Admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access restricted to HR or Admin users. Recruiters cannot modify job requisitions.",
+        )
+    return current_user

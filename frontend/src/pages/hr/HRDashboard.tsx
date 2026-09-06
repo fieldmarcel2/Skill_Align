@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { matchingApi, interviewsApi, candidatesApi, notificationsApi, resumeApi } from "../../services/api";
-import { MatchResult, Interview, PipelineStatus } from "../../types";
+import { jobsApi, matchingApi, interviewsApi, candidatesApi, notificationsApi, resumeApi } from "../../services/api";
+import { Job, MatchResult, Interview, PipelineStatus } from "../../types";
 import { useToast } from "../../components/ui/toast";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
@@ -34,14 +34,20 @@ import {
   Search,
   Filter,
   Link as LinkIcon,
+  MapPin,
+  Laptop,
 } from "lucide-react";
+import { AssignRecruiterModal } from "../../components/job/AssignRecruiterModal";
 
 export const HRDashboard: React.FC = () => {
   const toast = useToast();
   const [screenedMatches, setScreenedMatches] = useState<MatchResult[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [publishingJobId, setPublishingJobId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"screened" | "interviews">("screened");
+  const [activeTab, setActiveTab] = useState<"screened" | "interviews" | "jobs">("screened");
+  const [selectedJobForRecruiters, setSelectedJobForRecruiters] = useState<{ id: number; title: string } | null>(null);
 
   // Interview Modal State
   const [selectedMatchForInterview, setSelectedMatchForInterview] = useState<MatchResult | null>(null);
@@ -61,6 +67,7 @@ export const HRDashboard: React.FC = () => {
   const [isBulkApproving, setIsBulkApproving] = useState(false);
   const [screenedPage, setScreenedPage] = useState(1);
   const [interviewPage, setInterviewPage] = useState(1);
+  const [jobsPage, setJobsPage] = useState(1);
 
   // Profile View Modal State
   const [selectedProfileMatch, setSelectedProfileMatch] = useState<MatchResult | null>(null);
@@ -70,12 +77,14 @@ export const HRDashboard: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const [screenedData, interviewsData] = await Promise.all([
+      const [screenedData, interviewsData, jobsData] = await Promise.all([
         matchingApi.getScreenedMatches(),
         interviewsApi.list(),
+        jobsApi.list(),
       ]);
       setScreenedMatches(screenedData);
       setInterviews(interviewsData);
+      setJobs(jobsData);
     } catch (err: any) {
       toast.error(err.response?.data?.detail || "Failed to load HR dashboard data.");
     } finally {
@@ -135,6 +144,30 @@ export const HRDashboard: React.FC = () => {
       toast.error(err.response?.data?.detail || "Failed to retrieve secure resume URL from S3.");
     } finally {
       setLoadingResumeId(null);
+    }
+  };
+
+  const handlePublishJob = async (jobId: number) => {
+    setPublishingJobId(jobId);
+    try {
+      await jobsApi.update(jobId, { status: "active" });
+      setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, status: "active" } : j)));
+      toast.success("Job published to active status! Candidate auto-matching started.", "Job Published");
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to publish job.");
+    } finally {
+      setPublishingJobId(null);
+    }
+  };
+
+  const handleCloseJob = async (jobId: number) => {
+    if (!window.confirm("Are you sure you want to close this job requisition?")) return;
+    try {
+      await jobsApi.update(jobId, { status: "closed" });
+      setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, status: "closed" } : j)));
+      toast.info("Job requisition closed.");
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to close job requisition.");
     }
   };
 
@@ -276,6 +309,13 @@ export const HRDashboard: React.FC = () => {
     interviewPage * INTERVIEWS_PER_PAGE
   );
 
+  const JOBS_PER_PAGE = 6;
+  const totalJobsPages = Math.max(1, Math.ceil(jobs.length / JOBS_PER_PAGE));
+  const paginatedJobs = jobs.slice(
+    (jobsPage - 1) * JOBS_PER_PAGE,
+    jobsPage * JOBS_PER_PAGE
+  );
+
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Header */}
@@ -285,34 +325,53 @@ export const HRDashboard: React.FC = () => {
             HR Strategic Dashboard
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Review candidates screened by recruiters, grant strategic hiring approval, and schedule candidate interviews.
+            Manage job requisitions, review screened candidates, grant hiring approvals, and schedule interviews.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant={activeTab === "screened" ? "gradient" : "outline"}
             onClick={() => setActiveTab("screened")}
             className="gap-2 text-xs"
           >
-            <UserCheck className="h-4 w-4" /> Screened Talents ({awaitingHRCount})
+            <UserCheck className="h-4 w-4" /> Screened ({awaitingHRCount})
           </Button>
           <Button
             variant={activeTab === "interviews" ? "gradient" : "outline"}
             onClick={() => setActiveTab("interviews")}
             className="gap-2 text-xs"
           >
-            <CalendarCheck className="h-4 w-4" /> Scheduled Interviews ({scheduledCount})
+            <CalendarCheck className="h-4 w-4" /> Interviews ({scheduledCount})
           </Button>
+          <Button
+            variant={activeTab === "jobs" ? "gradient" : "outline"}
+            onClick={() => setActiveTab("jobs")}
+            className="gap-2 text-xs"
+          >
+            <Briefcase className="h-4 w-4" /> Job Requisitions ({jobs.length})
+          </Button>
+          <Link to="/hr/jobs/create">
+            <Button variant="gradient" className="gap-1.5 text-xs shadow-md shadow-primary/20">
+              <PlusCircle className="h-4 w-4" /> New Job
+            </Button>
+          </Link>
         </div>
       </div>
 
       {/* Top Statistics */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          title="Job Requisitions"
+          value={jobs.length}
+          icon={Briefcase}
+          color="indigo"
+          description={`${jobs.filter((j) => j.status === "active").length} active, ${jobs.filter((j) => j.status === "draft").length} draft`}
+        />
         <StatCard
           title="Screened by Recruiter"
           value={awaitingHRCount}
           icon={UserCheck}
-          color="indigo"
+          color="blue"
           description="Awaiting HR strategic approval"
         />
         <StatCard
@@ -326,7 +385,7 @@ export const HRDashboard: React.FC = () => {
           title="Active Interviews"
           value={scheduledCount}
           icon={Calendar}
-          color="blue"
+          color="purple"
           description="Scheduled hiring rounds"
         />
       </div>
@@ -780,6 +839,215 @@ export const HRDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* Tab 3: Job Requisitions Managed by HR */}
+      {activeTab === "jobs" && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-bold font-outfit text-foreground flex items-center gap-2">
+                <Briefcase className="h-5 w-5 text-primary" />
+                Job Requisitions ({jobs.length})
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Manage job requirements. Publishing a job requisition activates it and triggers candidate matching automatically.
+              </p>
+            </div>
+            <Link to="/hr/jobs/create">
+              <Button variant="gradient" size="sm" className="gap-1.5 text-xs">
+                <PlusCircle className="h-4 w-4" /> Create Requisition
+              </Button>
+            </Link>
+          </div>
+
+          {jobs.length === 0 ? (
+            <Card className="p-12 text-center border-border/80 bg-card/60">
+              <Briefcase className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-40" />
+              <h3 className="text-base font-bold text-foreground">No Job Requisitions Yet</h3>
+              <p className="text-xs text-muted-foreground mt-1 mb-4 max-w-sm mx-auto">
+                HR owns the requisition lifecycle. Create your first job requirement to start AI-powered matching.
+              </p>
+              <Link to="/hr/jobs/create">
+                <Button variant="gradient" size="sm" className="gap-2">
+                  <PlusCircle className="h-4 w-4" /> Create First Job
+                </Button>
+              </Link>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {paginatedJobs.map((job) => (
+                  <Card
+                    key={job.id}
+                    className="p-5 border-border/80 bg-card/70 hover:border-border transition-all flex flex-col justify-between"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-sm font-bold text-foreground truncate">
+                            {job.title}
+                          </h3>
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground mt-1">
+                            {job.client_name && (
+                              <span className="flex items-center gap-1 text-foreground font-medium">
+                                <Building className="h-3 w-3 text-indigo-400" /> {job.client_name}
+                              </span>
+                            )}
+                            {job.department && <span>• {job.department}</span>}
+                          </div>
+                        </div>
+                        <Badge
+                          variant={
+                            job.status === "active"
+                              ? "success"
+                              : job.status === "draft"
+                              ? "secondary"
+                              : "destructive"
+                          }
+                          className="capitalize text-[10px]"
+                        >
+                          {job.status}
+                        </Badge>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                        {job.work_mode && (
+                          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-secondary/80 text-[10px]">
+                            <Laptop className="h-2.5 w-2.5 text-primary" /> {job.work_mode}
+                          </span>
+                        )}
+                        {job.location_city && (
+                          <span className="flex items-center gap-1 text-[10px]">
+                            <MapPin className="h-2.5 w-2.5 text-muted-foreground" /> {job.location_city}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1 text-[10px]">
+                          <Clock className="h-2.5 w-2.5" />
+                          {job.min_experience_years === 0 ? "Entry Level" : `${job.min_experience_years}+ yrs`}
+                        </span>
+                        {job.urgency && (
+                          <span className="text-[10px] text-amber-400 font-medium">
+                            • {job.urgency}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Skills */}
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {job.job_skills?.slice(0, 4).map((js) => (
+                          <span
+                            key={js.id}
+                            className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                              js.requirement_type === "required"
+                                ? "bg-primary/10 border-primary/20 text-primary font-medium"
+                                : "bg-secondary/60 border-border/50 text-muted-foreground"
+                            }`}
+                          >
+                            {js.skill.name}
+                          </span>
+                        ))}
+                        {(job.job_skills?.length || 0) > 4 && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary/60 text-muted-foreground border border-border/50">
+                            +{(job.job_skills?.length || 0) - 4}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Footer Actions */}
+                    <div className="flex items-center justify-between pt-4 mt-3 border-t border-border/60">
+                      <div className="flex items-center gap-2">
+                        {job.status === "draft" && (
+                          <Button
+                            size="sm"
+                            variant="gradient"
+                            className="h-7 text-xs px-2.5 gap-1"
+                            disabled={publishingJobId === job.id}
+                            onClick={() => handlePublishJob(job.id)}
+                          >
+                            {publishingJobId === job.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Sparkles className="h-3 w-3" />
+                            )}
+                            Publish & Match
+                          </Button>
+                        )}
+                        {job.status === "active" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs px-2 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                            onClick={() => handleCloseJob(job.id)}
+                          >
+                            Close
+                          </Button>
+                        )}
+                        {job.status === "closed" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs px-2"
+                            onClick={() => handlePublishJob(job.id)}
+                          >
+                            Re-Open
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs px-2 gap-1 text-foreground"
+                          onClick={() => setSelectedJobForRecruiters({ id: job.id, title: job.title })}
+                        >
+                          <Users className="h-3 w-3 text-primary" /> Recruiters
+                        </Button>
+                        <Link to={`/hr/jobs/${job.id}/matches`}>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs px-2.5 gap-1 text-primary hover:bg-primary/10">
+                            <Sparkles className="h-3 w-3" /> View Matches
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Jobs Pagination */}
+              {totalJobsPages > 1 && (
+                <div className="flex items-center justify-between py-3 border-t border-border/60">
+                  <p className="text-xs text-muted-foreground">
+                    Page {jobsPage} of {totalJobsPages} ({jobs.length} requisitions)
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={jobsPage <= 1}
+                      onClick={() => setJobsPage((p) => p - 1)}
+                      className="gap-1 text-xs h-8"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" /> Prev
+                    </Button>
+                    <span className="text-xs font-semibold text-foreground px-2">{jobsPage}</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={jobsPage >= totalJobsPages}
+                      onClick={() => setJobsPage((p) => p + 1)}
+                      className="gap-1 text-xs h-8"
+                    >
+                      Next <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── SCHEDULE INTERVIEW MODAL ─────────────────────────────────────────── */}
       {selectedMatchForInterview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-200">
@@ -1020,6 +1288,17 @@ export const HRDashboard: React.FC = () => {
             </div>
           </Card>
         </div>
+      )}
+
+      {/* Assign Recruiters Modal */}
+      {selectedJobForRecruiters && (
+        <AssignRecruiterModal
+          isOpen={Boolean(selectedJobForRecruiters)}
+          onClose={() => setSelectedJobForRecruiters(null)}
+          jobId={selectedJobForRecruiters.id}
+          jobTitle={selectedJobForRecruiters.title}
+          onAssignmentUpdated={() => fetchData()}
+        />
       )}
     </div>
   );

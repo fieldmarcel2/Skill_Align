@@ -1,19 +1,17 @@
 """
 Router: Resume Management, Text Extraction & Deterministic Parsing
 ===================================================================
-Implements secure resume upload, text extraction, TXT generation, rule-based parsing,
-pre-signed URL generation, text preview, and deletion using AWS S3 & Boto3.
-
-Endpoints:
-- POST   /api/candidates/{candidate_id}/resume       - Upload resume (PDF/DOCX/TXT), extract text, parse data
-- GET    /api/candidates/{candidate_id}/resume       - Get temporary pre-signed URL (ExpiresIn=300) for original file
-- GET    /api/candidates/{candidate_id}/resume/text  - Get extracted plain text (.txt) content
-- GET    /api/candidates/{candidate_id}/resume/parsed- Get structured parsed resume data (skills, exp, edu, certs)
-- DELETE /api/candidates/{candidate_id}/resume       - Delete original & TXT from storage & clear DB fields
+Async Resume Pipeline (v2.0):
+  POST /{id}/resume   → Stores original file to S3 + queues processing task (async)
+  GET  /{id}/resume/status → Poll processing status (queued/processing/completed/failed)
+  GET  /{id}/resume        → Pre-signed URL for original file
+  GET  /{id}/resume/text   → Extracted plain text
+  GET  /{id}/resume/parsed → Structured parsed data
+  DELETE /{id}/resume      → Delete files and clear DB
 
 Security Rules:
-- Candidates can only upload, view, or delete their own resume and extracted text.
-- Recruiters, HR, and Admins can view/generate pre-signed URLs to download resumes and view parsed data.
+- Candidates can only upload, view, or delete their own resume.
+- Recruiters, HR, and Admins can view/download resumes and parsed data.
 - AWS credentials are NEVER exposed to the client.
 """
 
@@ -29,6 +27,7 @@ from app.models.user import User
 from app.models.candidate import Candidate
 from app.schemas.resume import (
     ResumeUploadResponse,
+    ResumeStatusResponse,
     ResumeUrlResponse,
     ResumeTextResponse,
     ParsedResumeResponse,
@@ -47,8 +46,14 @@ router = APIRouter(prefix="/api/candidates", tags=["Candidate Resumes"])
 @router.post(
     "/{candidate_id}/resume",
     response_model=ResumeUploadResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Upload Candidate Resume (PDF, DOCX, TXT) and Run Extraction & Parsing",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Upload Candidate Resume (PDF, DOCX, TXT) — Async Processing",
+    description=(
+        "Stores the original resume to S3 immediately, then queues async processing "
+        "(text extraction, parsing, skill sync, auto-matching). "
+        "Returns a task_id for status polling via GET /{id}/resume/status. "
+        "Processing typically completes within 5-30 seconds depending on file size."
+    )
 )
 async def upload_candidate_resume(
     candidate_id: int,
@@ -57,11 +62,9 @@ async def upload_candidate_resume(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Uploads candidate resume, stores original in S3, extracts readable text,
-    stores extracted TXT in S3, parses structured data using deterministic rules,
-    and auto-synchronizes skills with the master database taxonomy.
+    Async resume upload: stores original + queues processing.
+    Returns immediately with processing status.
     """
-    # 1. Fetch candidate
     candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not candidate:
         raise HTTPException(
@@ -69,8 +72,6 @@ async def upload_candidate_resume(
             detail=f"Candidate with id {candidate_id} not found."
         )
 
-    # 2. Role & Ownership Authorization
-    # Only candidate owner or Admin can upload
     user_role = current_user.role.name if current_user.role else ""
     if user_role != "Admin" and candidate.user_id != current_user.id:
         raise HTTPException(
@@ -78,14 +79,56 @@ async def upload_candidate_resume(
             detail="Forbidden: You can only upload a resume for your own profile."
         )
 
-    # 3. Delegate to coordinator service
-    result = await resume_service.process_and_store_resume(
+    result = await resume_service.store_resume_and_queue(
         db=db,
         candidate=candidate,
         file=file,
     )
 
     return ResumeUploadResponse(**result)
+
+
+# ── Endpoint: Resume Processing Status ──────────────────────────────────────
+
+@router.get(
+    "/{candidate_id}/resume/status",
+    response_model=ResumeStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get Resume Processing Status",
+    description="Poll this endpoint to check if async resume processing has completed."
+)
+def get_resume_status(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+    if not candidate:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Candidate with id {candidate_id} not found."
+        )
+
+    user_role = current_user.role.name if current_user.role else ""
+    is_privileged = user_role in ["HR", "Recruiter", "Admin"]
+    is_owner = candidate.user_id == current_user.id
+    if not is_privileged and not is_owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden.")
+
+    if not candidate.resume_filename:
+        processing_status = "not_uploaded"
+    elif candidate.resume_parsed_at is None:
+        processing_status = "processing"
+    else:
+        processing_status = "completed"
+
+    return ResumeStatusResponse(
+        candidate_id=candidate.id,
+        processing_status=processing_status,
+        filename=candidate.resume_filename,
+        uploaded_at=candidate.resume_uploaded_at,
+        parsed_at=candidate.resume_parsed_at,
+    )
 
 
 # ── Endpoint B: Get Pre-signed URL for Original Resume ────────────────────────

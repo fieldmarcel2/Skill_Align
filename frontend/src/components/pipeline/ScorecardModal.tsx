@@ -373,7 +373,7 @@ export const ScorecardModal: React.FC<ScorecardModalProps> = ({
               <div className="flex flex-col items-center justify-center py-12 space-y-3">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <p className="text-xs text-muted-foreground animate-pulse">
-                  Querying Gemini AI for contextual analysis & tailored questions...
+                  Querying AI for contextual role alignment analysis...
                 </p>
               </div>
             ) : aiData ? (

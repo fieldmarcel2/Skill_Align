@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
-from app.core.dependencies import get_current_user, require_hr, require_admin_or_hr
+from app.core.dependencies import get_current_user, require_hr, require_admin_or_hr, require_hr_or_recruiter
 from app.models.user import User
 from app.models.interview import Interview
 from app.models.match_result import MatchResult
@@ -156,12 +156,12 @@ def create_interview(
     "",
     response_model=List[InterviewOut],
     status_code=status.HTTP_200_OK,
-    summary="List all interviews (HR & Admin)"
+    summary="List all interviews (HR, Recruiter & Admin)"
 )
 def list_interviews(
     status_filter: Optional[str] = Query(None, alias="status"),
     db: Session = Depends(get_db),
-    user: User = Depends(require_admin_or_hr)
+    user: User = Depends(require_hr_or_recruiter)
 ):
     query = db.query(Interview)
     if status_filter:

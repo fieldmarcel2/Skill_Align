@@ -65,9 +65,12 @@ class CandidateSkillOut(BaseModel):
 
     id: int
     skill: SkillOut
-    proficiency_level: str
+    # 'resume' = auto-extracted from resume | 'manual' = self-declared
+    source: str = "manual"
+    # None means resume-detected but proficiency not reliably inferred (matching uses 0.50 factor)
+    proficiency_level: Optional[str] = None
     years_experience: float
-
+    evidence_text: Optional[str] = None  # Snippet from resume proving the skill
 
 # ── Candidate profile ─────────────────────────────────────────────────────────
 

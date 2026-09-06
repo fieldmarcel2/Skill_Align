@@ -61,6 +61,18 @@ class Job(Base):
     match_results: Mapped[list["MatchResult"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "MatchResult", back_populates="job", lazy="select", cascade="all, delete-orphan"
     )
+    recruiter_assignments: Mapped[list["JobRecruiterAssignment"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        "JobRecruiterAssignment", back_populates="job", lazy="select", cascade="all, delete-orphan", passive_deletes=True
+    )
+    candidate_assignments: Mapped[list["CandidateRecruiterAssignment"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        "CandidateRecruiterAssignment", back_populates="job", lazy="select", cascade="all, delete-orphan", passive_deletes=True
+    )
+    messages: Mapped[list["RecruitmentMessage"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        "RecruitmentMessage", back_populates="job", lazy="select", cascade="all, delete-orphan", passive_deletes=True
+    )
+    tasks: Mapped[list["RecruitmentTask"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        "RecruitmentTask", back_populates="job", lazy="select", cascade="all, delete-orphan", passive_deletes=True
+    )
 
     def __repr__(self) -> str:
         return f"<Job id={self.id} title={self.title!r} status={self.status!r}>"

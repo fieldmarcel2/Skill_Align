@@ -13,3 +13,8 @@ from app.models.candidate_scorecard import CandidateScorecard  # noqa: F401
 from app.models.otp_verification import OTPVerification  # noqa: F401
 from app.models.interview import Interview  # noqa: F401
 from app.models.notification import Notification  # noqa: F401
+from app.models.job_recruiter_assignment import JobRecruiterAssignment  # noqa: F401
+from app.models.candidate_recruiter_assignment import CandidateRecruiterAssignment  # noqa: F401
+from app.models.recruitment_message import RecruitmentMessage  # noqa: F401
+from app.models.recruitment_task import RecruitmentTask  # noqa: F401
+from app.models.audit_log import AuditLog  # noqa: F401
