@@ -14,6 +14,7 @@ Roles & Permissions Workflow:
 """
 
 from typing import List, Dict, Any, Optional
+from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
@@ -126,20 +127,35 @@ def _build_match_result_out(record: MatchResult, db: Optional[Session] = None) -
     item.assigned_recruiter = assigned_recruiter
     item.assignment_status = assignment_status
 
+    # Check 6-month interview blacklist status
+    if db and record.candidate_id:
+        from app.services.workflow_service import is_candidate_blacklisted
+        bl = is_candidate_blacklisted(db, record.candidate_id)
+        if bl:
+            item.is_blacklisted = True
+            item.blacklist_reason = bl.reason
+            until_str = bl.blacklisted_until.strftime("%d %B %Y")
+            item.blacklisted_until = until_str
+            item.blacklist_display_message = f"Candidate unavailable for interview consideration until {until_str}."
+
     # Enrich interview details (candidate_name, job_title, scheduler_name)
     if item.interviews:
-        cand_name = record.candidate.full_name if record.candidate else None
-        job_t = record.job.title if record.job else None
-        for inv in item.interviews:
-            if not inv.candidate_name:
-                inv.candidate_name = cand_name
-            if not inv.job_title:
-                inv.job_title = job_t
-            if not inv.scheduler_name:
-                for rec_inv in (record.interviews or []):
-                    if rec_inv.id == inv.id and rec_inv.scheduler:
-                        inv.scheduler_name = rec_inv.scheduler.name
-                        break
+        if record.status == "rejected" or record.pipeline_state in ("REJECTED", "DECLINED", "BLACKLISTED", "HIRING_MANAGER_REJECTED", "OFFER_REJECTED"):
+            item.interviews = []
+        else:
+            item.interviews = [inv for inv in item.interviews if inv.status != "cancelled"]
+            cand_name = record.candidate.full_name if record.candidate else None
+            job_t = record.job.title if record.job else None
+            for inv in item.interviews:
+                if not inv.candidate_name:
+                    inv.candidate_name = cand_name
+                if not inv.job_title:
+                    inv.job_title = job_t
+                if not inv.scheduler_name:
+                    for rec_inv in (record.interviews or []):
+                        if rec_inv.id == inv.id and rec_inv.scheduler:
+                            inv.scheduler_name = rec_inv.scheduler.name
+                            break
 
     return item
 
@@ -335,13 +351,17 @@ def get_job_matches(db: Session, job_id: int, status_filter: Optional[str] = Non
 
 
 def get_screened_matches(db: Session, job_id: Optional[int] = None) -> List[MatchResultOut]:
-    """Retrieve all candidates screened by recruiters (ready for HR strategic review & approval)."""
+    """Retrieve all candidates screened by recruiters (ready for HR strategic review & approval). Excludes active blacklisted candidates."""
+    from app.services.workflow_service import is_candidate_blacklisted
+
     query = db.query(MatchResult).filter(MatchResult.status.in_(["screened", "approved_by_hr", "interview_scheduled"]))
     if job_id:
         query = query.filter(MatchResult.job_id == job_id)
 
     results = query.order_by(MatchResult.overall_score.desc()).all()
-    return [_build_match_result_out(r, db=db) for r in results]
+    # Exclude active blacklisted candidates from interview recommendations
+    eligible_results = [r for r in results if not is_candidate_blacklisted(db, r.candidate_id)]
+    return [_build_match_result_out(r, db=db) for r in eligible_results]
 
 
 def get_match_result_by_id(db: Session, match_id: int) -> MatchResultOut:
@@ -400,6 +420,33 @@ def update_match_status(db: Session, match_id: int, new_status: str, user: User)
         )
 
     match_record.status = new_status
+
+    if new_status == "rejected":
+        match_record.pipeline_state = "REJECTED"
+        from app.models.recruitment_task import RecruitmentTask
+        from app.models.candidate_recruiter_assignment import CandidateRecruiterAssignment
+
+        interviews = db.query(Interview).filter(Interview.match_result_id == match_record.id).all()
+        for inv in interviews:
+            if inv.status != "completed":
+                inv.status = "cancelled"
+            for slot in (inv.slots or []):
+                if slot.status != "confirmed":
+                    slot.status = "cancelled"
+
+        db.query(RecruitmentTask).filter(
+            RecruitmentTask.match_result_id == match_record.id,
+            RecruitmentTask.status == "PENDING",
+        ).update({"status": "CANCELLED"}, synchronize_session=False)
+
+        db.query(CandidateRecruiterAssignment).filter(
+            CandidateRecruiterAssignment.job_id == match_record.job_id,
+            CandidateRecruiterAssignment.candidate_id == match_record.candidate_id,
+            CandidateRecruiterAssignment.status == "active",
+        ).update({
+            "status": "completed",
+            "completed_at": datetime.now(timezone.utc)
+        }, synchronize_session=False)
 
     # Trigger in-app notification & SendGrid email on key milestones
     if match_record.candidate and match_record.candidate.user:
@@ -527,3 +574,92 @@ def get_match_ai_analysis(db: Session, match_id: int) -> Dict[str, Any]:
         "algorithmic_score": float(match_record.overall_score),
         **analysis
     }
+
+
+def get_shortlist_candidates(
+    db: Session,
+    job_id: int,
+    min_score: float = 0.0,
+    top_n: Optional[int] = None,
+    exclude_blacklisted: bool = True,
+) -> Dict[str, Any]:
+    """
+    Returns ranked candidates for shortlisting by recruiter with rich match data,
+    blacklist filtering, and configurable threshold filters.
+    """
+    from datetime import datetime, timezone
+    from app.models.candidate_blacklist import CandidateBlacklist
+
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job with id {job_id} not found."
+        )
+
+    # Fetch active blacklists
+    now = datetime.now(timezone.utc)
+    active_blacklists = {
+        bl.candidate_id: bl
+        for bl in db.query(CandidateBlacklist)
+        .filter(CandidateBlacklist.is_active == True, CandidateBlacklist.blacklisted_until > now)
+        .all()
+    }
+
+    matches = (
+        db.query(MatchResult)
+        .filter(MatchResult.job_id == job_id)
+        .order_by(MatchResult.overall_score.desc())
+        .all()
+    )
+
+    candidates_list = []
+    for mr in matches:
+        score = float(mr.overall_score)
+        if score < min_score:
+            continue
+
+        cand = mr.candidate
+        if not cand:
+            continue
+
+        is_blacklisted = cand.id in active_blacklists
+        if is_blacklisted and exclude_blacklisted:
+            continue
+
+        bl_until = active_blacklists[cand.id].blacklisted_until.isoformat() if is_blacklisted else None
+
+        # Build skill match data
+        _, breakdown, meets_exp = calculate_candidate_match_score(job, cand)
+        matched_skills = [b["skill_name"] for b in breakdown if b["candidate_proficiency"] is not None or b["skill_score"] > 0]
+        missing_skills = [b["skill_name"] for b in breakdown if b["candidate_proficiency"] is None and b["skill_score"] == 0]
+
+        candidates_list.append({
+            "match_result_id": mr.id,
+            "candidate_id": cand.id,
+            "candidate_name": cand.full_name,
+            "email": cand.user.email if cand.user else None,
+            "phone": cand.phone,
+            "overall_score": score,
+            "pipeline_state": mr.pipeline_state,
+            "total_experience_years": float(cand.total_experience_years or 0),
+            "meets_experience": meets_exp,
+            "matched_skills": matched_skills,
+            "missing_skills": missing_skills,
+            "is_blacklisted": is_blacklisted,
+            "blacklist_until": bl_until,
+            "education": cand.education_degree or (f"{cand.education_degree} from {cand.education_institution}" if cand.education_degree and cand.education_institution else None),
+            "current_location": cand.city or cand.address,
+        })
+
+    if top_n is not None and top_n > 0:
+        candidates_list = candidates_list[:top_n]
+
+    return {
+        "job_id": job.id,
+        "job_title": job.title,
+        "total_candidates": len(candidates_list),
+        "min_score_filter": min_score,
+        "candidates": candidates_list,
+    }
+

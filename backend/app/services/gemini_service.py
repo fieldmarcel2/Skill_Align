@@ -81,12 +81,12 @@ CANDIDATE DETAILS:
 {f'- Resume Notes: {resume_summary}' if resume_summary else ''}
 
 Return ONLY valid JSON matching this exact structure:
-{
+{{
   "semantic_fit_score": 88,
   "ai_summary": "2-sentence executive summary explaining candidate alignment and key advantages.",
   "key_strengths": ["Strength 1", "Strength 2", "Strength 3"],
   "skill_gaps": ["Gap or area to verify 1", "Area to verify 2"]
-}
+}}
 """
 
     payload = json.dumps({

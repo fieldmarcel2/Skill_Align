@@ -87,6 +87,12 @@ class MatchResultOut(BaseModel):
     recruiter_id: Optional[int] = None
     overall_score: float
     status: str
+    pipeline_state: Optional[str] = "CANDIDATE_MATCHED"
+    hiring_manager_id: Optional[int] = None
+    shortlist_note: Optional[str] = None
+    submitted_to_hm_at: Optional[datetime] = None
+    hm_reviewed_at: Optional[datetime] = None
+    hm_rejection_reason: Optional[str] = None
     # Async processing state (separate from business pipeline status)
     # queued | processing | completed | failed | stale
     processing_status: str = "completed"
@@ -106,6 +112,10 @@ class MatchResultOut(BaseModel):
     resume_detected_skills: List[Dict[str, Any]] = []
     self_declared_skills: List[Dict[str, Any]] = []
     pending_tasks_count: int = 0
+    is_blacklisted: bool = False
+    blacklist_reason: Optional[str] = None
+    blacklisted_until: Optional[str] = None
+    blacklist_display_message: Optional[str] = None
 
 
 class MatchStatusUpdate(BaseModel):

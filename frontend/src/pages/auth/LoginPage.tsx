@@ -30,7 +30,7 @@ import {
 
 // ── Email Login Schema ───────────────────────────────────────────────────────
 const loginSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
+  email: z.string().min(1, "Please enter your email or phone number"),
   password: z.string().min(1, "Password is required"),
 });
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -503,7 +503,7 @@ export const LoginPage: React.FC = () => {
                   variant="outline"
                   size="sm"
                   disabled={isLoading}
-                  onClick={() => handleQuickRoleLogin("recruiter@skillaign.dev", "Rec@12345")}
+                  onClick={() => handleQuickRoleLogin("recruiter@skillalign.dev", "Pass@123")}
                   className="h-auto py-2 px-1.5 flex flex-col items-center gap-1 border-emerald-500/40 bg-emerald-950/20 hover:border-emerald-500 hover:bg-emerald-500/15 text-emerald-300 rounded-xl transition-all shadow-sm"
                 >
                   <Briefcase className="h-4 w-4 text-emerald-400" />

@@ -357,3 +357,108 @@ def delete_candidate_resume(
         message="Resume and extracted documents deleted successfully",
         candidate_id=candidate.id,
     )
+
+
+# ── Endpoint F: Reparse Candidate Resume Data ─────────────────────────────────
+
+@router.post(
+    "/{candidate_id}/resume/reparse",
+    response_model=ParsedResumeResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Reparse Existing Resume Text with Enhanced Deterministic Extractor",
+)
+def reparse_candidate_resume(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Re-runs deterministic parsing on candidate's existing resume text and refreshes extracted structured data.
+    """
+    candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+    if not candidate:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Candidate with id {candidate_id} not found."
+        )
+
+    user_role = current_user.role.name if current_user.role else ""
+    if user_role != "Admin" and candidate.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: You can only re-parse your own resume."
+        )
+
+    raw_text = candidate.resume_raw_text
+    if not raw_text and candidate.resume_extracted_text_s3_key:
+        try:
+            raw_text = s3_service.get_text(candidate.resume_extracted_text_s3_key)
+        except Exception:
+            raw_text = None
+
+    if not raw_text:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No resume raw text found to reparse. Please upload a resume first."
+        )
+
+    from app.models.skill import Skill
+    from app.models.candidate_skill import CandidateSkill
+    from app.services.resume_txt_parser import parse_resume_text
+    from datetime import datetime, timezone
+
+    master_skills = db.query(Skill).all()
+    master_names = [s.name for s in master_skills]
+    skill_lookup = {s.name.lower(): s for s in master_skills}
+
+    parsed_data = parse_resume_text(raw_text=raw_text, master_skills=master_names)
+
+    now_utc = datetime.now(timezone.utc)
+    candidate.resume_parsed_at = now_utc
+    candidate.extracted_data = json.dumps(parsed_data)
+
+    if parsed_data.get("education_degree"):
+        candidate.education_degree = parsed_data["education_degree"]
+    if parsed_data.get("education_institution"):
+        candidate.education_institution = parsed_data["education_institution"]
+
+    parsed_exp = float(parsed_data.get("total_experience_years", 0))
+    if float(candidate.total_experience_years or 0) == 0.0 and parsed_exp > 0:
+        candidate.total_experience_years = parsed_exp
+
+    # Sync skills with evidence snippets
+    from app.tasks.resume_tasks import _get_evidence_snippet
+    existing_skills_map = {cs.skill_id: cs for cs in candidate.skills}
+    for sk_dict in parsed_data.get("skills", []):
+        sk_name = sk_dict.get("name", "")
+        matched_master = skill_lookup.get(sk_name.lower())
+        if not matched_master:
+            continue
+
+        evidence = sk_dict.get("evidence") or _get_evidence_snippet(raw_text, sk_name)
+        if matched_master.id in existing_skills_map:
+            cs = existing_skills_map[matched_master.id]
+            cs.evidence_text = evidence
+            if evidence:
+                cs.source = "resume"
+        else:
+            auto_years = round(min(float(parsed_exp), 2.0), 1) if parsed_exp > 0 else 0.0
+            new_cs = CandidateSkill(
+                candidate_id=candidate.id,
+                skill_id=matched_master.id,
+                source="resume",
+                proficiency_level=None,
+                years_experience=auto_years,
+                evidence_text=evidence,
+            )
+            db.add(new_cs)
+            existing_skills_map[matched_master.id] = new_cs
+
+    db.commit()
+    db.refresh(candidate)
+
+    return ParsedResumeResponse(
+        candidate_id=candidate.id,
+        parsed_data=parsed_data,
+        parsed_at=candidate.resume_parsed_at,
+    )

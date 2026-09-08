@@ -220,6 +220,46 @@ def unassign_candidate(
         )
 
     assignment.status = "unassigned"
+
+    # Invalidate and cancel any pending interview slot selections tied to this released claim
+    from app.models.interview import Interview
+    from app.models.recruitment_task import RecruitmentTask
+
+    match_result = (
+        db.query(MatchResult)
+        .filter(MatchResult.job_id == job_id, MatchResult.candidate_id == candidate_id)
+        .first()
+    )
+
+    if match_result:
+        pending_interviews = (
+            db.query(Interview)
+            .filter(
+                Interview.match_result_id == match_result.id,
+                Interview.status.in_(["pending_slot", "candidate_selected"]),
+            )
+            .all()
+        )
+        for inv in pending_interviews:
+            inv.status = "cancelled"
+            for slot in (inv.slots or []):
+                if slot.status != "confirmed":
+                    slot.status = "cancelled"
+
+        db.query(RecruitmentTask).filter(
+            RecruitmentTask.match_result_id == match_result.id,
+            RecruitmentTask.status == "PENDING",
+        ).update({"status": "CANCELLED"}, synchronize_session=False)
+
+        if match_result.pipeline_state in (
+            "WAITING_FOR_CANDIDATE_SLOT",
+            "CANDIDATE_SLOT_SELECTED",
+            "INTERVIEW_SLOTS_PROPOSED",
+        ):
+            match_result.pipeline_state = "CANDIDATE_SHORTLISTED"
+            if match_result.status == "interview_scheduled":
+                match_result.status = "screened"
+
     db.commit()
 
     log_audit(

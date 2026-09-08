@@ -26,6 +26,7 @@ from app.routers import (
     notifications, match_results, resume, recruiter, communication, tasks
 )
 from app.routers import admin as admin_router
+from app.routers.workflow import router as workflow_router, offer_router
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -68,6 +69,8 @@ app.include_router(recruiter.router)
 app.include_router(recruiter.claims_router)
 app.include_router(communication.router)
 app.include_router(tasks.router)
+app.include_router(workflow_router)
+app.include_router(offer_router)
 
 
 # ── Global Health Endpoint ───────────────────────────────────────────────────

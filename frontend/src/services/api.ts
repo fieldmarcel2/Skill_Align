@@ -26,6 +26,18 @@ import {
   RecruitmentTask,
   RecruiterDashboardStats,
   RecruiterJobItem,
+  InterviewSlot,
+  InterviewFeedback,
+  Offer,
+  CandidateBlacklist,
+  WorkflowState,
+  AuditLogEntry,
+  ActionCenterItem,
+  HMDashboardItem,
+  InterviewWithSlots,
+  ShortlistCandidatesResponse,
+  HiringLogsQueryParams,
+  HiringLogsResponse,
 } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -139,6 +151,10 @@ export const adminApi = {
   },
   deleteUser: async (userId: number): Promise<{ message: string; id: number }> => {
     const res = await apiClient.delete<{ message: string; id: number }>(`/api/admin/users/${userId}`);
+    return res.data;
+  },
+  getHiringLogs: async (params?: HiringLogsQueryParams): Promise<HiringLogsResponse> => {
+    const res = await apiClient.get<HiringLogsResponse>("/api/admin/hiring-logs", { params });
     return res.data;
   },
 };
@@ -331,6 +347,10 @@ export const resumeApi = {
     const res = await apiClient.get<ResumeStatusResponse>(`/api/candidates/${candidateId}/resume/status`);
     return res.data;
   },
+  reparse: async (candidateId: number): Promise<ParsedResumeResponse> => {
+    const res = await apiClient.post<ParsedResumeResponse>(`/api/candidates/${candidateId}/resume/reparse`);
+    return res.data;
+  },
 };
 
 // ── Matching Engine APIs ─────────────────────────────────────────────────────
@@ -389,6 +409,16 @@ export const matchingApi = {
     suggested_interview_questions: string[];
   }> => {
     const res = await apiClient.get(`/api/matching/${matchId}/ai-analysis`);
+    return res.data;
+  },
+  getShortlistCandidates: async (
+    jobId: number,
+    params?: { min_score?: number; top_n?: number; exclude_blacklisted?: boolean }
+  ): Promise<ShortlistCandidatesResponse> => {
+    const res = await apiClient.get<ShortlistCandidatesResponse>(
+      `/api/matching/jobs/${jobId}/shortlist-candidates`,
+      { params }
+    );
     return res.data;
   },
 };
@@ -627,3 +657,357 @@ export const tasksApi = {
   },
 };
 
+// ── Enterprise Recruitment Workflow APIs ────────────────────────────────────
+export const workflowApi = {
+  // Recruiter actions
+  shortlist: async (matchId: number, note?: string): Promise<WorkflowState> => {
+    const res = await apiClient.post<WorkflowState>(`/api/workflow/${matchId}/shortlist`, { note });
+    return res.data;
+  },
+  submitToHM: async (matchId: number, hiringManagerId: number, note?: string): Promise<WorkflowState> => {
+    const res = await apiClient.post<WorkflowState>(`/api/workflow/${matchId}/submit-to-hm`, {
+      hiring_manager_id: hiringManagerId,
+      note,
+    });
+    return res.data;
+  },
+  sendSlotsToCandidate: async (matchId: number): Promise<InterviewWithSlots> => {
+    const res = await apiClient.post<InterviewWithSlots>(`/api/workflow/${matchId}/send-slots-to-candidate`);
+    return res.data;
+  },
+  confirmInterview: async (matchId: number): Promise<InterviewWithSlots> => {
+    const res = await apiClient.post<InterviewWithSlots>(`/api/workflow/${matchId}/confirm-interview`);
+    return res.data;
+  },
+  completeInterview: async (
+    matchId: number,
+    ratings?: {
+      technical_rating?: number;
+      communication_rating?: number;
+      problem_solving_rating?: number;
+      role_fit_rating?: number;
+      overall_rating?: number;
+      comments?: string;
+      notes?: string;
+    } | string
+  ): Promise<InterviewWithSlots> => {
+    const payload = typeof ratings === "string" ? { notes: ratings } : ratings || {};
+    const res = await apiClient.post<InterviewWithSlots>(`/api/workflow/${matchId}/complete-interview`, payload);
+    return res.data;
+  },
+  saveInterviewerEvaluation: async (
+    matchId: number,
+    ratings: {
+      technical_rating?: number;
+      communication_rating?: number;
+      problem_solving_rating?: number;
+      role_fit_rating?: number;
+      overall_rating?: number;
+      comments?: string;
+      notes?: string;
+    }
+  ): Promise<InterviewWithSlots> => {
+    const res = await apiClient.post<InterviewWithSlots>(`/api/workflow/${matchId}/interviewer-evaluation`, ratings);
+    return res.data;
+  },
+  startCompensation: async (matchId: number): Promise<WorkflowState> => {
+    const res = await apiClient.post<WorkflowState>(`/api/workflow/${matchId}/start-compensation`);
+    return res.data;
+  },
+  createOffer: async (
+    matchId: number,
+    data: {
+      proposed_salary?: number;
+      salary_min?: number;
+      salary_max?: number;
+      salary_currency?: string;
+      role_scope?: string;
+      employment_type?: string;
+      joining_date?: string;
+      joining_timeline?: string;
+      offer_expiry_date?: string;
+      location?: string;
+      work_mode?: string;
+      additional_terms?: string;
+    }
+  ): Promise<Offer> => {
+    const res = await apiClient.post<Offer>(`/api/workflow/${matchId}/create-offer`, data);
+    return res.data;
+  },
+
+  // Hiring Manager (HR) actions
+  hmReview: async (matchId: number): Promise<WorkflowState> => {
+    const res = await apiClient.post<WorkflowState>(`/api/workflow/${matchId}/hm-review`);
+    return res.data;
+  },
+  hmReject: async (matchId: number, reason?: string): Promise<WorkflowState> => {
+    const res = await apiClient.post<WorkflowState>(`/api/workflow/${matchId}/hm-reject`, { reason });
+    return res.data;
+  },
+  requestInterview: async (
+    matchId: number,
+    data: {
+      slots: Array<{ slot_datetime: string; slot_end_datetime?: string | null }>;
+      interview_type?: string;
+      meeting_link?: string;
+    }
+  ): Promise<InterviewWithSlots> => {
+    const res = await apiClient.post<InterviewWithSlots>(`/api/workflow/${matchId}/request-interview`, data);
+    return res.data;
+  },
+  submitHMFeedback: async (
+    matchId: number,
+    data: {
+      go_no_go: string;
+      technical_rating?: number | null;
+      communication_rating?: number | null;
+      problem_solving_rating?: number | null;
+      role_fit_rating?: number | null;
+      overall_rating?: number | null;
+      comments?: string | null;
+    }
+  ): Promise<InterviewFeedback> => {
+    const res = await apiClient.post<InterviewFeedback>(`/api/workflow/${matchId}/hm-feedback`, data);
+    return res.data;
+  },
+
+  // Candidate actions (Public or Auth)
+  candidateSelectSlot: async (
+    interviewId: number,
+    slotIdOrToken: number | string,
+    maybeSlotIdOrToken?: number | string
+  ): Promise<WorkflowState> => {
+    let token: string | undefined;
+    let slotId: number;
+
+    if (typeof slotIdOrToken === "string") {
+      token = slotIdOrToken;
+      slotId = Number(maybeSlotIdOrToken);
+    } else {
+      slotId = slotIdOrToken;
+      token = typeof maybeSlotIdOrToken === "string" ? maybeSlotIdOrToken : undefined;
+    }
+
+    const res = await apiClient.post<WorkflowState>(`/api/workflow/interviews/${interviewId}/select-slot`, {
+      token: token || undefined,
+      slot_id: slotId,
+    });
+    return res.data;
+  },
+  getPublicSlots: async (interviewId: number, token: string): Promise<InterviewWithSlots> => {
+    const res = await apiClient.get<InterviewWithSlots>(`/api/workflow/public/slots/${interviewId}`, {
+      params: { token },
+    });
+    return res.data;
+  },
+
+  // Read / Query
+  getState: async (matchId: number): Promise<WorkflowState> => {
+    const res = await apiClient.get<WorkflowState>(`/api/workflow/${matchId}/state`);
+    return res.data;
+  },
+  getTimeline: async (matchId: number): Promise<AuditLogEntry[]> => {
+    const res = await apiClient.get<AuditLogEntry[]>(`/api/workflow/${matchId}/timeline`);
+    return res.data;
+  },
+  getInterviewDetails: async (matchId: number): Promise<InterviewWithSlots> => {
+    const res = await apiClient.get<InterviewWithSlots>(`/api/workflow/${matchId}/interview`);
+    return res.data;
+  },
+  getActionCenter: async (): Promise<ActionCenterItem[]> => {
+    const res = await apiClient.get<ActionCenterItem[]>("/api/workflow/action-center");
+    return res.data;
+  },
+  getHMDashboard: async (): Promise<{
+    pending_review: HMDashboardItem[];
+    feedback_required: HMDashboardItem[];
+    interview_in_progress: HMDashboardItem[];
+    pending_offers?: Offer[];
+    counts: {
+      pending_review: number;
+      feedback_required: number;
+      interview_in_progress: number;
+      pending_offers?: number;
+    };
+  }> => {
+    const res = await apiClient.get("/api/workflow/hm-dashboard");
+    return res.data;
+  },
+  // Multi-round methods
+  getMatchInterviews: async (matchId: number): Promise<InterviewWithSlots[]> => {
+    const res = await apiClient.get<InterviewWithSlots[]>(`/api/workflow/${matchId}/interviews`);
+    return res.data;
+  },
+  addAdditionalRound: async (
+    matchId: number,
+    roundName: string,
+    roundType: string = "ADDITIONAL",
+    durationMinutes: number = 60
+  ): Promise<InterviewWithSlots> => {
+    const res = await apiClient.post<InterviewWithSlots>(
+      `/api/workflow/${matchId}/interviews/add-round`,
+      null,
+      { params: { round_name: roundName, round_type: roundType, duration_minutes: durationMinutes } }
+    );
+    return res.data;
+  },
+  submitRoundFeedback: async (
+    interviewId: number,
+    recommendation: "PASS" | "GO" | "NO_GO",
+    isFinalRound: boolean,
+    ratings?: {
+      technical_rating?: number;
+      communication_rating?: number;
+      problem_solving_rating?: number;
+      role_fit_rating?: number;
+      overall_rating?: number;
+    },
+    comments?: string
+  ): Promise<WorkflowState> => {
+    const params: Record<string, string | number | boolean> = {
+      recommendation,
+      is_final_round: isFinalRound,
+    };
+    if (ratings?.technical_rating) params.technical_rating = ratings.technical_rating;
+    if (ratings?.communication_rating) params.communication_rating = ratings.communication_rating;
+    if (ratings?.problem_solving_rating) params.problem_solving_rating = ratings.problem_solving_rating;
+    if (ratings?.role_fit_rating) params.role_fit_rating = ratings.role_fit_rating;
+    if (ratings?.overall_rating) params.overall_rating = ratings.overall_rating;
+    if (comments) params.comments = comments;
+
+    const res = await apiClient.post<WorkflowState>(
+      `/api/workflow/interviews/${interviewId}/round-feedback`,
+      null,
+      { params }
+    );
+    return res.data;
+  },
+};
+
+// ── Offer Management APIs ───────────────────────────────────────────────────
+export const offerApi = {
+  getPendingHMOffers: async (): Promise<Offer[]> => {
+    const res = await apiClient.get<Offer[]>("/api/offers/pending-review");
+    return res.data;
+  },
+  getOffer: async (offerId: number, token?: string): Promise<Offer> => {
+    const params = token ? { token } : {};
+    const res = await apiClient.get<Offer>(`/api/offers/${offerId}`, { params });
+    return res.data;
+  },
+  getOfferByMatch: async (matchId: number): Promise<Offer> => {
+    const res = await apiClient.get<Offer>(`/api/offers/by-match/${matchId}`);
+    return res.data;
+  },
+  updateOffer: async (
+    offerId: number,
+    data: {
+      proposed_salary?: number;
+      salary_min?: number;
+      salary_max?: number;
+      salary_currency?: string;
+      role_scope?: string;
+      employment_type?: string;
+      joining_date?: string;
+      joining_timeline?: string;
+      offer_expiry_date?: string;
+      location?: string;
+      work_mode?: string;
+      additional_terms?: string;
+    }
+  ): Promise<Offer> => {
+    const res = await apiClient.patch<Offer>(`/api/offers/${offerId}`, data);
+    return res.data;
+  },
+  sendOffer: async (offerId: number): Promise<Offer> => {
+    const res = await apiClient.post<Offer>(`/api/offers/${offerId}/send`);
+    return res.data;
+  },
+  respondOffer: async (
+    offerId: number,
+    token: string,
+    accept: boolean,
+    note?: string
+  ): Promise<Offer> => {
+    const res = await apiClient.post<Offer>(`/api/offers/${offerId}/respond`, {
+      token,
+      accept,
+      note,
+    });
+    return res.data;
+  },
+  // Offer Approval Workflow (v2)
+  submitOfferForReview: async (offerId: number, recruiterNotes?: string): Promise<Offer> => {
+    const params: Record<string, string> = {};
+    if (recruiterNotes) params.recruiter_notes = recruiterNotes;
+    const res = await apiClient.post<Offer>(`/api/offers/${offerId}/submit-review`, null, { params });
+    return res.data;
+  },
+  hmReviewOffer: async (offerId: number, action: "APPROVE" | "REQUEST_CHANGES", hmNotes?: string): Promise<Offer> => {
+    const params: Record<string, string> = { action };
+    if (hmNotes) params.hm_notes = hmNotes;
+    const res = await apiClient.post<Offer>(`/api/offers/${offerId}/hm-review`, null, { params });
+    return res.data;
+  },
+  generateOfferPdf: async (offerId: number): Promise<Offer> => {
+    const res = await apiClient.post<Offer>(`/api/offers/${offerId}/generate-pdf`);
+    return res.data;
+  },
+  downloadOfferPdf: (offerId: number): string => {
+    return `${apiClient.defaults.baseURL}/api/offers/${offerId}/pdf`;
+  },
+  downloadOfferPdfForCandidate: (token: string): string => {
+    return `${apiClient.defaults.baseURL}/api/offers/candidate/${token}/pdf`;
+  },
+};
+
+// ── Multi-Round Interview APIs ───────────────────────────────────────────────
+export const multiRoundApi = {
+  getMatchInterviews: async (matchId: number): Promise<InterviewWithSlots[]> => {
+    const res = await apiClient.get<InterviewWithSlots[]>(`/api/workflow/${matchId}/interviews`);
+    return res.data;
+  },
+  addAdditionalRound: async (
+    matchId: number,
+    roundName: string,
+    roundType: string = "ADDITIONAL",
+    durationMinutes: number = 60
+  ): Promise<InterviewWithSlots> => {
+    const res = await apiClient.post<InterviewWithSlots>(
+      `/api/workflow/${matchId}/interviews/add-round`,
+      null,
+      { params: { round_name: roundName, round_type: roundType, duration_minutes: durationMinutes } }
+    );
+    return res.data;
+  },
+  submitRoundFeedback: async (
+    interviewId: number,
+    recommendation: "PASS" | "GO" | "NO_GO",
+    isFinalRound: boolean,
+    ratings?: {
+      technical_rating?: number;
+      communication_rating?: number;
+      problem_solving_rating?: number;
+      role_fit_rating?: number;
+      overall_rating?: number;
+    },
+    comments?: string
+  ): Promise<WorkflowState> => {
+    const params: Record<string, string | number | boolean> = {
+      recommendation,
+      is_final_round: isFinalRound,
+    };
+    if (ratings?.technical_rating) params.technical_rating = ratings.technical_rating;
+    if (ratings?.communication_rating) params.communication_rating = ratings.communication_rating;
+    if (ratings?.problem_solving_rating) params.problem_solving_rating = ratings.problem_solving_rating;
+    if (ratings?.role_fit_rating) params.role_fit_rating = ratings.role_fit_rating;
+    if (ratings?.overall_rating) params.overall_rating = ratings.overall_rating;
+    if (comments) params.comments = comments;
+    const res = await apiClient.post<WorkflowState>(
+      `/api/workflow/interviews/${interviewId}/round-feedback`,
+      null,
+      { params }
+    );
+    return res.data;
+  },
+};

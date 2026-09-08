@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { jobsApi, matchingApi, interviewsApi, candidatesApi, notificationsApi, resumeApi } from "../../services/api";
-import { Job, MatchResult, Interview, PipelineStatus } from "../../types";
+import { jobsApi, matchingApi, interviewsApi, candidatesApi, notificationsApi, resumeApi, workflowApi, offerApi } from "../../services/api";
+import { Job, MatchResult, Interview, PipelineStatus, HMDashboardItem, Offer } from "../../types";
 import { useToast } from "../../components/ui/toast";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
@@ -36,8 +36,12 @@ import {
   Link as LinkIcon,
   MapPin,
   Laptop,
+  Award,
+  ArrowRight,
+  DollarSign,
 } from "lucide-react";
 import { AssignRecruiterModal } from "../../components/job/AssignRecruiterModal";
+import { RequestInterviewModal } from "../../components/workflow/RequestInterviewModal";
 
 export const HRDashboard: React.FC = () => {
   const toast = useToast();
@@ -46,8 +50,26 @@ export const HRDashboard: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [publishingJobId, setPublishingJobId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"screened" | "interviews" | "jobs">("screened");
+  const [activeTab, setActiveTab] = useState<"hm_review" | "feedback" | "offer_review" | "screened" | "interviews" | "jobs">("screened");
   const [selectedJobForRecruiters, setSelectedJobForRecruiters] = useState<{ id: number; title: string } | null>(null);
+
+  // Enterprise HM Workflow State
+  const [hmData, setHmData] = useState<{
+    pending_review: HMDashboardItem[];
+    feedback_required: HMDashboardItem[];
+    interview_in_progress: HMDashboardItem[];
+    counts: {
+      pending_review: number;
+      feedback_required: number;
+      interview_in_progress: number;
+      pending_offers?: number;
+    };
+  } | null>(null);
+
+  // HM Offer Review State
+  const [pendingOffers, setPendingOffers] = useState<Offer[]>([]);
+  const [reviewingOfferId, setReviewingOfferId] = useState<number | null>(null);
+  const [hmComments, setHmComments] = useState<Record<number, string>>({});
 
   // Interview Modal State
   const [selectedMatchForInterview, setSelectedMatchForInterview] = useState<MatchResult | null>(null);
@@ -77,14 +99,29 @@ export const HRDashboard: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const [screenedData, interviewsData, jobsData] = await Promise.all([
+      const [screenedData, interviewsData, jobsData, hmDashboardRes, offersRes] = await Promise.all([
         matchingApi.getScreenedMatches(),
         interviewsApi.list(),
         jobsApi.list(),
+        workflowApi.getHMDashboard().catch(() => null),
+        offerApi.getPendingHMOffers().catch(() => []),
       ]);
       setScreenedMatches(screenedData);
       setInterviews(interviewsData);
       setJobs(jobsData);
+      if (offersRes) {
+        setPendingOffers(offersRes);
+      }
+      if (hmDashboardRes) {
+        setHmData(hmDashboardRes);
+        if (hmDashboardRes.counts.pending_review > 0) {
+          setActiveTab("hm_review");
+        } else if (hmDashboardRes.counts.feedback_required > 0) {
+          setActiveTab("feedback");
+        } else if (offersRes && offersRes.length > 0) {
+          setActiveTab("offer_review");
+        }
+      }
     } catch (err: any) {
       toast.error(err.response?.data?.detail || "Failed to load HR dashboard data.");
     } finally {
@@ -95,6 +132,28 @@ export const HRDashboard: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  const handleHMOfferDecision = async (offerId: number, action: "APPROVE" | "REQUEST_CHANGES") => {
+    setReviewingOfferId(offerId);
+    try {
+      const comment = hmComments[offerId] || "";
+      if (action === "REQUEST_CHANGES" && !comment.trim()) {
+        toast.warning("Please provide a note explaining what changes are requested.");
+        return;
+      }
+      await offerApi.hmReviewOffer(offerId, action, comment);
+      setPendingOffers((prev) => prev.filter((o) => o.id !== offerId));
+      if (action === "APPROVE") {
+        toast.success("Offer approved! Recruiter can now generate the official PDF offer letter.");
+      } else {
+        toast.success("Change request submitted to recruiter for revision.");
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to submit offer review.");
+    } finally {
+      setReviewingOfferId(null);
+    }
+  };
 
   const handleApprove = async (match: MatchResult) => {
     setUpdatingMatchId(match.id);
@@ -329,6 +388,31 @@ export const HRDashboard: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {hmData && (
+            <>
+              <Button
+                variant={activeTab === "hm_review" ? "gradient" : "outline"}
+                onClick={() => setActiveTab("hm_review")}
+                className="gap-2 text-xs border-amber-500/40 text-amber-300"
+              >
+                <Clock className="h-4 w-4 text-amber-400" /> Pending Review ({hmData.counts.pending_review})
+              </Button>
+              <Button
+                variant={activeTab === "feedback" ? "gradient" : "outline"}
+                onClick={() => setActiveTab("feedback")}
+                className="gap-2 text-xs border-emerald-500/40 text-emerald-300"
+              >
+                <Award className="h-4 w-4 text-emerald-400" /> Feedback Required ({hmData.counts.feedback_required})
+              </Button>
+              <Button
+                variant={activeTab === "offer_review" ? "gradient" : "outline"}
+                onClick={() => setActiveTab("offer_review")}
+                className="gap-2 text-xs border-purple-500/40 text-purple-300"
+              >
+                <DollarSign className="h-4 w-4 text-purple-400" /> Offer Approvals ({pendingOffers.length})
+              </Button>
+            </>
+          )}
           <Button
             variant={activeTab === "screened" ? "gradient" : "outline"}
             onClick={() => setActiveTab("screened")}
@@ -359,7 +443,7 @@ export const HRDashboard: React.FC = () => {
       </div>
 
       {/* Top Statistics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           title="Job Requisitions"
           value={jobs.length}
@@ -368,18 +452,25 @@ export const HRDashboard: React.FC = () => {
           description={`${jobs.filter((j) => j.status === "active").length} active, ${jobs.filter((j) => j.status === "draft").length} draft`}
         />
         <StatCard
-          title="Screened by Recruiter"
-          value={awaitingHRCount}
-          icon={UserCheck}
-          color="blue"
-          description="Awaiting HR strategic approval"
+          title="Pending HM Reviews"
+          value={hmData ? hmData.counts.pending_review : 0}
+          icon={Clock}
+          color="amber"
+          description="Candidates awaiting HM review/slots"
         />
         <StatCard
-          title="HR Approved"
-          value={approvedCount}
-          icon={CheckCircle2}
+          title="Feedback Required"
+          value={hmData ? hmData.counts.feedback_required : 0}
+          icon={Award}
           color="emerald"
-          description="Ready for interview scheduling"
+          description="Post-interview GO/NO-GO needed"
+        />
+        <StatCard
+          title="Offer Approvals"
+          value={pendingOffers.length}
+          icon={DollarSign}
+          color="purple"
+          description="Offers awaiting HM sign-off"
         />
         <StatCard
           title="Active Interviews"
@@ -389,6 +480,295 @@ export const HRDashboard: React.FC = () => {
           description="Scheduled hiring rounds"
         />
       </div>
+
+      {/* TAB: Pending HM Review */}
+      {activeTab === "hm_review" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold font-outfit text-foreground flex items-center gap-2">
+                <Clock className="h-5 w-5 text-amber-400" />
+                Candidates Awaiting Hiring Manager Review ({hmData?.pending_review?.length || 0})
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Review candidate credentials, inspect AI fit scorecard, and propose interview time slots.
+              </p>
+            </div>
+          </div>
+
+          {(!hmData?.pending_review || hmData.pending_review.length === 0) ? (
+            <Card className="p-12 text-center text-muted-foreground border-dashed">
+              <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+              <p className="text-sm font-semibold">No candidates currently awaiting review.</p>
+              <p className="text-xs text-muted-foreground mt-1">When recruiters submit candidate shortlists, they will appear here.</p>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {hmData.pending_review.map((item) => (
+                <Card key={item.match_result_id} className="p-5 border-border hover:border-amber-500/40 transition-all flex flex-col justify-between gap-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-amber-400 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20">
+                        {item.pipeline_state}
+                      </span>
+                      <span className="text-sm font-bold font-mono text-cyan-400">
+                        {Math.round(item.overall_score)}% Match
+                      </span>
+                    </div>
+                    <h3 className="text-base font-bold text-foreground">{item.candidate_name}</h3>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <Briefcase className="h-3.5 w-3.5 text-muted-foreground" />
+                      Role: <strong className="text-foreground">{item.job_title}</strong>
+                    </p>
+                    {item.recruiter_name && (
+                      <p className="text-xs text-muted-foreground">
+                        Submitted by recruiter: <span className="text-foreground">{item.recruiter_name}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                    <Link
+                      to={`/hr/candidates/${item.match_result_id}/review`}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition-all"
+                    >
+                      Review & Propose Slots
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB: Feedback Required (GO / NO-GO) */}
+      {activeTab === "feedback" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold font-outfit text-foreground flex items-center gap-2">
+                <Award className="h-5 w-5 text-emerald-400" />
+                Interviews Requiring Hiring Manager Feedback ({hmData?.feedback_required?.length || 0})
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Completed interview rounds requiring structured 5-star evaluation and conclusive GO / NO-GO decision.
+              </p>
+            </div>
+          </div>
+
+          {(!hmData?.feedback_required || hmData.feedback_required.length === 0) ? (
+            <Card className="p-12 text-center text-muted-foreground border-dashed">
+              <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+              <p className="text-sm font-semibold">No pending interview feedback required.</p>
+              <p className="text-xs text-muted-foreground mt-1">When interview datetime passes or recruiters mark interviews done, they appear here.</p>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {hmData.feedback_required.map((item) => (
+                <Card key={item.match_result_id} className="p-5 border-border hover:border-emerald-500/40 transition-all flex flex-col justify-between gap-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-emerald-400 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                        Interview Completed
+                      </span>
+                      <span className="text-sm font-bold font-mono text-cyan-400">
+                        {Math.round(item.overall_score)}% Match
+                      </span>
+                    </div>
+                    <h3 className="text-base font-bold text-foreground">{item.candidate_name}</h3>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <Briefcase className="h-3.5 w-3.5 text-muted-foreground" />
+                      Role: <strong className="text-foreground">{item.job_title}</strong>
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                    <Link
+                      to={`/hr/interviews/${item.match_result_id}/feedback`}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all"
+                    >
+                      Submit GO / NO-GO Feedback
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB: Offer Approval (HM Review) */}
+      {activeTab === "offer_review" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold font-outfit text-foreground flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-purple-400" />
+                Offers Awaiting Hiring Manager Review ({pendingOffers.length})
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Review proposed candidate compensation, terms, and employment scope before official PDF generation.
+              </p>
+            </div>
+          </div>
+
+          {pendingOffers.length === 0 ? (
+            <Card className="p-12 text-center text-muted-foreground border-dashed">
+              <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+              <p className="text-sm font-semibold">No pending offers requiring review.</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                When recruiters draft offers and submit them for HM sign-off, they will appear here.
+              </p>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {pendingOffers.map((offer) => {
+                const currency = offer.salary_currency || "USD";
+                const proposedSalary = offer.proposed_salary ? Number(offer.proposed_salary).toLocaleString() : "Not set";
+                const isReviewing = reviewingOfferId === offer.id;
+
+                return (
+                  <Card key={offer.id} className="p-6 border-border hover:border-purple-500/40 transition-all flex flex-col justify-between gap-5 bg-card/60 backdrop-blur-sm">
+                    <div className="space-y-4">
+                      {/* Top status bar */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-purple-400 px-2.5 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center gap-1.5">
+                          <Clock className="h-3 w-3" /> Awaiting HM Approval
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          Offer #{offer.id}
+                        </span>
+                      </div>
+
+                      {/* Candidate & Role Info */}
+                      <div>
+                        <h3 className="text-lg font-bold text-foreground">
+                          {offer.candidate_name || `Candidate #${offer.candidate_id}`}
+                        </h3>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                          <Briefcase className="h-3.5 w-3.5 text-muted-foreground" />
+                          Position: <strong className="text-foreground">{offer.job_title || `Job #${offer.job_id}`}</strong>
+                        </p>
+                        {offer.recruiter_name && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Prepared by recruiter: <strong className="text-foreground">{offer.recruiter_name}</strong>
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Key Compensation Metrics */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3 rounded-lg bg-background/60 border border-border/50 text-xs">
+                        <div>
+                          <span className="text-muted-foreground block">Proposed Salary</span>
+                          <span className="font-bold text-emerald-400 text-sm">
+                            {currency} {proposedSalary}
+                          </span>
+                        </div>
+                        {offer.salary_min && offer.salary_max && (
+                          <div>
+                            <span className="text-muted-foreground block">Salary Range</span>
+                            <span className="font-medium text-foreground">
+                              {currency} {Number(offer.salary_min).toLocaleString()} - {Number(offer.salary_max).toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+                        <div>
+                          <span className="text-muted-foreground block">Employment Type</span>
+                          <span className="font-medium text-foreground capitalize">
+                            {offer.employment_type?.toLowerCase() || "Full-Time"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block">Work Mode</span>
+                          <span className="font-medium text-foreground">
+                            {offer.work_mode || "Hybrid"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block">Joining Date</span>
+                          <span className="font-medium text-foreground">
+                            {offer.joining_date ? new Date(offer.joining_date).toLocaleDateString() : (offer.joining_timeline || "Flexible")}
+                          </span>
+                        </div>
+                        {offer.location && (
+                          <div>
+                            <span className="text-muted-foreground block">Location</span>
+                            <span className="font-medium text-foreground">
+                              {offer.location}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Recruiter Justification Notes */}
+                      {offer.recruiter_comments && (
+                        <div className="p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/20 text-xs">
+                          <strong className="text-indigo-300 block mb-1">Recruiter Justification:</strong>
+                          <p className="text-foreground/90 italic">"{offer.recruiter_comments}"</p>
+                        </div>
+                      )}
+
+                      {/* HM Review Comments Input */}
+                      <div className="space-y-1.5 pt-2">
+                        <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                          HM Feedback / Conditions:
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={hmComments[offer.id] || ""}
+                          onChange={(e) => setHmComments({ ...hmComments, [offer.id]: e.target.value })}
+                          placeholder="e.g., Approved with current comp, or: Please increase base to 130k or adjust joining timeline..."
+                          className="w-full text-xs rounded-md bg-background border border-border px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-between gap-3 pt-3 border-t border-border">
+                      <Link
+                        to={`/recruiter/candidates/${offer.match_result_id}/offer`}
+                        className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 underline underline-offset-2"
+                      >
+                        <ExternalLink className="h-3 w-3" /> View Full Offer Page
+                      </Link>
+
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={isReviewing}
+                          onClick={() => handleHMOfferDecision(offer.id, "REQUEST_CHANGES")}
+                          className="text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10 gap-1.5"
+                        >
+                          <AlertCircle className="h-3.5 w-3.5" />
+                          Request Adjustments
+                        </Button>
+                        <Button
+                          variant="gradient"
+                          size="sm"
+                          disabled={isReviewing}
+                          onClick={() => handleHMOfferDecision(offer.id, "APPROVE")}
+                          className="text-xs gap-1.5 shadow-md shadow-emerald-500/20"
+                        >
+                          {isReviewing ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Check className="h-3.5 w-3.5 text-emerald-300" />
+                          )}
+                          Approve Offer
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Tab 1: Screened Candidates Awaiting HR Review */}
       {activeTab === "screened" && (
@@ -580,26 +960,75 @@ export const HRDashboard: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Candidate Skills */}
-                        <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                            Declared Skills:
-                          </p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {match.candidate.skills.slice(0, 4).map((cs) => (
-                              <span
-                                key={cs.id}
-                                className="text-xs px-2 py-0.5 rounded bg-secondary/80 text-foreground border border-border/50"
-                              >
-                                {cs.skill.name} ({cs.proficiency_level})
-                              </span>
-                            ))}
-                            {match.candidate.skills.length > 4 && (
-                              <span className="text-xs text-muted-foreground self-center">
-                                +{match.candidate.skills.length - 4} more
-                              </span>
-                            )}
-                          </div>
+                        {/* Candidate Skills (Resume Extracted vs Declared) */}
+                        <div className="space-y-2 pt-1">
+                          {(() => {
+                            const resumeSkills = (match.resume_detected_skills && match.resume_detected_skills.length > 0)
+                              ? match.resume_detected_skills
+                              : (match.candidate.skills || []).filter((s) => s.source === "resume" || s.evidence_text);
+
+                            const declaredSkills = (match.self_declared_skills && match.self_declared_skills.length > 0)
+                              ? match.self_declared_skills
+                              : (match.candidate.skills || []).filter((s) => s.source !== "resume" && !s.evidence_text);
+
+                            return (
+                              <div className="space-y-1.5">
+                                {resumeSkills.length > 0 && (
+                                  <div>
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1 mb-1">
+                                      <Sparkles className="h-3 w-3" /> Resume-Extracted Skills:
+                                    </p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {resumeSkills.slice(0, 4).map((rs: any) => {
+                                        const sName = rs.name || rs.skill?.name || rs.skill_name || "Skill";
+                                        const evText = rs.evidence_text || (rs.source === "resume" ? "Verified from resume" : null);
+                                        return (
+                                          <span
+                                            key={rs.id || rs.skill_id || sName}
+                                            title={evText ? `Resume Context: "${evText}"` : "Extracted from candidate resume"}
+                                            className="text-xs px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-medium flex items-center gap-1 cursor-help"
+                                          >
+                                            <span>{sName}</span>
+                                            <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-500/30 text-emerald-200 font-mono font-bold">
+                                              [Resume]
+                                            </span>
+                                          </span>
+                                        );
+                                      })}
+                                      {resumeSkills.length > 4 && (
+                                        <span className="text-xs text-emerald-400 font-bold self-center">
+                                          +{resumeSkills.length - 4} more
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {declaredSkills.length > 0 && (
+                                  <div>
+                                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                                      Self-Declared Skills:
+                                    </p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {declaredSkills.slice(0, 3).map((ds: any) => (
+                                        <span
+                                          key={ds.id || ds.skill_id || ds.name}
+                                          className="text-xs px-2 py-0.5 rounded bg-secondary/80 text-foreground/80 border border-border/50"
+                                        >
+                                          {ds.name || ds.skill?.name || ds.skill_name}
+                                        </span>
+                                      ))}
+                                      {declaredSkills.length > 3 && (
+                                        <span className="text-xs text-muted-foreground self-center">
+                                          +{declaredSkills.length - 3} more
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
 
@@ -662,15 +1091,15 @@ export const HRDashboard: React.FC = () => {
                             </Button>
                           )}
 
-                          {/* Schedule Interview Modal Trigger */}
+                          {/* Propose Slots (Request Interview) Modal Trigger */}
                           <Button
                             size="sm"
                             variant="gradient"
-                            onClick={() => openScheduleModal(match)}
+                            onClick={() => setSelectedMatchForInterview(match)}
                             className="gap-1 text-xs h-8 px-3 shadow-md shadow-indigo-500/20"
                           >
                             <Calendar className="h-3.5 w-3.5" />
-                            {isScheduled ? "Re-Schedule" : "Schedule Interview"}
+                            {isScheduled ? "Adjust Slots" : "Propose Slots"}
                           </Button>
                         </div>
                       </div>
@@ -755,7 +1184,14 @@ export const HRDashboard: React.FC = () => {
                       <div className="p-3 rounded-lg bg-secondary/40 border border-border/60 space-y-1.5 text-xs">
                         <div className="flex items-center gap-2 text-foreground font-medium">
                           <Clock className="h-3.5 w-3.5 text-indigo-400" />
-                          <span>{new Date(iv.interview_date).toLocaleString()}</span>
+                          <span>
+                            {iv.interview_date
+                              ? new Date(iv.interview_date).toLocaleString([], {
+                                  dateStyle: "medium",
+                                  timeStyle: "short",
+                                })
+                              : "Date TBD (Slot Selection Pending)"}
+                          </span>
                         </div>
                         <div className="flex items-center justify-between text-muted-foreground">
                           <span className="flex items-center gap-1.5">
@@ -1048,157 +1484,16 @@ export const HRDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* ── SCHEDULE INTERVIEW MODAL ─────────────────────────────────────────── */}
+      {/* ── 3-WAY INTERVIEW REQUEST MODAL (HM Proposes >=2 Slots -> Recruiter -> Candidate) ── */}
       {selectedMatchForInterview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-200">
-          <Card className="w-full max-w-lg border-border/80 bg-card p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-border/70 pb-3">
-              <div className="flex items-center gap-2">
-                <CalendarCheck className="h-5 w-5 text-primary" />
-                <h3 className="text-lg font-bold font-outfit text-foreground">
-                  Schedule Candidate Interview
-                </h3>
-              </div>
-              <button
-                onClick={() => setSelectedMatchForInterview(null)}
-                className="text-muted-foreground hover:text-foreground transition-colors p-1"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Candidate & Job Preview */}
-            <div className="p-3.5 rounded-xl bg-secondary/40 border border-border/60 space-y-1 text-xs">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Candidate:</span>
-                <span className="font-bold text-foreground">
-                  {selectedMatchForInterview.candidate.full_name}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Position:</span>
-                <span className="font-bold text-primary">
-                  {selectedMatchForInterview.job?.title}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Fit Score:</span>
-                <span className="font-bold text-emerald-400">
-                  {Number(selectedMatchForInterview.overall_score).toFixed(0)}%
-                </span>
-              </div>
-            </div>
-
-            <form onSubmit={handleScheduleInterviewSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5 text-primary" /> Interview Date & Time *
-                </label>
-                <Input
-                  type="datetime-local"
-                  required
-                  value={interviewDate}
-                  onChange={(e) => setInterviewDate(e.target.value)}
-                  className="w-full"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground">Interview Format</label>
-                  <select
-                    value={interviewType}
-                    onChange={(e) => setInterviewType(e.target.value)}
-                    className="w-full h-10 px-3 rounded-lg border border-border bg-secondary/50 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="Technical Interview">Technical Interview</option>
-                    <option value="HR Behavioral & Strategic">HR Behavioral & Strategic</option>
-                    <option value="Culture Fit & Team Meet">Culture Fit & Team Meet</option>
-                    <option value="Executive Final Round">Executive Final Round</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground">Meeting Mode</label>
-                  <select
-                    value={interviewMode}
-                    onChange={(e) => setInterviewMode(e.target.value as any)}
-                    className="w-full h-10 px-3 rounded-lg border border-border bg-secondary/50 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="Online">Online (Google Meet / Zoom)</option>
-                    <option value="In-Person">In-Person (Office)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground flex items-center gap-1">
-                  <Video className="h-3.5 w-3.5 text-indigo-400" /> Video Call / Meeting Link (Google Meet / Zoom)
-                </label>
-                <Input
-                  type="url"
-                  placeholder="e.g. https://meet.google.com/abc-defg-hij or https://zoom.us/j/..."
-                  value={meetingLink}
-                  onChange={(e) => setMeetingLink(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground">
-                  Instructions / Notes for Candidate
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Please be prepared to present code or architecture..."
-                  value={meetingNotes}
-                  onChange={(e) => setMeetingNotes(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-secondary/50 p-3 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="send_notification"
-                  checked={sendEmailNotification}
-                  onChange={(e) => setSendEmailNotification(e.target.checked)}
-                  className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                />
-                <label htmlFor="send_notification" className="text-xs text-muted-foreground">
-                  Dispatch email invitation to candidate with meeting link
-                </label>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-border/70">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedMatchForInterview(null)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="gradient"
-                  size="sm"
-                  disabled={isScheduling}
-                  className="gap-1.5 shadow-lg shadow-indigo-500/20 font-semibold"
-                >
-                  {isScheduling ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Scheduling...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-3.5 w-3.5" /> Confirm & Dispatch Schedule
-                    </>
-                  )}
-                </Button>
-              </div>
-            </form>
-          </Card>
-        </div>
+        <RequestInterviewModal
+          isOpen={Boolean(selectedMatchForInterview)}
+          onClose={() => setSelectedMatchForInterview(null)}
+          match={selectedMatchForInterview}
+          onSuccess={() => {
+            fetchData();
+          }}
+        />
       )}
 
       {/* ── CANDIDATE PROFILE MODAL ─────────────────────────────────────────── */}
@@ -1241,27 +1536,65 @@ export const HRDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
-                Declared Skills Portfolio
-              </h4>
-              <div className="grid grid-cols-2 gap-2">
-                {selectedProfileMatch.candidate.skills.map((cs) => (
-                  <div
-                    key={cs.id}
-                    className="p-2 rounded-lg border border-border/70 bg-secondary/30 flex items-center justify-between text-xs"
-                  >
-                    <span className="font-semibold text-foreground">{cs.skill.name}</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
-                      {cs.proficiency_level}
+            {/* Skills: Resume Extracted vs Declared */}
+            <div className="space-y-3">
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1 mb-2">
+                  <Sparkles className="h-3.5 w-3.5" /> Resume-Extracted & Matched Skills
+                </h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {((selectedProfileMatch.resume_detected_skills && selectedProfileMatch.resume_detected_skills.length > 0)
+                    ? selectedProfileMatch.resume_detected_skills
+                    : selectedProfileMatch.candidate.skills.filter((s) => s.source === "resume" || s.evidence_text)
+                  ).map((cs: any) => (
+                    <div
+                      key={cs.id || cs.skill_id}
+                      title={cs.evidence_text ? `Evidence: "${cs.evidence_text}"` : "Extracted from resume"}
+                      className="p-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 flex items-center justify-between text-xs"
+                    >
+                      <span className="font-semibold text-foreground truncate">{cs.name || cs.skill?.name || cs.skill_name}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/30 text-emerald-200 font-mono font-bold shrink-0">
+                        Resume
+                      </span>
+                    </div>
+                  ))}
+                  {((selectedProfileMatch.resume_detected_skills && selectedProfileMatch.resume_detected_skills.length > 0)
+                    ? selectedProfileMatch.resume_detected_skills
+                    : selectedProfileMatch.candidate.skills.filter((s) => s.source === "resume" || s.evidence_text)
+                  ).length === 0 && (
+                    <span className="text-xs text-muted-foreground col-span-2 italic">
+                      No automated resume extractions. Check declared skills below.
                     </span>
-                  </div>
-                ))}
+                  )}
+                </div>
               </div>
+
+              {selectedProfileMatch.candidate.skills.filter((s) => s.source !== "resume" && !s.evidence_text).length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
+                    Self-Declared Skills
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    {selectedProfileMatch.candidate.skills
+                      .filter((s) => s.source !== "resume" && !s.evidence_text)
+                      .map((cs) => (
+                        <div
+                          key={cs.id}
+                          className="p-2 rounded-lg border border-border/70 bg-secondary/30 flex items-center justify-between text-xs"
+                        >
+                          <span className="font-semibold text-foreground truncate">{cs.skill.name}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium shrink-0">
+                            {cs.proficiency_level || "Declared"}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-between pt-3 border-t border-border/70">
-              {selectedProfileMatch.candidate.resume_file_path ? (
+              {selectedProfileMatch.candidate.resume_file_path || selectedProfileMatch.candidate.resume_s3_key ? (
                 <Button
                   variant="outline"
                   size="sm"
@@ -1280,10 +1613,10 @@ export const HRDashboard: React.FC = () => {
                 onClick={() => {
                   const match = selectedProfileMatch;
                   setSelectedProfileMatch(null);
-                  openScheduleModal(match);
+                  setSelectedMatchForInterview(match);
                 }}
               >
-                Schedule Interview
+                Propose Interview Slots
               </Button>
             </div>
           </Card>

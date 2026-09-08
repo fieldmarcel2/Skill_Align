@@ -92,6 +92,7 @@ export interface ParsedEducation {
   degree: string;
   institution: string;
   year?: string | null;
+  grade?: string | null;
 }
 
 export interface ParsedExperience {
@@ -99,13 +100,32 @@ export interface ParsedExperience {
   company?: string;
   duration?: string;
   years?: number;
+  highlights?: string[];
+}
+
+export interface ParsedProject {
+  title: string;
+  duration?: string | null;
+  technologies?: string[];
+  bullets?: string[];
+  description?: string;
+}
+
+export interface ParsedSkillItem {
+  name: string;
+  category: string;
+  evidence?: string | null;
 }
 
 export interface ParsedResumeData {
   name?: string | null;
+  headline?: string | null;
   email?: string | null;
   phone?: string | null;
-  skills: { name: string; category: string }[];
+  location?: string | null;
+  summary?: string | null;
+  skills: ParsedSkillItem[];
+  categorized_skills?: Record<string, string[]>;
   total_experience_years: number;
   education: ParsedEducation[];
   education_degree?: string | null;
@@ -113,6 +133,12 @@ export interface ParsedResumeData {
   experience: ParsedExperience[];
   certifications: string[];
   projects: string[];
+  structured_projects?: ParsedProject[];
+  additional_info?: {
+    date_of_birth?: string | null;
+    career_interests?: string[];
+    location?: string | null;
+  };
 }
 
 export interface Candidate {
@@ -181,17 +207,21 @@ export interface Interview {
   id: number;
   match_result_id: number;
   scheduled_by: number;
-  interview_date: string;
+  interview_date?: string | null;
   interview_type: string;
   meeting_link?: string | null;
   interview_mode?: string | null;
   scheduled_end?: string | null;
   feedback?: string | null;
-  status: "scheduled" | "completed" | "cancelled";
+  status: "scheduled" | "pending_slot" | "completed" | "cancelled" | string;
   created_at: string;
   scheduler_name?: string | null;
   candidate_name?: string | null;
   job_title?: string | null;
+  company_name?: string | null;
+  slot_token?: string | null;
+  pipeline_state?: PipelineState | string | null;
+  slots?: InterviewSlot[];
 }
 
 
@@ -224,6 +254,13 @@ export interface MatchResult {
   recruiter_id?: number | null;
   overall_score: number;
   status: PipelineStatus;
+  pipeline_state?: PipelineState;
+  hiring_manager_id?: number | null;
+  hiring_manager_name?: string | null;
+  shortlist_note?: string | null;
+  submitted_to_hm_at?: string | null;
+  hm_reviewed_at?: string | null;
+  hm_rejection_reason?: string | null;
   processing_status?: "queued" | "processing" | "completed" | "failed" | "stale" | string;
   matched_by_version?: string;
   matched_at: string;
@@ -255,6 +292,10 @@ export interface MatchResult {
     years_experience?: number;
   }>;
   pending_tasks_count?: number;
+  is_blacklisted?: boolean;
+  blacklist_reason?: string | null;
+  blacklisted_until?: string | null;
+  blacklist_display_message?: string | null;
 }
 
 export interface MatchRunResponse {
@@ -419,4 +460,306 @@ export interface RecruiterJobItem {
   pending_review: number;
   assigned_to_me: number;
 }
+
+// ── Enterprise Recruitment Workflow Types ───────────────────────────────────
+
+export type PipelineState =
+  | "CANDIDATE_MATCHED"
+  | "CANDIDATE_SHORTLISTED"
+  | "SENT_TO_HIRING_MANAGER"
+  | "HIRING_MANAGER_REVIEW"
+  | "HIRING_MANAGER_REJECTED"
+  | "INTERVIEW_REQUESTED"
+  | "INTERVIEW_SLOTS_PROPOSED"
+  | "WAITING_FOR_CANDIDATE_SLOT"
+  | "CANDIDATE_SLOT_SELECTED"
+  | "INTERVIEW_CONFIRMED"
+  | "INTERVIEW_COMPLETED"
+  | "WAITING_FOR_HM_FEEDBACK"
+  | "INTERVIEW_GO"
+  | "INTERVIEW_NO_GO"
+  | "COMPENSATION_DISCUSSION"
+  | "OFFER_CREATED"
+  | "OFFER_SENT"
+  | "OFFER_ACCEPTED"
+  | "OFFER_REJECTED"
+  | "BLACKLISTED"
+  | "HIRED"
+  | "REJECTED";
+
+export interface InterviewSlot {
+  id: number;
+  interview_id: number;
+  slot_datetime: string;
+  slot_end_datetime?: string | null;
+  status: "proposed" | "selected" | "cancelled" | string;
+  proposer_name?: string | null;
+}
+
+export interface InterviewFeedback {
+  id: number;
+  interview_id: number;
+  match_result_id: number;
+  reviewer_id?: number | null;
+  reviewer_name?: string | null;
+  go_no_go: "GO" | "NO_GO" | string;
+  technical_rating?: number | null;
+  communication_rating?: number | null;
+  problem_solving_rating?: number | null;
+  role_fit_rating?: number | null;
+  overall_rating?: number | null;
+  comments?: string | null;
+  submitted_at: string;
+}
+
+export interface Offer {
+  id: number;
+  match_result_id: number;
+  candidate_id: number;
+  job_id: number;
+  created_by?: number | null;
+  salary_currency: string;
+  salary_min?: number | null;
+  salary_max?: number | null;
+  proposed_salary?: number | null;
+  role_scope?: string | null;
+  employment_type?: string | null;
+  joining_date?: string | null;
+  joining_timeline?: string | null;
+  offer_expiry_date?: string | null;
+  location?: string | null;
+  work_mode?: string | null;
+  additional_terms?: string | null;
+  status: "DRAFT" | "PENDING_HM_REVIEW" | "HM_CHANGES_REQUESTED" | "HM_APPROVED" | "OFFER_READY" | "SENT" | "ACCEPTED" | "REJECTED" | "EXPIRED" | string;
+  sent_at?: string | null;
+  responded_at?: string | null;
+  candidate_response_note?: string | null;
+  created_at: string;
+  updated_at: string;
+  // Offer Approval Workflow (v2)
+  workflow_state?: string | null;
+  approved_by?: number | null;
+  approved_at?: string | null;
+  hm_comments?: string | null;
+  recruiter_comments?: string | null;
+  // PDF fields
+  pdf_file_name?: string | null;
+  pdf_file_size?: number | null;
+  pdf_generated_at?: string | null;
+  pdf_storage_key?: string | null;
+  expires_at?: string | null;
+  has_pdf?: boolean;
+  // Derived
+  candidate_name?: string | null;
+  job_title?: string | null;
+  recruiter_name?: string | null;
+  hiring_manager_name?: string | null;
+}
+
+export interface CandidateBlacklist {
+  id: number;
+  candidate_id: number;
+  match_result_id?: number | null;
+  reason?: string | null;
+  blacklisted_at: string;
+  blacklisted_until: string;
+  is_active: boolean;
+  candidate_name?: string | null;
+}
+
+export interface WorkflowState {
+  match_result_id: number;
+  pipeline_state: PipelineState;
+  hiring_manager_id?: number | null;
+  hiring_manager_name?: string | null;
+  shortlist_note?: string | null;
+  submitted_to_hm_at?: string | null;
+  hm_reviewed_at?: string | null;
+  hm_rejection_reason?: string | null;
+}
+
+export interface AuditLogEntry {
+  id: number;
+  actor_id?: number | null;
+  actor_name?: string | null;
+  action: string;
+  entity_type: string;
+  from_state?: string | null;
+  to_state?: string | null;
+  details?: string | null;
+  created_at: string;
+}
+
+export interface ActionCenterItem {
+  task_id: number;
+  action_type: string;
+  title: string;
+  description?: string | null;
+  priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT" | string;
+  match_result_id?: number | null;
+  candidate_name?: string | null;
+  job_title?: string | null;
+  pipeline_state?: PipelineState | null;
+  due_at?: string | null;
+  created_at: string;
+}
+
+export interface HMDashboardItem {
+  match_result_id: number;
+  candidate_name: string;
+  job_title: string;
+  overall_score: number;
+  pipeline_state: PipelineState;
+  submitted_to_hm_at?: string | null;
+  hm_reviewed_at?: string | null;
+  recruiter_name?: string | null;
+}
+
+export interface InterviewWithSlots {
+  id: number;
+  match_result_id: number;
+  interview_type: string;
+  meeting_link?: string | null;
+  interview_mode?: string | null;
+  interview_date?: string | null;
+  scheduled_end?: string | null;
+  status: string;
+  slot_token?: string | null;
+  candidate_selection_at?: string | null;
+  confirmed_at?: string | null;
+  created_at: string;
+  slots: InterviewSlot[];
+  hm_feedback?: InterviewFeedback | null;
+  candidate_name?: string | null;
+  job_title?: string | null;
+  interviewer_technical_rating?: number | null;
+  interviewer_communication_rating?: number | null;
+  interviewer_problem_solving_rating?: number | null;
+  interviewer_role_fit_rating?: number | null;
+  interviewer_overall_rating?: number | null;
+  interviewer_comments?: string | null;
+  interviewer_name?: string | null;
+  interviewer_submitted_at?: string | null;
+  // Multi-round fields (v3)
+  round_number: number;
+  round_name?: string | null;
+  round_type: string;
+  round_status: string;
+  is_additional_round: boolean;
+  duration_minutes?: number | null;
+  // HM per-round evaluation
+  hm_recommendation?: string | null;
+  hm_technical_rating?: number | null;
+  hm_communication_rating?: number | null;
+  hm_problem_solving_rating?: number | null;
+  hm_role_fit_rating?: number | null;
+  hm_overall_rating?: number | null;
+  hm_comments?: string | null;
+  hm_feedback_submitted_at?: string | null;
+}
+
+export interface ShortlistCandidatesResponse {
+  job_id: number;
+  job_title: string;
+  total_candidates: number;
+  min_score_filter: number;
+  candidates: Array<{
+    match_result_id: number;
+    candidate_id: number;
+    candidate_name: string;
+    email?: string | null;
+    phone?: string | null;
+    overall_score: number;
+    pipeline_state: PipelineState;
+    total_experience_years: number;
+    meets_experience: boolean;
+    matched_skills: string[];
+    missing_skills: string[];
+    is_blacklisted: boolean;
+    blacklist_until?: string | null;
+    education?: string | null;
+    current_location?: string | null;
+  }>;
+}
+
+// Configuration helper for visual rendering of pipeline stages
+export const PIPELINE_STATE_CONFIG: Record<
+  PipelineState,
+  { label: string; stepNumber: number; color: string; bg: string; badge: string; isTerminal?: boolean }
+> = {
+  CANDIDATE_MATCHED: { label: "Matched", stepNumber: 1, color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/30", badge: "Matched" },
+  CANDIDATE_SHORTLISTED: { label: "Shortlisted", stepNumber: 2, color: "text-indigo-400", bg: "bg-indigo-500/10 border-indigo-500/30", badge: "Shortlisted" },
+  SENT_TO_HIRING_MANAGER: { label: "Sent to HM", stepNumber: 3, color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/30", badge: "Pending HM Review" },
+  HIRING_MANAGER_REVIEW: { label: "HM Reviewing", stepNumber: 3, color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/30", badge: "In HM Review" },
+  HIRING_MANAGER_REJECTED: { label: "HM Rejected", stepNumber: 3, color: "text-red-400", bg: "bg-red-500/10 border-red-500/30", badge: "HM Rejected", isTerminal: true },
+  INTERVIEW_REQUESTED: { label: "Interview Requested", stepNumber: 4, color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/30", badge: "Interview Requested" },
+  INTERVIEW_SLOTS_PROPOSED: { label: "Slots Proposed", stepNumber: 4, color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/30", badge: "Slots Proposed" },
+  WAITING_FOR_CANDIDATE_SLOT: { label: "Waiting for Candidate", stepNumber: 4, color: "text-cyan-400", bg: "bg-cyan-500/10 border-cyan-500/30", badge: "Awaiting Candidate Slot" },
+  CANDIDATE_SLOT_SELECTED: { label: "Slot Selected", stepNumber: 4, color: "text-cyan-400", bg: "bg-cyan-500/10 border-cyan-500/30", badge: "Slot Chosen" },
+  INTERVIEW_CONFIRMED: { label: "Interview Confirmed", stepNumber: 4, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/30", badge: "Interview Confirmed" },
+  INTERVIEW_COMPLETED: { label: "Interview Done", stepNumber: 5, color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/30", badge: "Interview Completed" },
+  WAITING_FOR_HM_FEEDBACK: { label: "Feedback Awaiting", stepNumber: 5, color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/30", badge: "Needs HM Feedback" },
+  INTERVIEW_GO: { label: "Interview Passed (GO)", stepNumber: 6, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/30", badge: "GO Decision" },
+  INTERVIEW_NO_GO: { label: "Interview Failed (NO-GO)", stepNumber: 6, color: "text-red-400", bg: "bg-red-500/10 border-red-500/30", badge: "NO-GO Decision", isTerminal: true },
+  COMPENSATION_DISCUSSION: { label: "Compensation Phase", stepNumber: 7, color: "text-violet-400", bg: "bg-violet-500/10 border-violet-500/30", badge: "Compensation Phase" },
+  OFFER_CREATED: { label: "Offer Drafted", stepNumber: 8, color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/30", badge: "Offer Drafted" },
+  OFFER_SENT: { label: "Offer Sent", stepNumber: 8, color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/30", badge: "Offer Sent" },
+  OFFER_ACCEPTED: { label: "Offer Accepted", stepNumber: 9, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/30", badge: "Offer Accepted" },
+  OFFER_REJECTED: { label: "Offer Declined", stepNumber: 9, color: "text-rose-400", bg: "bg-rose-500/10 border-rose-500/30", badge: "Offer Declined", isTerminal: true },
+  BLACKLISTED: { label: "Blacklisted (6 Mo)", stepNumber: 10, color: "text-red-500", bg: "bg-red-600/10 border-red-600/30", badge: "Blacklisted", isTerminal: true },
+  HIRED: { label: "Hired 🎉", stepNumber: 10, color: "text-green-400", bg: "bg-green-500/10 border-green-500/30", badge: "Hired", isTerminal: true },
+  REJECTED: { label: "Rejected", stepNumber: 10, color: "text-gray-400", bg: "bg-gray-500/10 border-gray-500/30", badge: "Rejected", isTerminal: true },
+};
+
+// ─── Admin Hiring Audit Logs Types ──────────────────────────────────────────
+export type HiringLogCategory = "ALL" | "OFFERS" | "INTERVIEWS" | "REVIEWS" | "SOURCING" | "TASKS";
+
+export interface HiringAuditLogEntry {
+  id: number;
+  action: string;
+  action_label: string;
+  category: "OFFERS" | "INTERVIEWS" | "REVIEWS" | "SOURCING" | "TASKS" | string;
+  actor_id?: number | null;
+  actor_name?: string | null;
+  actor_email?: string | null;
+  actor_role?: string | null;
+  job_id?: number | null;
+  job_title?: string | null;
+  job_department?: string | null;
+  candidate_id?: number | null;
+  candidate_name?: string | null;
+  match_result_id?: number | null;
+  interview_id?: number | null;
+  from_state?: string | null;
+  to_state?: string | null;
+  details?: Record<string, any> | null;
+  created_at: string;
+  relative_time: string;
+}
+
+export interface HiringLogsMetrics {
+  total_logs: number;
+  total_hires: number;
+  total_offers: number;
+  total_interviews: number;
+  recent_24h: number;
+}
+
+export interface HiringLogsResponse {
+  items: HiringAuditLogEntry[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  metrics: HiringLogsMetrics;
+}
+
+export interface HiringLogsQueryParams {
+  page?: number;
+  page_size?: number;
+  category?: string;
+  action?: string;
+  search?: string;
+}
+
 

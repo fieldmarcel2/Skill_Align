@@ -14,7 +14,7 @@ Roles & Pipeline Workflow:
 from datetime import datetime
 from sqlalchemy import (
     CheckConstraint, DateTime, ForeignKey, Integer, Numeric,
-    String, UniqueConstraint, func
+    String, Text, UniqueConstraint, func
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -32,6 +32,32 @@ PIPELINE_STATUSES = (
     "offer",
     "hired",
     "rejected",
+)
+
+# Enterprise workflow pipeline states (pipeline_state column)
+WORKFLOW_STATES = (
+    "CANDIDATE_MATCHED",
+    "CANDIDATE_SHORTLISTED",
+    "SENT_TO_HIRING_MANAGER",
+    "HIRING_MANAGER_REVIEW",
+    "HIRING_MANAGER_REJECTED",
+    "INTERVIEW_REQUESTED",
+    "INTERVIEW_SLOTS_PROPOSED",
+    "WAITING_FOR_CANDIDATE_SLOT",
+    "CANDIDATE_SLOT_SELECTED",
+    "INTERVIEW_CONFIRMED",
+    "INTERVIEW_COMPLETED",
+    "WAITING_FOR_HM_FEEDBACK",
+    "INTERVIEW_GO",
+    "INTERVIEW_NO_GO",
+    "COMPENSATION_DISCUSSION",
+    "OFFER_CREATED",
+    "OFFER_SENT",
+    "OFFER_ACCEPTED",
+    "OFFER_REJECTED",
+    "BLACKLISTED",
+    "HIRED",
+    "REJECTED",
 )
 
 
@@ -65,12 +91,10 @@ class MatchResult(Base):
     status: Mapped[str] = mapped_column(
         String(50), nullable=False, default="matched", index=True
     )
-    # Technical async processing state — separate from business pipeline status
-    # queued | processing | completed | failed | stale
+    # Technical async processing state
     processing_status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="completed", index=True
     )
-    # Incremented on each match recalculation — detects stale results
     matched_by_version: Mapped[int | None] = mapped_column(Integer, nullable=True, default=1)
     matched_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -81,6 +105,24 @@ class MatchResult(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+    # ── Enterprise Workflow State Machine ─────────────────────────────────────
+    # pipeline_state tracks the 21-state enterprise workflow.
+    # Separate from legacy 'status' for backward compatibility.
+    pipeline_state: Mapped[str] = mapped_column(
+        String(60), nullable=False, default="CANDIDATE_MATCHED", index=True
+    )
+    hiring_manager_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    shortlist_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    submitted_to_hm_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    hm_reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    hm_rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ── Relationships ─────────────────────────────────────────────────────────
     job: Mapped["Job"] = relationship(  # type: ignore[name-defined]  # noqa: F821
@@ -95,6 +137,9 @@ class MatchResult(Base):
     matched_by_user: Mapped["User"] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "User", foreign_keys=[matched_by], back_populates="match_results_triggered", lazy="joined"
     )
+    hiring_manager: Mapped["User | None"] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        "User", foreign_keys=[hiring_manager_id], lazy="joined"
+    )
     scorecards: Mapped[list["CandidateScorecard"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "CandidateScorecard", back_populates="match_result",
         lazy="select", cascade="all, delete-orphan"
@@ -103,9 +148,15 @@ class MatchResult(Base):
         "Interview", back_populates="match_result",
         lazy="select", cascade="all, delete-orphan"
     )
+    offer: Mapped["Offer | None"] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        "Offer", foreign_keys="[Offer.match_result_id]",
+        primaryjoin="MatchResult.id == Offer.match_result_id",
+        uselist=False, lazy="select"
+    )
 
     def __repr__(self) -> str:
         return (
             f"<MatchResult job_id={self.job_id} candidate_id={self.candidate_id} "
-            f"recruiter_id={self.recruiter_id} score={self.overall_score} status={self.status!r}>"
+            f"recruiter_id={self.recruiter_id} score={self.overall_score} "
+            f"status={self.status!r} pipeline_state={self.pipeline_state!r}>"
         )

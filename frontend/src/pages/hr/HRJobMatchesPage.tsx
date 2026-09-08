@@ -615,40 +615,96 @@ export const HRJobMatchesPage: React.FC = () => {
                   )}
                 </div>
 
-                {/* Candidate all declared skills */}
-                <div className="space-y-2">
-                  <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
-                    <Layers className="h-4 w-4 text-indigo-400" /> Complete Candidate Skills Portfolio
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {selectedMatch.candidate.skills.map((cs) => (
-                      <div
-                        key={cs.id}
-                        className="p-3 rounded-xl border border-border/70 bg-card/60 flex items-center justify-between"
-                      >
-                        <div>
-                          <span className="text-sm font-semibold text-foreground">
-                            {cs.skill.name}
-                          </span>
-                          <span className="block text-[11px] text-muted-foreground">
-                            {cs.skill.category}
-                          </span>
-                        </div>
-                        <div className="text-right">
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded-md border font-semibold ${getProficiencyBadgeClass(
-                              cs.proficiency_level
-                            )}`}
+                {/* Candidate Skills Portfolio (Resume-Extracted vs Declared) */}
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-bold text-emerald-400 flex items-center gap-2 mb-2">
+                      <Sparkles className="h-4 w-4" /> Resume-Extracted & Matched Skills
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {selectedMatch.candidate.skills
+                        .filter((cs) => cs.source === "resume" || cs.evidence_text)
+                        .map((cs) => (
+                          <div
+                            key={cs.id}
+                            title={cs.evidence_text ? `Evidence: "${cs.evidence_text}"` : "Extracted from resume"}
+                            className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 flex items-center justify-between"
                           >
-                            {cs.proficiency_level}
-                          </span>
-                          <span className="block text-[10px] text-muted-foreground pt-0.5">
-                            {cs.years_experience} yrs exp
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                            <div className="min-w-0 pr-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-sm font-semibold text-foreground truncate">
+                                  {cs.skill.name}
+                                </span>
+                                <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-500/30 text-emerald-200 font-mono font-bold">
+                                  [Resume]
+                                </span>
+                              </div>
+                              {cs.evidence_text && (
+                                <p className="text-[10px] text-emerald-300/80 italic truncate mt-0.5" title={cs.evidence_text}>
+                                  "{cs.evidence_text}"
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span
+                                className={`text-xs px-2 py-0.5 rounded-md border font-semibold ${getProficiencyBadgeClass(
+                                  cs.proficiency_level
+                                )}`}
+                              >
+                                {cs.proficiency_level || "Detected"}
+                              </span>
+                              <span className="block text-[10px] text-muted-foreground pt-0.5">
+                                {cs.years_experience} yrs
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      {selectedMatch.candidate.skills.filter((cs) => cs.source === "resume" || cs.evidence_text).length === 0 && (
+                        <p className="text-xs text-muted-foreground col-span-2 italic">
+                          No skills auto-extracted from resume. Check declared skills below.
+                        </p>
+                      )}
+                    </div>
                   </div>
+
+                  {selectedMatch.candidate.skills.filter((cs) => cs.source !== "resume" && !cs.evidence_text).length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                        Self-Declared Skills
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {selectedMatch.candidate.skills
+                          .filter((cs) => cs.source !== "resume" && !cs.evidence_text)
+                          .map((cs) => (
+                            <div
+                              key={cs.id}
+                              className="p-3 rounded-xl border border-border/70 bg-card/60 flex items-center justify-between"
+                            >
+                              <div>
+                                <span className="text-sm font-semibold text-foreground">
+                                  {cs.skill.name}
+                                </span>
+                                <span className="block text-[11px] text-muted-foreground">
+                                  {cs.skill.category}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span
+                                  className={`text-xs px-2 py-0.5 rounded-md border font-semibold ${getProficiencyBadgeClass(
+                                    cs.proficiency_level
+                                  )}`}
+                                >
+                                  {cs.proficiency_level || "Declared"}
+                                </span>
+                                <span className="block text-[10px] text-muted-foreground pt-0.5">
+                                  {cs.years_experience} yrs exp
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </>

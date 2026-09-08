@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import {
   DndContext,
   DragEndEvent,
@@ -16,10 +17,17 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { MatchResult, PipelineStatus, PIPELINE_STAGE_LABELS, PIPELINE_COLUMNS } from "../../types";
-import { matchingApi, interviewsApi, resumeApi } from "../../services/api";
+import {
+  MatchResult,
+  PipelineStatus,
+  PIPELINE_STAGE_LABELS,
+  PIPELINE_COLUMNS,
+  PIPELINE_STATE_CONFIG,
+} from "../../types";
+import { matchingApi, resumeApi } from "../../services/api";
 import { useToast } from "../ui/toast";
 import { ScorecardModal } from "./ScorecardModal";
+import { RequestInterviewModal } from "../workflow/RequestInterviewModal";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Card } from "../ui/card";
@@ -51,6 +59,8 @@ import {
   Maximize2,
   Minimize2,
   ExternalLink,
+  Award,
+  Check,
 } from "lucide-react";
 
 // ── Column config ──────────────────────────────────────────────────────────────
@@ -66,40 +76,81 @@ const COLUMN_CONFIG: Record<
     icon: Sparkles,
   },
   screened: {
-    label: "Screened",
+    label: "Screened / In Review",
     color: "text-blue-400",
     bg: "bg-blue-500/5",
     border: "border-blue-500/20",
     icon: Users,
   },
   approved_by_hr: {
-    label: "HR Approved",
+    label: "Slots Proposed / Approved",
     color: "text-emerald-400",
     bg: "bg-emerald-500/5",
     border: "border-emerald-500/20",
     icon: CheckCircle2,
   },
   interview_scheduled: {
-    label: "Interview Scheduled",
+    label: "Interview / Feedback",
     color: "text-purple-400",
     bg: "bg-purple-500/5",
     border: "border-purple-500/20",
     icon: ClipboardList,
   },
   offer: {
-    label: "Offer Extended",
+    label: "Offer Stage",
     color: "text-amber-400",
     bg: "bg-amber-500/5",
     border: "border-amber-500/20",
     icon: Gift,
   },
   hired: {
-    label: "Hired",
+    label: "Hired 🎉",
     color: "text-green-400",
     bg: "bg-green-500/5",
     border: "border-green-500/20",
     icon: Trophy,
   },
+};
+
+// ── Dynamic Mapping from Enterprise PipelineState to Column ─────────────────
+export const mapPipelineStateToColumn = (match: MatchResult): string => {
+  const pState = match.pipeline_state;
+  if (!pState) {
+    return match.status || "matched";
+  }
+  switch (pState) {
+    case "CANDIDATE_MATCHED":
+      return "matched";
+    case "CANDIDATE_SHORTLISTED":
+    case "SENT_TO_HIRING_MANAGER":
+    case "HIRING_MANAGER_REVIEW":
+      return "screened";
+    case "INTERVIEW_REQUESTED":
+    case "INTERVIEW_SLOTS_PROPOSED":
+    case "WAITING_FOR_CANDIDATE_SLOT":
+    case "CANDIDATE_SLOT_SELECTED":
+      return "approved_by_hr";
+    case "INTERVIEW_CONFIRMED":
+    case "INTERVIEW_COMPLETED":
+    case "WAITING_FOR_HM_FEEDBACK":
+    case "INTERVIEW_GO":
+      return "interview_scheduled";
+    case "COMPENSATION_DISCUSSION":
+    case "OFFER_CREATED":
+    case "OFFER_SENT":
+    case "OFFER_ACCEPTED":
+      return "offer";
+    case "HIRED":
+      return "hired";
+    case "HIRING_MANAGER_REJECTED":
+    case "INTERVIEW_NO_GO":
+    case "OFFER_REJECTED":
+    case "BLACKLISTED":
+    case "REJECTED":
+      return "rejected";
+    default:
+      return match.status || "matched";
+  }
 };
 
 // ── Candidate Card Component ──────────────────────────────────────────────────
@@ -108,7 +159,7 @@ interface CandidateCardProps {
   isDragging?: boolean;
   isCompact?: boolean;
   onScorecardClick: (match: MatchResult) => void;
-  onScheduleInterviewClick: (match: MatchResult) => void;
+  onRequestInterviewClick: (match: MatchResult) => void;
   onQuickStatusChange: (match: MatchResult, newStatus: PipelineStatus) => void;
   isUpdating?: boolean;
 }
@@ -118,7 +169,7 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
   isDragging,
   isCompact = false,
   onScorecardClick,
-  onScheduleInterviewClick,
+  onRequestInterviewClick,
   onQuickStatusChange,
   isUpdating = false,
 }) => {
@@ -169,11 +220,43 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
         .toUpperCase()
     : "CA";
 
-  const isMatched = match.status === "matched";
-  const isScreened = match.status === "screened";
-  const isApproved = match.status === "approved_by_hr";
-  const isScheduled = match.status === "interview_scheduled";
-  const isOffer = match.status === "offer";
+  const pState = match.pipeline_state || "CANDIDATE_MATCHED";
+  const pStateCfg = PIPELINE_STATE_CONFIG[pState as keyof typeof PIPELINE_STATE_CONFIG] || {
+    label: match.status.replace(/_/g, " "),
+    badge: match.status.replace(/_/g, " "),
+    color: "text-muted-foreground",
+    bg: "bg-secondary/40 border-border/50",
+  };
+
+  const isMatched = pState === "CANDIDATE_MATCHED" || match.status === "matched";
+  const isScreened =
+    pState === "CANDIDATE_SHORTLISTED" ||
+    pState === "SENT_TO_HIRING_MANAGER" ||
+    pState === "HIRING_MANAGER_REVIEW" ||
+    match.status === "screened";
+  const isSlotProposedOrWaiting =
+    pState === "INTERVIEW_REQUESTED" ||
+    pState === "INTERVIEW_SLOTS_PROPOSED" ||
+    pState === "WAITING_FOR_CANDIDATE_SLOT" ||
+    pState === "CANDIDATE_SLOT_SELECTED" ||
+    match.status === "approved_by_hr";
+  const isInterviewConfirmed = pState === "INTERVIEW_CONFIRMED";
+  const isNeedsHMFeedback = pState === "WAITING_FOR_HM_FEEDBACK" || pState === "INTERVIEW_COMPLETED";
+  const isOfferStage =
+    pState === "COMPENSATION_DISCUSSION" ||
+    pState === "OFFER_CREATED" ||
+    pState === "OFFER_SENT" ||
+    pState === "OFFER_ACCEPTED" ||
+    match.status === "offer";
+
+  // Resume-extracted vs Self-declared skills
+  const resumeSkills = (match.resume_detected_skills && match.resume_detected_skills.length > 0)
+    ? match.resume_detected_skills
+    : (match.candidate.skills || []).filter((s) => s.source === "resume" || s.evidence_text);
+
+  const declaredSkills = (match.self_declared_skills && match.self_declared_skills.length > 0)
+    ? match.self_declared_skills
+    : (match.candidate.skills || []).filter((s) => s.source !== "resume" && !s.evidence_text);
 
   // ── Compact Card View ────────────────────────────────────────────────────────
   if (isCompact) {
@@ -198,9 +281,14 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
             {initials}
           </div>
 
-          <p className="text-xs font-semibold text-foreground truncate font-outfit">
-            {match.candidate.full_name}
-          </p>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-foreground truncate font-outfit">
+              {match.candidate.full_name}
+            </p>
+            <span className="text-[9px] text-muted-foreground truncate block">
+              {pStateCfg.badge}
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
@@ -208,7 +296,7 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
             {scoreNum}%
           </span>
 
-          {/* 1-click stage advancement */}
+          {/* Quick Action Button */}
           {isMatched && (
             <button
               onClick={() => onQuickStatusChange(match, "screened")}
@@ -221,35 +309,24 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
           )}
           {isScreened && (
             <button
-              onClick={() => onQuickStatusChange(match, "approved_by_hr")}
+              onClick={() => onRequestInterviewClick(match)}
               disabled={isUpdating}
-              title="Approve for HR"
-              className="p-1 rounded-md text-muted-foreground hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
-            >
-              <ArrowRight className="h-3.5 w-3.5" />
-            </button>
-          )}
-          {isApproved && (
-            <button
-              onClick={() => onScheduleInterviewClick(match)}
-              disabled={isUpdating}
-              title="Schedule Interview"
-              className="p-1 rounded-md text-muted-foreground hover:text-purple-400 hover:bg-purple-500/10 transition-colors"
+              title="Propose Slots (Request Interview)"
+              className="p-1 rounded-md text-purple-400 hover:bg-purple-500/10 transition-colors"
             >
               <Calendar className="h-3.5 w-3.5" />
             </button>
           )}
-          {isScheduled && (
-            <button
-              onClick={() => onQuickStatusChange(match, "offer")}
-              disabled={isUpdating}
-              title="Extend Offer"
-              className="p-1 rounded-md text-muted-foreground hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+          {isNeedsHMFeedback && (
+            <Link
+              to={`/hr/interviews/${match.id}/feedback`}
+              title="Submit Feedback"
+              className="p-1 rounded-md text-emerald-400 hover:bg-emerald-500/10 transition-colors"
             >
-              <ArrowRight className="h-3.5 w-3.5" />
-            </button>
+              <Award className="h-3.5 w-3.5" />
+            </Link>
           )}
-          {isOffer && (
+          {isOfferStage && (
             <button
               onClick={() => onQuickStatusChange(match, "hired")}
               disabled={isUpdating}
@@ -312,26 +389,78 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
         </div>
       </div>
 
-      {/* Top declared skills pills */}
-      {match.candidate.skills && match.candidate.skills.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {match.candidate.skills.slice(0, 3).map((cs) => (
-            <span
-              key={cs.id}
-              className="text-[9px] px-1.5 py-0.5 rounded bg-secondary/80 text-foreground/80 border border-border/50 truncate max-w-[100px]"
-            >
-              {cs.skill.name}
-            </span>
-          ))}
-          {match.candidate.skills.length > 3 && (
-            <span className="text-[9px] px-1 py-0.5 text-muted-foreground">
-              +{match.candidate.skills.length - 3}
-            </span>
-          )}
-        </div>
-      )}
+      {/* Enterprise Pipeline State Indicator Badge */}
+      <div className="flex items-center justify-between">
+        <span
+          className={`text-[9px] font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 ${pStateCfg.bg} ${pStateCfg.color}`}
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+          {pStateCfg.badge}
+        </span>
 
-      {/* Primary Stage Advancement Button */}
+        {match.assigned_recruiter && (
+          <span className="text-[9px] text-muted-foreground truncate max-w-[110px]" title={`Claimed by ${match.assigned_recruiter.name}`}>
+            Recruiter: {match.assigned_recruiter.name.split(" ")[0]}
+          </span>
+        )}
+      </div>
+
+      {/* Resume-Extracted Skills Section */}
+      <div className="space-y-1.5 pt-0.5">
+        {resumeSkills.length > 0 ? (
+          <div>
+            <div className="flex items-center gap-1 text-[9px] font-bold text-emerald-400 uppercase tracking-wider mb-1">
+              <Sparkles className="h-2.5 w-2.5" /> Verified Resume Skills:
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {resumeSkills.slice(0, 3).map((rs: any) => {
+                const sName = rs.name || rs.skill?.name || rs.skill_name || "Skill";
+                const evText = rs.evidence_text || (rs.source === "resume" ? "Verified in resume" : null);
+                return (
+                  <span
+                    key={rs.id || rs.skill_id || sName}
+                    title={evText ? `Resume Context: "${evText}"` : "Extracted from candidate resume"}
+                    className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 truncate max-w-[115px] flex items-center gap-1 cursor-help"
+                  >
+                    <span>{sName}</span>
+                    <span className="text-[7px] px-0.5 py-0 rounded bg-emerald-500/30 text-emerald-200 font-mono">
+                      Resume
+                    </span>
+                  </span>
+                );
+              })}
+              {resumeSkills.length > 3 && (
+                <span className="text-[9px] px-1 py-0.5 text-emerald-400 font-bold self-center">
+                  +{resumeSkills.length - 3}
+                </span>
+              )}
+            </div>
+          </div>
+        ) : declaredSkills.length > 0 ? (
+          <div>
+            <div className="text-[9px] text-muted-foreground uppercase tracking-wider mb-1">
+              Self-Declared Skills:
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {declaredSkills.slice(0, 3).map((ds: any) => (
+                <span
+                  key={ds.id || ds.skill_id || ds.name}
+                  className="text-[9px] px-1.5 py-0.5 rounded bg-secondary/80 text-foreground/80 border border-border/50 truncate max-w-[100px]"
+                >
+                  {ds.name || ds.skill?.name || ds.skill_name}
+                </span>
+              ))}
+              {declaredSkills.length > 3 && (
+                <span className="text-[9px] px-1 py-0.5 text-muted-foreground self-center">
+                  +{declaredSkills.length - 3}
+                </span>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {/* Primary 3-Way Lifecycle Action Button */}
       <div className="pt-1.5 border-t border-border/40">
         {isMatched && (
           <Button
@@ -342,7 +471,7 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
             className="w-full h-7 text-xs font-semibold gap-1.5 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 border-indigo-500/30"
           >
             {isUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserCheck className="h-3 w-3" />}
-            Screen for HR
+            Screen Candidate
           </Button>
         )}
 
@@ -352,75 +481,67 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
               size="sm"
               variant="default"
               disabled={isUpdating}
-              onClick={() => onQuickStatusChange(match, "approved_by_hr")}
-              className="flex-1 h-7 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold gap-1 shadow-xs"
+              onClick={() => onRequestInterviewClick(match)}
+              className="flex-1 h-7 text-xs bg-purple-600 hover:bg-purple-500 text-white font-bold gap-1 shadow-xs"
             >
-              {isUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
-              Approve
+              <Calendar className="h-3 w-3" /> Propose Slots (HM)
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={isUpdating}
-              onClick={() => onScheduleInterviewClick(match)}
-              className="h-7 px-2 text-xs text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 border-purple-500/30"
-              title="Schedule Interview"
+            <Link
+              to={`/hr/candidates/${match.id}/review`}
+              className="inline-flex items-center justify-center h-7 px-2 text-xs rounded-md border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-colors"
+              title="Full HM Review Dossier"
             >
-              <Calendar className="h-3 w-3" />
-            </Button>
+              <ArrowRight className="h-3 w-3" />
+            </Link>
           </div>
         )}
 
-        {isApproved && (
-          <div className="flex items-center gap-1.5">
-            <Button
-              size="sm"
-              variant="gradient"
-              disabled={isUpdating}
-              onClick={() => onScheduleInterviewClick(match)}
-              className="flex-1 h-7 text-xs font-semibold gap-1 shadow-xs"
+        {isSlotProposedOrWaiting && (
+          <div className="p-2 rounded-lg bg-secondary/40 border border-border/50 text-[10px] space-y-1">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span>Recruiter Dispatch:</span>
+              <span className="font-semibold text-cyan-400">
+                {pState === "INTERVIEW_SLOTS_PROPOSED" ? "Pending Dispatch" : "Candidate Selecting"}
+              </span>
+            </div>
+            <button
+              onClick={() => onRequestInterviewClick(match)}
+              className="text-[10px] text-purple-400 hover:underline flex items-center gap-1 mt-0.5"
             >
-              <Calendar className="h-3 w-3" /> Schedule Call
-            </Button>
+              <Calendar className="h-2.5 w-2.5" /> Adjust Proposed Slots
+            </button>
+          </div>
+        )}
+
+        {isInterviewConfirmed && (
+          <div className="flex items-center justify-between gap-1.5 p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-300">
+            <span className="flex items-center gap-1 font-semibold">
+              <CalendarCheck className="h-3.5 w-3.5" /> Confirmed
+            </span>
             <Button
               size="sm"
               variant="outline"
               disabled={isUpdating}
               onClick={() => onQuickStatusChange(match, "offer")}
-              className="h-7 px-2 text-xs text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border-amber-500/30"
-              title="Skip to Offer"
+              className="h-6 px-2 text-[10px] text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
+              title="Move to Offer"
             >
-              <Gift className="h-3 w-3" />
-            </Button>
-          </div>
-        )}
-
-        {isScheduled && (
-          <div className="flex items-center gap-1.5">
-            <Button
-              size="sm"
-              variant="default"
-              disabled={isUpdating}
-              onClick={() => onQuickStatusChange(match, "offer")}
-              className="flex-1 h-7 text-xs bg-amber-600 hover:bg-amber-500 text-white font-semibold gap-1 shadow-xs"
-            >
-              {isUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Gift className="h-3 w-3" />}
               Extend Offer
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={isUpdating}
-              onClick={() => onScheduleInterviewClick(match)}
-              className="h-7 px-2 text-xs text-purple-400 border-purple-500/30 hover:bg-purple-500/10"
-              title="Reschedule Interview"
-            >
-              <Calendar className="h-3 w-3" />
-            </Button>
           </div>
         )}
 
-        {isOffer && (
+        {isNeedsHMFeedback && (
+          <Link
+            to={`/hr/interviews/${match.id}/feedback`}
+            className="w-full inline-flex items-center justify-center h-7 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg gap-1.5 shadow-xs transition-colors"
+          >
+            <Award className="h-3.5 w-3.5" />
+            Submit GO / NO-GO Feedback
+          </Link>
+        )}
+
+        {isOfferStage && (
           <Button
             size="sm"
             variant="default"
@@ -434,7 +555,7 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
         )}
       </div>
 
-      {/* Auxiliary Icon Bar: Feedback, Resume, Reject */}
+      {/* Auxiliary Icon Bar: Feedback Scorecard, Resume, Reject */}
       <div className="flex items-center justify-between gap-1 pt-1 border-t border-border/30 text-[11px] text-muted-foreground">
         <div className="flex items-center gap-2">
           <button
@@ -447,7 +568,7 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
             title="Open Evaluation Scorecard"
           >
             <MessageSquarePlus className="h-3 w-3 text-primary/80" />
-            <span>Feedback</span>
+            <span>Scorecard</span>
           </button>
 
           {(match.candidate.resume_file_path || match.candidate.resume_s3_key) && (
@@ -458,12 +579,12 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
               title="View Candidate Resume"
             >
               <FileText className="h-3 w-3 text-indigo-400" />
-              <span>CV</span>
+              <span>Resume</span>
             </button>
           )}
         </div>
 
-        {match.status !== "hired" && (
+        {match.status !== "hired" && pState !== "HIRED" && (
           <button
             type="button"
             disabled={isUpdating}
@@ -485,7 +606,7 @@ interface KanbanColumnProps {
   matches: MatchResult[];
   isCompact: boolean;
   onScorecardClick: (match: MatchResult) => void;
-  onScheduleInterviewClick: (match: MatchResult) => void;
+  onRequestInterviewClick: (match: MatchResult) => void;
   onQuickStatusChange: (match: MatchResult, newStatus: PipelineStatus) => void;
   updatingMatchId: number | null;
 }
@@ -495,7 +616,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   matches,
   isCompact,
   onScorecardClick,
-  onScheduleInterviewClick,
+  onRequestInterviewClick,
   onQuickStatusChange,
   updatingMatchId,
 }) => {
@@ -513,7 +634,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col min-w-[275px] max-w-[295px] h-[calc(100vh-270px)] max-h-[720px] min-h-[480px] rounded-2xl border transition-colors ${
+      className={`flex flex-col min-w-[285px] max-w-[305px] h-[calc(100vh-270px)] max-h-[720px] min-h-[480px] rounded-2xl border transition-colors ${
         isOver ? "border-primary ring-2 ring-primary/20 bg-primary/5" : `${cfg.border} ${cfg.bg}`
       } p-3 shrink-0 shadow-xs`}
     >
@@ -549,7 +670,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
                 match={m}
                 isCompact={isCompact}
                 onScorecardClick={onScorecardClick}
-                onScheduleInterviewClick={onScheduleInterviewClick}
+                onRequestInterviewClick={onRequestInterviewClick}
                 onQuickStatusChange={onQuickStatusChange}
                 isUpdating={updatingMatchId === m.id}
               />
@@ -582,19 +703,17 @@ export const HiringPipelineBoard: React.FC<HiringPipelineBoardProps> = ({
   const [scoreFilter, setScoreFilter] = useState<"all" | "80" | "60">("all");
   const [isCompact, setIsCompact] = useState(false);
 
-  // Schedule Interview Modal state
-  const [interviewTarget, setInterviewTarget] = useState<MatchResult | null>(null);
-  const [interviewDate, setInterviewDate] = useState("");
-  const [interviewType, setInterviewType] = useState("Technical Interview");
-  const [interviewMode, setInterviewMode] = useState<"online" | "in_person">("online");
-  const [meetingLink, setMeetingLink] = useState("");
-  const [meetingNotes, setMeetingNotes] = useState("");
-  const [sendEmailNotification, setSendEmailNotification] = useState(true);
-  const [isScheduling, setIsScheduling] = useState(false);
+  // 3-Way Interview Request Modal State
+  const [interviewModalMatch, setInterviewModalMatch] = useState<MatchResult | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
+
+  // Synchronize when parent updates
+  React.useEffect(() => {
+    setMatches(initialMatches);
+  }, [initialMatches]);
 
   // Filter matches based on search query and score filter
   const filteredMatches = useMemo(() => {
@@ -610,24 +729,24 @@ export const HiringPipelineBoard: React.FC<HiringPipelineBoardProps> = ({
         const skillMatches = m.candidate.skills?.some((s) =>
           s.skill.name.toLowerCase().includes(q)
         );
-        return nameMatches || skillMatches;
+        const resumeSkillMatches = m.resume_detected_skills?.some((rs: any) =>
+          (rs.name || rs.skill_name || "").toLowerCase().includes(q)
+        );
+        return nameMatches || skillMatches || resumeSkillMatches;
       }
       return true;
     });
   }, [matches, searchQuery, scoreFilter]);
 
-  // Group filtered matches by status
+  // Group filtered matches dynamically by enterprise pipeline state mapping
   const getColumnMatches = (colId: string): MatchResult[] =>
-    filteredMatches.filter((m) => m.status === colId);
+    filteredMatches.filter((m) => mapPipelineStateToColumn(m) === colId);
 
   // Find which column a match belongs to
   const findColumn = (matchId: string): string | null => {
-    for (const col of PIPELINE_COLUMNS) {
-      if (matches.find((m) => m.id.toString() === matchId && m.status === col)) {
-        return col;
-      }
-    }
-    return null;
+    const match = matches.find((m) => m.id.toString() === matchId);
+    if (!match) return null;
+    return mapPipelineStateToColumn(match);
   };
 
   const handleQuickStatusChange = async (match: MatchResult, newStatus: PipelineStatus) => {
@@ -651,7 +770,8 @@ export const HiringPipelineBoard: React.FC<HiringPipelineBoardProps> = ({
       const nextList =
         newStatus === "rejected"
           ? matches.filter((m) => m.id !== match.id)
-          : matches.map((m) => (m.id === match.id ? { ...m, status: updated.status } : m));
+          : matches.map((m) => (m.id === match.id ? { ...m, ...updated } : m));
+      setMatches(nextList);
       onMatchesUpdate?.(nextList);
     } catch (err: any) {
       setMatches(previous);
@@ -685,11 +805,11 @@ export const HiringPipelineBoard: React.FC<HiringPipelineBoardProps> = ({
     if (!targetColumn) return;
 
     const sourceMatch = matches.find((m) => m.id.toString() === activeId);
-    if (!sourceMatch || sourceMatch.status === targetColumn) return;
+    if (!sourceMatch || mapPipelineStateToColumn(sourceMatch) === targetColumn) return;
 
-    // If dragged to interview_scheduled, open scheduling modal
-    if (targetColumn === "interview_scheduled") {
-      openScheduleModal(sourceMatch);
+    // If dragged to interview_scheduled or approved_by_hr, open 3-way Propose Slots modal
+    if (targetColumn === "interview_scheduled" || targetColumn === "approved_by_hr") {
+      setInterviewModalMatch(sourceMatch);
       return;
     }
 
@@ -697,53 +817,19 @@ export const HiringPipelineBoard: React.FC<HiringPipelineBoardProps> = ({
     await handleQuickStatusChange(sourceMatch, targetColumn as PipelineStatus);
   };
 
-  const openScheduleModal = (match: MatchResult) => {
-    setInterviewTarget(match);
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(10, 0, 0, 0);
-    const tzOffset = tomorrow.getTimezoneOffset() * 60000;
-    const localISOTime = new Date(tomorrow.getTime() - tzOffset).toISOString().slice(0, 16);
-    setInterviewDate(localISOTime);
-    setInterviewType("Technical Interview");
-    setInterviewMode("online");
-    setMeetingLink("https://meet.google.com/new");
-    setMeetingNotes("");
-    setSendEmailNotification(true);
-  };
-
-  const handleScheduleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!interviewTarget || !interviewDate) {
-      toast.error("Please provide interview date and time.");
-      return;
-    }
-
-    setIsScheduling(true);
-    try {
-      await interviewsApi.create({
-        match_result_id: interviewTarget.id,
-        interview_date: new Date(interviewDate).toISOString(),
-        interview_type: interviewType,
-        meeting_link: interviewMode === "online" ? meetingLink : undefined,
-        feedback: meetingNotes,
-        send_notification: sendEmailNotification,
-      });
-
-      toast.success(
-        `Interview scheduled with ${interviewTarget.candidate.full_name}! Candidate notification dispatched.`
-      );
-
+  const handleInterviewRequestSuccess = () => {
+    if (interviewModalMatch) {
       const updated = matches.map((m) =>
-        m.id === interviewTarget.id ? { ...m, status: "interview_scheduled" as PipelineStatus } : m
+        m.id === interviewModalMatch.id
+          ? {
+              ...m,
+              status: "interview_scheduled" as PipelineStatus,
+              pipeline_state: "INTERVIEW_SLOTS_PROPOSED" as any,
+            }
+          : m
       );
       setMatches(updated);
       onMatchesUpdate?.(updated);
-      setInterviewTarget(null);
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || "Failed to schedule interview.");
-    } finally {
-      setIsScheduling(false);
     }
   };
 
@@ -757,7 +843,7 @@ export const HiringPipelineBoard: React.FC<HiringPipelineBoardProps> = ({
             <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Filter candidates by name or skill..."
+              placeholder="Filter by candidate, resume skills..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-8 h-9 text-xs bg-background/50"
@@ -783,7 +869,7 @@ export const HiringPipelineBoard: React.FC<HiringPipelineBoardProps> = ({
                   scoreFilter === "all" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                All Fit Scores
+                All Scores
               </button>
               <button
                 type="button"
@@ -842,7 +928,7 @@ export const HiringPipelineBoard: React.FC<HiringPipelineBoardProps> = ({
               matches={getColumnMatches(colId)}
               isCompact={isCompact}
               onScorecardClick={setScorecardTarget}
-              onScheduleInterviewClick={openScheduleModal}
+              onRequestInterviewClick={setInterviewModalMatch}
               onQuickStatusChange={handleQuickStatusChange}
               updatingMatchId={updatingMatchId}
             />
@@ -857,7 +943,7 @@ export const HiringPipelineBoard: React.FC<HiringPipelineBoardProps> = ({
               isDragging
               isCompact={isCompact}
               onScorecardClick={() => {}}
-              onScheduleInterviewClick={() => {}}
+              onRequestInterviewClick={() => {}}
               onQuickStatusChange={() => {}}
             />
           ) : null}
@@ -874,166 +960,16 @@ export const HiringPipelineBoard: React.FC<HiringPipelineBoardProps> = ({
         />
       )}
 
-      {/* Schedule Interview Modal */}
-      {interviewTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-200">
-          <Card className="w-full max-w-lg border-border/80 bg-card p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-border/70 pb-3">
-              <div className="flex items-center gap-2">
-                <CalendarCheck className="h-5 w-5 text-primary" />
-                <h3 className="text-lg font-bold font-outfit text-foreground">
-                  Schedule Interview Round
-                </h3>
-              </div>
-              <button
-                onClick={() => setInterviewTarget(null)}
-                className="text-muted-foreground hover:text-foreground transition-colors p-1"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="p-3 rounded-xl bg-secondary/40 border border-border/60 text-xs space-y-1">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Candidate:</span>
-                <span className="font-bold text-foreground">{interviewTarget.candidate.full_name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Fit Score:</span>
-                <span className="font-bold text-emerald-400">
-                  {Number(interviewTarget.overall_score).toFixed(0)}%
-                </span>
-              </div>
-            </div>
-
-            <form onSubmit={handleScheduleSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5 text-primary" /> Interview Date & Time *
-                </label>
-                <Input
-                  type="datetime-local"
-                  required
-                  value={interviewDate}
-                  onChange={(e) => setInterviewDate(e.target.value)}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground">Interview Format</label>
-                  <select
-                    value={interviewType}
-                    onChange={(e) => setInterviewType(e.target.value)}
-                    className="w-full h-10 px-3 rounded-lg border border-border bg-secondary/50 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="Technical Interview">Technical Interview</option>
-                    <option value="HR Behavioral & Strategic">HR Behavioral & Strategic</option>
-                    <option value="Culture Fit & Team Meet">Culture Fit & Team Meet</option>
-                    <option value="Executive Final Round">Executive Final Round</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground">Interview Mode</label>
-                  <div className="flex gap-2 h-10">
-                    <button
-                      type="button"
-                      onClick={() => setInterviewMode("online")}
-                      className={`flex-1 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition-colors ${
-                        interviewMode === "online"
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border bg-secondary/50 text-muted-foreground"
-                      }`}
-                    >
-                      <Video className="h-3.5 w-3.5" /> Online
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setInterviewMode("in_person")}
-                      className={`flex-1 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition-colors ${
-                        interviewMode === "in_person"
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border bg-secondary/50 text-muted-foreground"
-                      }`}
-                    >
-                      <MapPin className="h-3.5 w-3.5" /> In-Person
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {interviewMode === "online" && (
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground flex items-center gap-1">
-                    <Video className="h-3.5 w-3.5 text-indigo-400" /> Video Meeting Link
-                  </label>
-                  <Input
-                    type="url"
-                    placeholder="https://meet.google.com/xyz-abc"
-                    value={meetingLink}
-                    onChange={(e) => setMeetingLink(e.target.value)}
-                  />
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground">
-                  Meeting Notes & Instructions
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Please join 5 minutes early with your code editor ready."
-                  value={meetingNotes}
-                  onChange={(e) => setMeetingNotes(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-secondary/50 p-3 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="pipeline_send_email"
-                  checked={sendEmailNotification}
-                  onChange={(e) => setSendEmailNotification(e.target.checked)}
-                  className="h-4 w-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
-                />
-                <label htmlFor="pipeline_send_email" className="text-xs text-muted-foreground cursor-pointer">
-                  Dispatch email notification with meeting link to candidate
-                </label>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-border/70">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setInterviewTarget(null)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="gradient"
-                  size="sm"
-                  disabled={isScheduling}
-                  className="gap-1.5 font-semibold"
-                >
-                  {isScheduling ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Scheduling...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-3.5 w-3.5" /> Confirm & Send Invite
-                    </>
-                  )}
-                </Button>
-              </div>
-            </form>
-          </Card>
-        </div>
+      {/* 3-Way Interview Request Modal (HM proposes >=2 slots -> Recruiter -> Candidate) */}
+      {interviewModalMatch && (
+        <RequestInterviewModal
+          isOpen={!!interviewModalMatch}
+          onClose={() => setInterviewModalMatch(null)}
+          match={interviewModalMatch}
+          onSuccess={handleInterviewRequestSuccess}
+        />
       )}
     </div>
   );
 };
+export default HiringPipelineBoard;

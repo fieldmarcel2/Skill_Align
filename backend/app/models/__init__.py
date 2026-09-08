@@ -18,3 +18,12 @@ from app.models.candidate_recruiter_assignment import CandidateRecruiterAssignme
 from app.models.recruitment_message import RecruitmentMessage  # noqa: F401
 from app.models.recruitment_task import RecruitmentTask  # noqa: F401
 from app.models.audit_log import AuditLog  # noqa: F401
+
+# Enterprise Workflow Models (v2)
+from app.models.interview_slot import InterviewSlot  # noqa: F401
+from app.models.interview_feedback import InterviewFeedback  # noqa: F401
+from app.models.offer import Offer  # noqa: F401
+from app.models.candidate_blacklist import CandidateBlacklist  # noqa: F401
+
+# Multi-Round Interview Templates (v3)
+from app.models.job_interview_round import JobInterviewRound  # noqa: F401

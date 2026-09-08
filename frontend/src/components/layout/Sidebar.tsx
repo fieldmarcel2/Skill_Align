@@ -13,6 +13,7 @@ import {
   FileSpreadsheet,
   Kanban,
   X,
+  Inbox,
 } from "lucide-react";
 
 interface NavItem {
@@ -56,6 +57,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     case "Recruiter":
       navItems = [
         { title: "Recruiter Dashboard", to: "/recruiter", icon: LayoutDashboard },
+        { title: "Action Center", to: "/recruiter/action-center", icon: Inbox },
         { title: "Candidate Pool", to: "/recruiter/candidates", icon: Users },
         { title: "Shortlisted Talents", to: "/recruiter/shortlists", icon: UserCheck },
       ];

@@ -53,7 +53,12 @@ def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    user = db.query(User).filter(User.id == int(user_id)).first()
+    user = None
+    if user_id.isdigit():
+        user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user:
+        user = db.query(User).filter(User.email == user_id).first()
+
     if user is None:
         raise credentials_exception
     if not user.is_active:
@@ -62,6 +67,30 @@ def get_current_user(
             detail="User account is deactivated.",
         )
     return user
+
+
+def get_current_user_optional(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User | None:
+    """Returns the authenticated User if valid credentials are provided, else None without raising 401."""
+    if not credentials:
+        return None
+    try:
+        payload = decode_access_token(credentials.credentials)
+        user_id: str | None = payload.get("sub")
+        if user_id is None:
+            return None
+        user = None
+        if str(user_id).isdigit():
+            user = db.query(User).filter(User.id == int(user_id)).first()
+        if not user:
+            user = db.query(User).filter(User.email == str(user_id)).first()
+        if user and user.is_active:
+            return user
+    except Exception:
+        return None
+    return None
 
 
 # Role-specific guards

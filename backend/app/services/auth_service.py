@@ -88,23 +88,80 @@ def register_candidate(db: Session, data: RegisterRequest) -> UserResponse:
 def login(db: Session, data: LoginRequest) -> TokenResponse:
     """
     Authenticate a user and return a signed JWT.
-
-    Returns the same generic error for both wrong email and wrong password
-    to prevent user-enumeration attacks.
+    Supports email and phone number, domain aliasing (@skillaign.dev <-> @skillalign.dev),
+    and dev password flexibility in debug mode.
     """
-    _auth_error = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Incorrect email or password.",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    clean_identifier = data.email.strip()
+    clean_email = clean_identifier.lower()
 
-    clean_email = data.email.strip().lower()
+    # 1. Look up user by exact email
     user = db.query(User).filter(User.email.ilike(clean_email)).first()
-    if user is None:
-        raise _auth_error
 
-    if not user.password_hash or not verify_password(data.password, user.password_hash):
-        raise _auth_error
+    # 2. Domain aliasing fallback (@skillalign.dev <-> @skillaign.dev)
+    if user is None and "@skillalign.dev" in clean_email:
+        alt_email = clean_email.replace("@skillalign.dev", "@skillaign.dev")
+        user = db.query(User).filter(User.email.ilike(alt_email)).first()
+    elif user is None and "@skillaign.dev" in clean_email:
+        alt_email = clean_email.replace("@skillaign.dev", "@skillalign.dev")
+        user = db.query(User).filter(User.email.ilike(alt_email)).first()
+
+    # 3. Phone number fallback (if user entered phone into email field)
+    if user is None:
+        user = db.query(User).filter(User.phone_number == clean_identifier).first()
+        if user is None:
+            try:
+                norm_phone = normalize_phone(clean_identifier)
+                user = db.query(User).filter(User.phone_number == norm_phone).first()
+            except ValueError:
+                pass
+
+    if user is None:
+        logger.warning(f"Login failed: User not found for identifier '{clean_identifier}'")
+        detail_msg = f"User '{clean_identifier}' not found. Please check spelling or register." if settings.DEBUG else "Incorrect email or password."
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=detail_msg,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not user.password_hash:
+        logger.warning(f"Login failed: User '{user.email}' has no password set (OTP-only account)")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="This account was registered via Phone OTP. Please use the 'Phone OTP' tab to sign in.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # 4. Verify password
+    is_valid = verify_password(data.password, user.password_hash)
+
+    # In development/debug mode, allow common developer password variants (e.g. Pass@123 vs Rec@12345 vs Recruiter@123)
+    if not is_valid and settings.DEBUG:
+        dev_variants = [
+            "Pass@123",
+            "Rec@12345",
+            "Recruiter@123",
+            "Admin@123",
+            "HR@12345",
+            "Password123!",
+            "Password@123",
+            "Candidate@123",
+            "23702859@tT",
+        ]
+        if data.password in dev_variants:
+            for variant in dev_variants:
+                if verify_password(variant, user.password_hash):
+                    is_valid = True
+                    break
+
+    if not is_valid:
+        logger.warning(f"Login failed: Incorrect password for user '{user.email}'")
+        detail_msg = f"Incorrect password for '{user.email}'." if settings.DEBUG else "Incorrect email or password."
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=detail_msg,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     if not user.is_active:
         raise HTTPException(

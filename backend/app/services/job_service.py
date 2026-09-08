@@ -22,6 +22,7 @@ from app.models.job import Job
 from app.models.job_skill import JobSkill
 from app.models.skill import Skill
 from app.models.user import User
+from app.models.audit_log import AuditLog
 from app.schemas.job import JobCreate, JobUpdate, JobOut
 
 
@@ -97,6 +98,18 @@ def create_job(db: Session, data: JobCreate, creator: User) -> JobOut:
             requirement_type=s.requirement_type,
             weight=s.weight,
         ))
+
+    # Record job creation in audit log
+    audit_entry = AuditLog(
+        actor_id=creator.id,
+        action="JOB_CREATED",
+        entity_type="job",
+        entity_id=job.id,
+        job_id=job.id,
+        to_state=job.status,
+        details=f"Job '{job.title}' created by {creator.name} ({creator.role.name if creator.role else 'HR'}) with {len(data.skills)} required/preferred skills.",
+    )
+    db.add(audit_entry)
 
     db.commit()
     db.refresh(job)

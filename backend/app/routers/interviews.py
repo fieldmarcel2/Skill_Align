@@ -22,24 +22,38 @@ from app.models.interview import Interview
 from app.models.match_result import MatchResult
 from app.models.notification import Notification
 from app.models.candidate import Candidate
-from app.schemas.interview import InterviewCreate, InterviewUpdate, InterviewOut
+from app.schemas.interview import InterviewCreate, InterviewUpdate, InterviewOut, InterviewSlotOut
+from app.services.email_service import send_interview_scheduled_email
 
 router = APIRouter(prefix="/api/interviews", tags=["Interviews"])
 
 
-from app.services.email_service import send_interview_scheduled_email
-
-
-def _to_interview_out(interview: Interview) -> InterviewOut:
+def _to_interview_out(interview: Interview, include_token_for_candidate: bool = False) -> InterviewOut:
     candidate_name = None
     job_title = None
+    company_name = None
+    pipeline_state = None
     if interview.match_result:
+        pipeline_state = interview.match_result.pipeline_state
         if interview.match_result.candidate:
             candidate_name = interview.match_result.candidate.full_name
         if interview.match_result.job:
             job_title = interview.match_result.job.title
+            company_name = interview.match_result.job.client_name or interview.match_result.job.department
 
     scheduler_name = interview.scheduler.name if interview.scheduler else None
+
+    slots_out = [
+        InterviewSlotOut(
+            id=s.id,
+            interview_id=s.interview_id,
+            slot_datetime=s.slot_datetime,
+            slot_end_datetime=s.slot_end_datetime,
+            status=s.status,
+            proposer_name=s.proposer.name if s.proposer else None,
+        )
+        for s in (interview.slots or [])
+    ]
 
     return InterviewOut(
         id=interview.id,
@@ -56,7 +70,12 @@ def _to_interview_out(interview: Interview) -> InterviewOut:
         scheduler_name=scheduler_name,
         candidate_name=candidate_name,
         job_title=job_title,
+        company_name=company_name,
+        pipeline_state=pipeline_state,
+        slot_token=interview.slot_token if include_token_for_candidate else None,
+        slots=slots_out,
     )
+
 
 
 @router.post(
@@ -174,7 +193,7 @@ def list_interviews(
     "/my",
     response_model=List[InterviewOut],
     status_code=status.HTTP_200_OK,
-    summary="List candidate's scheduled interviews (Candidate)"
+    summary="List candidate's scheduled and pending interviews (Candidate)"
 )
 def list_my_interviews(
     db: Session = Depends(get_db),
@@ -187,11 +206,24 @@ def list_my_interviews(
     interviews = (
         db.query(Interview)
         .join(Interview.match_result)
-        .filter(MatchResult.candidate_id == candidate.id)
-        .order_by(Interview.interview_date.asc())
+        .filter(
+            MatchResult.candidate_id == candidate.id,
+            Interview.status != "cancelled",
+            MatchResult.status != "rejected",
+            ~MatchResult.pipeline_state.in_(["REJECTED", "DECLINED", "BLACKLISTED", "HIRING_MANAGER_REJECTED", "OFFER_REJECTED"]),
+        )
+        .order_by(Interview.created_at.desc())
         .all()
     )
-    return [_to_interview_out(i) for i in interviews]
+    # Deduplicate by match_result_id to show only the latest active interview round per application
+    seen_matches = set()
+    deduped_interviews = []
+    for iv in interviews:
+        if iv.match_result_id not in seen_matches:
+            seen_matches.add(iv.match_result_id)
+            deduped_interviews.append(iv)
+
+    return [_to_interview_out(i, include_token_for_candidate=True) for i in deduped_interviews]
 
 
 @router.get(

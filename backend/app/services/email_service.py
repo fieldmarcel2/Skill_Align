@@ -204,3 +204,185 @@ Regards,
     """.strip()
 
     return send_email(candidate_email, subject, html_content, plain_text)
+
+
+def send_interview_slot_selection_email(
+    candidate_email: str,
+    candidate_name: str,
+    job_title: str,
+    slots: list,
+    selection_url: str,
+) -> bool:
+    """Send slot selection email to candidate with a secure link to pick a slot."""
+    subject = f"Action Required: Choose Your Interview Slot — {job_title}"
+
+    slots_html = ""
+    for i, slot in enumerate(slots, 1):
+        dt = slot.get("slot_datetime")
+        if hasattr(dt, "strftime"):
+            dt_str = dt.strftime("%d %b %Y at %I:%M %p %Z")
+        else:
+            dt_str = str(dt)[:16].replace("T", " ") if dt else "TBD"
+        slots_html += f'<li style="margin: 8px 0; font-size: 15px;">Option {i}: <strong>{dt_str}</strong></li>'
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; background: #f8fafc; }}
+        .container {{ max-width: 600px; margin: 24px auto; background: #fff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; }}
+        .header {{ background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; padding: 32px 28px; }}
+        .header h1 {{ margin: 0; font-size: 22px; }}
+        .content {{ padding: 32px 28px; }}
+        .btn {{ display: inline-block; background: #4f46e5; color: #fff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px; margin: 20px 0; }}
+        .footer {{ padding: 16px 28px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; }}
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header"><h1>Select Your Interview Slot</h1><p>SkillAlign Recruitment</p></div>
+        <div class="content">
+          <p>Dear <strong>{candidate_name}</strong>,</p>
+          <p>Great news! You have been selected for an interview for the <strong>{job_title}</strong> position.</p>
+          <p>Please choose one of the following available time slots:</p>
+          <ul>{slots_html}</ul>
+          <p>Click the button below to select your preferred time:</p>
+          <a href="{selection_url}" class="btn">Select Interview Slot</a>
+          <p style="font-size: 13px; color: #64748b;">This link is unique to you and will expire after selection. If you have any questions, please contact your recruiter.</p>
+        </div>
+        <div class="footer"><p>&copy; 2026 SkillAlign Inc. All rights reserved.</p></div>
+      </div>
+    </body>
+    </html>
+    """
+
+    plain = f"""Dear {candidate_name},
+
+You have been selected for an interview for the {job_title} position.
+Please select your preferred time slot using the link below:
+{selection_url}
+
+Best regards,
+SkillAlign Recruitment Team"""
+
+    return send_email(candidate_email, subject, html_content, plain)
+
+
+def send_interview_confirmation_email(
+    candidate_email: str,
+    candidate_name: str,
+    job_title: str,
+    interview_datetime,
+    meeting_link: Optional[str] = None,
+    recruiter_name: str = "Recruitment Team",
+) -> bool:
+    """Send interview confirmation email to candidate after recruiter confirms."""
+    subject = f"Interview Confirmed: {job_title}"
+    if hasattr(interview_datetime, "strftime"):
+        dt_str = interview_datetime.strftime("%d %b %Y at %I:%M %p")
+    else:
+        dt_str = str(interview_datetime)[:16].replace("T", " ") if interview_datetime else "TBD"
+
+    link_html = (
+        f'<p><strong>Meeting Link:</strong> <a href="{meeting_link}" style="color:#4f46e5">{meeting_link}</a></p>'
+        if meeting_link
+        else "<p>Meeting details will be shared closer to the interview.</p>"
+    )
+
+    html_content = f"""
+    <!DOCTYPE html><html><head><meta charset="utf-8">
+    <style>
+      body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; background: #f8fafc; }}
+      .container {{ max-width: 600px; margin: 24px auto; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; }}
+      .header {{ background: #059669; color: #fff; padding: 28px; }}
+      .content {{ padding: 28px; }}
+      .card {{ background: #f0fdf4; border-left: 4px solid #059669; border-radius: 8px; padding: 18px; margin: 16px 0; }}
+      .footer {{ padding: 16px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; }}
+    </style></head><body>
+    <div class="container">
+      <div class="header"><h1 style="margin:0">✅ Interview Confirmed!</h1></div>
+      <div class="content">
+        <p>Dear <strong>{candidate_name}</strong>,</p>
+        <p>Your interview for <strong>{job_title}</strong> has been officially confirmed.</p>
+        <div class="card">
+          <p style="margin:6px 0"><strong>Date & Time:</strong> {dt_str}</p>
+          {link_html}
+        </div>
+        <p>Best regards,<br><strong>{recruiter_name}</strong><br>SkillAlign Hiring Team</p>
+      </div>
+      <div class="footer"><p>&copy; 2026 SkillAlign Inc.</p></div>
+    </div></body></html>
+    """
+
+    plain = f"""Dear {candidate_name},
+Your interview for {job_title} is confirmed for {dt_str}.
+{f'Meeting Link: {meeting_link}' if meeting_link else ''}
+Best regards, {recruiter_name}"""
+
+    return send_email(candidate_email, subject, html_content, plain)
+
+
+def send_offer_email(
+    candidate_email: str,
+    candidate_name: str,
+    job_title: str,
+    proposed_salary: Optional[float],
+    currency: str = "INR",
+    employment_type: Optional[str] = None,
+    joining_date=None,
+    offer_expiry_date=None,
+    accept_url: str = "",
+    recruiter_name: str = "Recruitment Team",
+) -> bool:
+    """Send offer letter email to candidate."""
+    subject = f"🎉 Job Offer: {job_title} — SkillAlign"
+
+    salary_str = f"{currency} {proposed_salary:,.0f}" if proposed_salary else "As discussed"
+    joining_str = joining_date.strftime("%d %b %Y") if hasattr(joining_date, "strftime") else str(joining_date or "To be discussed")
+    expiry_str = offer_expiry_date.strftime("%d %b %Y") if hasattr(offer_expiry_date, "strftime") else str(offer_expiry_date or "7 days from today")
+
+    html_content = f"""
+    <!DOCTYPE html><html><head><meta charset="utf-8">
+    <style>
+      body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; background: #f8fafc; }}
+      .container {{ max-width: 600px; margin: 24px auto; background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; }}
+      .header {{ background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; padding: 32px 28px; }}
+      .content {{ padding: 32px 28px; }}
+      .card {{ background: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 16px 0; }}
+      .btn-accept {{ display: inline-block; background: #059669; color: #fff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; margin: 8px 4px; }}
+      .btn-reject {{ display: inline-block; background: #dc2626; color: #fff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; margin: 8px 4px; }}
+      .footer {{ padding: 16px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; }}
+    </style></head><body>
+    <div class="container">
+      <div class="header"><h1 style="margin:0">🎉 Congratulations!</h1><p style="margin:6px 0 0;opacity:.9">You have received a job offer</p></div>
+      <div class="content">
+        <p>Dear <strong>{candidate_name}</strong>,</p>
+        <p>We are delighted to offer you the position of <strong>{job_title}</strong> at SkillAlign.</p>
+        <div class="card">
+          <p style="margin:6px 0"><strong>Position:</strong> {job_title}</p>
+          <p style="margin:6px 0"><strong>Compensation:</strong> {salary_str} per annum</p>
+          <p style="margin:6px 0"><strong>Employment Type:</strong> {employment_type or 'Full-time'}</p>
+          <p style="margin:6px 0"><strong>Proposed Joining:</strong> {joining_str}</p>
+          <p style="margin:6px 0"><strong>Offer Expires:</strong> {expiry_str}</p>
+        </div>
+        <p>Please review the offer and respond using the button below:</p>
+        <a href="{accept_url}&accept=true" class="btn-accept">✓ Accept Offer</a>
+        <a href="{accept_url}&accept=false" class="btn-reject">✗ Decline Offer</a>
+        <p style="font-size:13px;color:#64748b;margin-top:24px;">
+          Or visit your <a href="http://localhost:5173/candidate" style="color:#4f46e5">dashboard</a> to respond.
+        </p>
+        <p>Best regards,<br><strong>{recruiter_name}</strong><br>SkillAlign Hiring Team</p>
+      </div>
+      <div class="footer"><p>&copy; 2026 SkillAlign Inc.</p></div>
+    </div></body></html>
+    """
+
+    plain = f"""Dear {candidate_name},
+Congratulations! You have received an offer for {job_title}.
+Salary: {salary_str}
+Please respond using this link: {accept_url}
+Best regards, {recruiter_name}"""
+
+    return send_email(candidate_email, subject, html_content, plain)

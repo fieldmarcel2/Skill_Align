@@ -303,3 +303,22 @@ def get_ai_analysis(
     user: User = Depends(require_hr_or_recruiter),
 ):
     return matching_service.get_match_ai_analysis(db, match_id)
+
+
+@router.get(
+    "/jobs/{job_id}/shortlist-candidates",
+    status_code=status.HTTP_200_OK,
+    summary="Get ranked candidates for shortlisting with filters (Recruiter/HR)",
+)
+def get_shortlist_candidates(
+    job_id: int,
+    min_score: float = Query(0.0, ge=0.0, le=100.0, description="Minimum overall match score (0-100)"),
+    top_n: Optional[int] = Query(None, ge=1, le=100, description="Return top N candidates"),
+    exclude_blacklisted: bool = Query(True, description="Exclude active blacklisted candidates"),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_hr_or_recruiter),
+):
+    return matching_service.get_shortlist_candidates(
+        db, job_id, min_score=min_score, top_n=top_n, exclude_blacklisted=exclude_blacklisted
+    )
+

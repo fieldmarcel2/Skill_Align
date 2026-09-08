@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   XCircle,
   FileText,
+  FileCheck,
   Clock,
   MapPin,
   Briefcase,
@@ -31,11 +32,18 @@ import {
   Search,
   Bot,
   Layers,
+  DollarSign,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { recruiterApi, matchingApi, communicationApi, tasksApi, resumeApi } from "../../services/api";
-import { MatchResult, RecruitmentMessage, RecruitmentTask } from "../../types";
+import { recruiterApi, matchingApi, communicationApi, tasksApi, resumeApi, workflowApi, offerApi } from "../../services/api";
+import { MatchResult, RecruitmentMessage, RecruitmentTask, PipelineState, AuditLogEntry } from "../../types";
 import { cn } from "../../lib/utils";
+import PipelineStateBar from "../../components/workflow/PipelineStateBar";
+import CandidateTimeline from "../../components/workflow/CandidateTimeline";
+import InterviewerEvaluationModal from "../../components/workflow/InterviewerEvaluationModal";
+import InterviewerEvaluationDisplayCard from "../../components/workflow/InterviewerEvaluationDisplayCard";
+import { MultiRoundInterviewSection } from "../../components/workflow/MultiRoundInterviewSection";
+import { InterviewWithSlots, Offer } from "../../types";
 
 export const RecruiterCandidateDetailPage: React.FC = () => {
   const { jobId, candidateId } = useParams<{ jobId: string; candidateId: string }>();
@@ -48,8 +56,15 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
   const [match, setMatch] = useState<MatchResult | null>(null);
   const [messages, setMessages] = useState<RecruitmentMessage[]>([]);
   const [tasks, setTasks] = useState<RecruitmentTask[]>([]);
+  const [timeline, setTimeline] = useState<AuditLogEntry[]>([]);
+  const [activeInterviewDetails, setActiveInterviewDetails] = useState<InterviewWithSlots | null>(null);
+  const [interviewRounds, setInterviewRounds] = useState<InterviewWithSlots[]>([]);
+  const [candidateOffer, setCandidateOffer] = useState<Offer | null>(null);
+  const [showInterviewerEvalModal, setShowInterviewerEvalModal] = useState<boolean>(false);
+  const [isEditingEvaluation, setIsEditingEvaluation] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [workflowSuccess, setWorkflowSuccess] = useState<string | null>(null);
 
   // Gemini AI Analysis state
   const [aiAnalysis, setAiAnalysis] = useState<{
@@ -73,7 +88,7 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
   const [sendingMessage, setSendingMessage] = useState(false);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<"evidence" | "resume" | "notes" | "tasks">("evidence");
+  const [activeTab, setActiveTab] = useState<"evidence" | "resume" | "notes" | "tasks" | "timeline">("evidence");
 
   // Action states
   const [actionLoading, setActionLoading] = useState(false);
@@ -98,6 +113,37 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
       setMatch(matchRes);
       setMessages(msgRes);
       setTasks(taskRes);
+
+      // Load timeline, interview details, and offer
+      if (matchRes?.id) {
+        try {
+          const tRes = await workflowApi.getTimeline(matchRes.id);
+          setTimeline(tRes);
+        } catch {
+          // timeline
+        }
+        try {
+          const roundsRes = await workflowApi.getMatchInterviews(matchRes.id);
+          setInterviewRounds(roundsRes);
+          if (roundsRes.length > 0) {
+            setActiveInterviewDetails(roundsRes[roundsRes.length - 1]);
+          }
+        } catch {
+          try {
+            const intRes = await workflowApi.getInterviewDetails(matchRes.id);
+            setActiveInterviewDetails(intRes);
+            if (intRes) setInterviewRounds([intRes]);
+          } catch {
+            // no active interview
+          }
+        }
+        try {
+          const offRes = await offerApi.getOfferByMatch(matchRes.id);
+          setCandidateOffer(offRes);
+        } catch {
+          // no offer yet
+        }
+      }
 
       // Trigger Gemini AI analysis
       if (matchRes?.id) {
@@ -211,6 +257,73 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
     setTimeout(() => setCopiedLink(false), 2500);
   };
 
+  const handleSendSlots = async () => {
+    if (!match?.id) return;
+    setActionLoading(true);
+    setError(null);
+    setWorkflowSuccess(null);
+    try {
+      await workflowApi.sendSlotsToCandidate(match.id);
+      setWorkflowSuccess("Interview slots sent to candidate via email!");
+      await loadData();
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || "Failed to send interview slots.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleConfirmInterview = async () => {
+    if (!match?.id) return;
+    setActionLoading(true);
+    setError(null);
+    setWorkflowSuccess(null);
+    try {
+      await workflowApi.confirmInterview(match.id);
+      setWorkflowSuccess("Candidate's selected slot confirmed! Confirmation sent.");
+      await loadData();
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || "Failed to confirm interview.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCompleteInterview = () => {
+    setIsEditingEvaluation(false);
+    setShowInterviewerEvalModal(true);
+  };
+
+  const handleSaveEvaluation = async (ratings: {
+    technical_rating: number;
+    communication_rating: number;
+    problem_solving_rating: number;
+    role_fit_rating: number;
+    overall_rating: number;
+    comments?: string;
+  }) => {
+    if (!match?.id) return;
+    setActionLoading(true);
+    setError(null);
+    setWorkflowSuccess(null);
+    try {
+      if (isEditingEvaluation) {
+        await workflowApi.saveInterviewerEvaluation(match.id, ratings);
+        setWorkflowSuccess("Competency evaluation ratings updated successfully!");
+      } else {
+        await workflowApi.completeInterview(match.id, ratings);
+        setWorkflowSuccess("Interview completed & competency ratings recorded! Hiring Manager has been notified to provide GO/NO-GO feedback.");
+      }
+      setShowInterviewerEvalModal(false);
+      setIsEditingEvaluation(false);
+      await loadData();
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || "Failed to submit interviewer evaluation.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -298,6 +411,17 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
         </button>
       </div>
 
+      {/* Workflow Notifications */}
+      {workflowSuccess && (
+        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center justify-between shadow-sm">
+          <span>{workflowSuccess}</span>
+          <button onClick={() => setWorkflowSuccess(null)} className="text-emerald-400 hover:text-white">✕</button>
+        </div>
+      )}
+
+      {/* Visual Pipeline State Machine Bar */}
+      <PipelineStateBar currentState={(match.pipeline_state || "CANDIDATE_MATCHED") as PipelineState} />
+
       {/* Main Candidate Header Card */}
       <div className="bg-card border border-border/80 rounded-2xl p-6 shadow-sm">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
@@ -328,7 +452,7 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
 
               {/* Pipeline Stage Badge */}
               <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
-                {match.status.replace(/_/g, " ")}
+                {match.pipeline_state || match.status.replace(/_/g, " ")}
               </span>
             </div>
 
@@ -387,6 +511,87 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
 
             {/* Action Buttons */}
             <div className="flex flex-wrap items-center gap-2">
+              {/* Enterprise Workflow Specific Actions */}
+              {job && ["CANDIDATE_MATCHED", "CANDIDATE_SHORTLISTED"].includes(match.pipeline_state || "") && (
+                <Link
+                  to={`/recruiter/jobs/${job.id}/shortlist`}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition shadow-sm"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Submit to HM
+                </Link>
+              )}
+
+              {match.pipeline_state === "INTERVIEW_SLOTS_PROPOSED" && (
+                <button
+                  type="button"
+                  onClick={handleSendSlots}
+                  disabled={actionLoading}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white transition shadow-sm"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Send Slots to Candidate
+                </button>
+              )}
+
+              {match.pipeline_state === "CANDIDATE_SLOT_SELECTED" && (
+                <button
+                  type="button"
+                  onClick={handleConfirmInterview}
+                  disabled={actionLoading}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition shadow-sm"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Confirm Selected Slot
+                </button>
+              )}
+
+              {match.pipeline_state === "INTERVIEW_CONFIRMED" && (
+                <button
+                  type="button"
+                  onClick={handleCompleteInterview}
+                  disabled={actionLoading}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white transition shadow-sm"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Complete & Rate Competencies
+                </button>
+              )}
+
+              {match.pipeline_state === "WAITING_FOR_HM_FEEDBACK" && (
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                  <Clock className="w-3.5 h-3.5" />
+                  Awaiting HM Decision
+                </span>
+              )}
+
+              {["INTERVIEW_GO", "COMPENSATION_DISCUSSION"].includes(match.pipeline_state || "") && (
+                <Link
+                  to={`/recruiter/offers/create?match_id=${match.id}`}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition shadow-sm"
+                >
+                  <FileCheck className="w-3.5 h-3.5" />
+                  Phase 2: Compensation
+                </Link>
+              )}
+
+              {match.pipeline_state === "OFFER_CREATED" && (
+                <Link
+                  to={`/recruiter/offers/create?match_id=${match.id}`}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white transition shadow-sm"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Send Offer Letter
+                </Link>
+              )}
+
+              <Link
+                to={`/applications/${match.id}/timeline`}
+                className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold bg-secondary hover:bg-secondary/80 text-foreground border border-border transition"
+              >
+                <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                Audit Log
+              </Link>
               {isUnassigned ? (
                 <button
                   type="button"
@@ -545,6 +750,201 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
         </div>
       )}
 
+      {/* ── 21. CANDIDATE BLACKLIST / COOLDOWN ALERT ───────────────────── */}
+      {match.is_blacklisted && (
+        <div className="relative overflow-hidden bg-rose-500/10 border-2 border-rose-500/40 rounded-2xl p-5 shadow-sm space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 font-bold text-rose-400 text-sm">
+              <AlertCircle className="w-5 h-5 text-rose-400" />
+              Candidate Unavailable for Interview Consideration
+            </div>
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-rose-500/20 text-rose-400 border border-rose-500/40">
+              6-Month Cooldown
+            </span>
+          </div>
+          <p className="text-xs text-foreground font-semibold">
+            {match.blacklist_display_message || `Candidate unavailable for interview consideration until ${match.blacklisted_until}.`}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Reason: {match.blacklist_reason || "Candidate declined formal offer. 6-month placement cooldown in effect."}
+          </p>
+        </div>
+      )}
+
+      {/* ── MULTI-ROUND INTERVIEW PROGRESSION & TIMELINE ─────────────────── */}
+      {(interviewRounds.length > 0 || [
+        "INTERVIEW_REQUESTED",
+        "INTERVIEW_SLOTS_PROPOSED",
+        "WAITING_FOR_CANDIDATE_SLOT",
+        "CANDIDATE_SLOT_SELECTED",
+        "INTERVIEW_CONFIRMED",
+        "WAITING_FOR_HM_FEEDBACK",
+        "COMPENSATION_DISCUSSION",
+        "OFFER_CREATED",
+        "OFFER_SENT",
+        "OFFER_ACCEPTED",
+        "HIRED",
+      ].includes(match.pipeline_state || "")) && (
+        <MultiRoundInterviewSection
+          matchId={match.id}
+          candidateName={match.candidate.full_name}
+          rounds={interviewRounds}
+          onRoundsUpdated={loadData}
+          canManageRounds={true}
+        />
+      )}
+
+      {/* ── INTERVIEWER COMPETENCY EVALUATION SCORECARD ─────────────────── */}
+      {(activeInterviewDetails?.interviewer_overall_rating || match.pipeline_state === "WAITING_FOR_HM_FEEDBACK") && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              Interviewer Competency Evaluation Scorecard
+            </h3>
+            {match.pipeline_state === "WAITING_FOR_HM_FEEDBACK" && (
+              <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/30 font-semibold">
+                Awaiting Hiring Manager GO / NO-GO Decision
+              </span>
+            )}
+          </div>
+          <InterviewerEvaluationDisplayCard
+            interview={activeInterviewDetails || undefined}
+            onEdit={() => {
+              setIsEditingEvaluation(true);
+              setShowInterviewerEvalModal(true);
+            }}
+          />
+        </div>
+      )}
+
+      {/* ── 18. PHASE 2 — COMPENSATION & OFFER MANAGEMENT ───────────────── */}
+      {["COMPENSATION_DISCUSSION", "OFFER_CREATED", "OFFER_SENT", "OFFER_ACCEPTED", "HIRED"].includes(match.pipeline_state || "") && (
+        <div className="relative overflow-hidden bg-gradient-to-r from-amber-500/10 via-yellow-500/5 to-emerald-500/10 border-2 border-amber-500/30 rounded-2xl p-6 shadow-md space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80 pb-3">
+            <div>
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-500 block">
+                Section 18
+              </span>
+              <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-amber-500" />
+                Phase 2 — Compensation & Offer Stage
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Recruiter manages this stage • Coordinated by {match.assigned_recruiter?.name || user?.name || "Assigned Recruiter"}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                candidateOffer?.status === "ACCEPTED" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
+                candidateOffer?.status === "SENT" ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/30" :
+                candidateOffer?.status === "REJECTED" ? "bg-rose-500/20 text-rose-400 border-rose-500/30" :
+                "bg-amber-500/20 text-amber-400 border-amber-500/30"
+              }`}>
+                Offer Status: {candidateOffer?.status || "DRAFT"}
+              </span>
+              <Link
+                to={`/recruiter/offers/create?match_id=${match.id}`}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white transition shadow-sm"
+              >
+                <FileCheck className="w-3.5 h-3.5" />
+                {candidateOffer?.id ? "Edit / Send Offer" : "Draft Offer"}
+              </Link>
+            </div>
+          </div>
+
+          {/* 4 Core Pillars: Candidate, Job, Hiring Manager, Recruiter */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="p-3 rounded-xl bg-card/80 border border-border">
+              <span className="text-[11px] text-muted-foreground block font-medium">Candidate</span>
+              <span className="font-bold text-foreground block truncate">{candidate?.full_name}</span>
+              <span className="text-[10px] text-muted-foreground">{candidate?.total_experience_years || 0} yrs exp</span>
+            </div>
+            <div className="p-3 rounded-xl bg-card/80 border border-border">
+              <span className="text-[11px] text-muted-foreground block font-medium">Job Requisition</span>
+              <span className="font-bold text-foreground block truncate">{job?.title}</span>
+              <span className="text-[10px] text-muted-foreground">{job?.department || "Engineering"}</span>
+            </div>
+            <div className="p-3 rounded-xl bg-card/80 border border-border">
+              <span className="text-[11px] text-muted-foreground block font-medium">Hiring Manager</span>
+              <span className="font-bold text-foreground block truncate">
+                {match.hiring_manager_name || candidateOffer?.hiring_manager_name || "Assigned HM"}
+              </span>
+              <span className="text-[10px] text-emerald-500 font-semibold">GO Decision Recorded</span>
+            </div>
+            <div className="p-3 rounded-xl bg-card/80 border border-border">
+              <span className="text-[11px] text-muted-foreground block font-medium">Managing Recruiter</span>
+              <span className="font-bold text-foreground block truncate">
+                {match.assigned_recruiter?.name || user?.name || "Assigned Recruiter"}
+              </span>
+              <span className="text-[10px] text-muted-foreground">Compensation Lead</span>
+            </div>
+          </div>
+
+          {/* Compensation Highlights: Salary Band, Proposed Salary, Currency */}
+          <div className="p-4 bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-transparent border border-amber-500/30 rounded-xl flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider block">
+                Salary Band
+              </span>
+              <span className="text-lg sm:text-xl font-mono font-bold text-amber-500">
+                {candidateOffer?.salary_currency === "INR" || !candidateOffer?.salary_currency ? "₹" : candidateOffer.salary_currency}{" "}
+                {(candidateOffer?.salary_min || 600000).toLocaleString("en-IN")} –{" "}
+                {candidateOffer?.salary_currency === "INR" || !candidateOffer?.salary_currency ? "₹" : candidateOffer.salary_currency}{" "}
+                {(candidateOffer?.salary_max || 800000).toLocaleString("en-IN")}
+              </span>
+            </div>
+
+            <div>
+              <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider block">
+                Proposed Salary
+              </span>
+              <span className="text-xl sm:text-2xl font-mono font-extrabold text-emerald-500">
+                {candidateOffer?.salary_currency === "INR" || !candidateOffer?.salary_currency ? "₹" : candidateOffer.salary_currency}{" "}
+                {(candidateOffer?.proposed_salary || 720000).toLocaleString("en-IN")}
+              </span>
+            </div>
+
+            <div>
+              <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider block">
+                Currency
+              </span>
+              <span className="text-base font-bold text-foreground font-mono">
+                {candidateOffer?.salary_currency || "INR"} (₹)
+              </span>
+            </div>
+          </div>
+
+          {/* Role Scope, Employment Type, Timeline, Location, Work Mode */}
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 text-xs">
+            <div className="sm:col-span-2 p-3 rounded-xl bg-card/80 border border-border">
+              <span className="text-[11px] text-muted-foreground block font-medium">Role Scope</span>
+              <span className="text-foreground leading-relaxed block font-medium mt-0.5">
+                {candidateOffer?.role_scope || "Core engineering delivery, architecture implementation, and team mentoring."}
+              </span>
+            </div>
+            <div className="p-3 rounded-xl bg-card/80 border border-border">
+              <span className="text-[11px] text-muted-foreground block font-medium">Employment Type</span>
+              <span className="font-bold text-foreground block mt-0.5">
+                {candidateOffer?.employment_type || "Full-time"}
+              </span>
+            </div>
+            <div className="p-3 rounded-xl bg-card/80 border border-border">
+              <span className="text-[11px] text-muted-foreground block font-medium">Joining Timeline</span>
+              <span className="font-bold text-foreground block mt-0.5">
+                {candidateOffer?.joining_timeline || (candidateOffer?.joining_date ? new Date(candidateOffer.joining_date).toLocaleDateString() : "15 - 30 Days")}
+              </span>
+            </div>
+            <div className="p-3 rounded-xl bg-card/80 border border-border">
+              <span className="text-[11px] text-muted-foreground block font-medium">Location & Mode</span>
+              <span className="font-bold text-foreground block mt-0.5">
+                {candidateOffer?.location || job?.location_city || "Bangalore"} ({candidateOffer?.work_mode || job?.work_mode || "Hybrid"})
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── AI CANDIDATE FIT & INSIGHTS ─────────────────────────────────── */}
       <div className="relative overflow-hidden bg-gradient-to-br from-card via-card to-primary/[0.04] border border-primary/20 rounded-2xl p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-border/80">
@@ -698,6 +1098,19 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
         >
           <ListTodo className="w-4 h-4" />
           Assigned Tasks ({tasks.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab("timeline")}
+          className={cn(
+            "pb-3 text-sm font-bold border-b-2 transition-all flex items-center gap-2",
+            activeTab === "timeline"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Clock className="w-4 h-4" />
+          Lifecycle Audit Log ({timeline.length})
         </button>
       </div>
 
@@ -1242,6 +1655,64 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
             )}
           </div>
         </div>
+      )}
+
+      {/* TAB CONTENT: Lifecycle Audit Timeline */}
+      {activeTab === "timeline" && (
+        <div className="bg-card border border-border/80 rounded-2xl p-6 shadow-sm space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-border">
+            <div>
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <Clock className="w-4 h-4 text-primary" />
+                Complete Lifecycle Audit History
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Full chronological sequence of application submissions, reviews, slot negotiations, and decisions.
+              </p>
+            </div>
+            <span className="text-xs font-mono text-muted-foreground">
+              {timeline.length} Recorded Events
+            </span>
+          </div>
+          <CandidateTimeline timeline={timeline} />
+        </div>
+      )}
+
+      {/* Structured Competency Ratings Evaluation Modal */}
+      {showInterviewerEvalModal && match && (
+        <InterviewerEvaluationModal
+          isOpen={showInterviewerEvalModal}
+          onClose={() => {
+            setShowInterviewerEvalModal(false);
+            setIsEditingEvaluation(false);
+          }}
+          matchId={match.id}
+          candidateName={candidate?.full_name || "Candidate"}
+          jobTitle={job?.title || "Position"}
+          isCompleteFlow={!isEditingEvaluation}
+          onSuccess={async () => {
+            setWorkflowSuccess(
+              isEditingEvaluation
+                ? "Competency evaluation ratings updated successfully!"
+                : "Interview completed & competency ratings recorded! Hiring Manager has been notified to provide GO/NO-GO feedback."
+            );
+            setShowInterviewerEvalModal(false);
+            setIsEditingEvaluation(false);
+            await loadData();
+          }}
+          initialRatings={
+            activeInterviewDetails?.interviewer_overall_rating
+              ? {
+                  technical_rating: activeInterviewDetails.interviewer_technical_rating,
+                  communication_rating: activeInterviewDetails.interviewer_communication_rating,
+                  problem_solving_rating: activeInterviewDetails.interviewer_problem_solving_rating,
+                  role_fit_rating: activeInterviewDetails.interviewer_role_fit_rating,
+                  overall_rating: activeInterviewDetails.interviewer_overall_rating,
+                  comments: activeInterviewDetails.interviewer_comments,
+                }
+              : undefined
+          }
+        />
       )}
     </div>
   );
