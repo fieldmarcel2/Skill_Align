@@ -33,6 +33,7 @@ import {
   Bot,
   Layers,
   DollarSign,
+  ArrowRight,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { recruiterApi, matchingApi, communicationApi, tasksApi, resumeApi, workflowApi, offerApi } from "../../services/api";
@@ -99,15 +100,26 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
   }, [numJobId, numCandidateId]);
 
   const loadData = async () => {
-    if (!numJobId || !numCandidateId) return;
+    if (!numCandidateId) return;
     try {
       setLoading(true);
       setError(null);
 
-      const [matchRes, msgRes, taskRes] = await Promise.all([
-        recruiterApi.getCandidateDetail(numJobId, numCandidateId),
-        communicationApi.listCandidateMessages(numJobId, numCandidateId),
-        tasksApi.getJobTasks(numJobId, numCandidateId),
+      let matchRes: MatchResult;
+      let actualJobId = numJobId;
+      let actualCandidateId = numCandidateId;
+
+      if (numJobId && numCandidateId) {
+        matchRes = await recruiterApi.getCandidateDetail(numJobId, numCandidateId);
+      } else {
+        matchRes = await matchingApi.getMatchById(numCandidateId);
+        actualJobId = matchRes.job_id;
+        actualCandidateId = matchRes.candidate_id;
+      }
+
+      const [msgRes, taskRes] = await Promise.all([
+        communicationApi.listCandidateMessages(actualJobId, actualCandidateId).catch(() => []),
+        tasksApi.getJobTasks(actualJobId, actualCandidateId).catch(() => []),
       ]);
 
       setMatch(matchRes);
@@ -369,6 +381,21 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
   const candidateInterviews = match.interviews || [];
   const latestInterview = candidateInterviews.length > 0 ? candidateInterviews[0] : null;
 
+  // Pipeline stage flags to prevent conflicting interview/offer status indicators
+  const isHiredOrAccepted =
+    candidateOffer?.status === "ACCEPTED" ||
+    match.pipeline_state === "HIRED" ||
+    match.status === "hired";
+
+  const isOfferPhase =
+    [
+      "COMPENSATION_DISCUSSION",
+      "OFFER_CREATED",
+      "OFFER_SENT",
+      "OFFER_ACCEPTED",
+      "HIRED",
+    ].includes(match.pipeline_state || "") || Boolean(candidateOffer);
+
   // Filter skills
   const filteredSkills = (match.skill_breakdown || []).filter((sk) => {
     if (skillFilter === "verified") return sk.source === "resume" || Boolean(sk.evidence_text);
@@ -419,10 +446,52 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* Visual Pipeline State Machine Bar */}
-      <PipelineStateBar currentState={(match.pipeline_state || "CANDIDATE_MATCHED") as PipelineState} />
+      {/* Interactive Pipeline State Machine */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-lg">
+        {/* Basic state bar */}
+        <PipelineStateBar currentState={(match.pipeline_state || "CANDIDATE_MATCHED") as PipelineState} />
+
+        {/* Next valid state transitions + Action Center link */}
+        {(() => {
+          const stateTransitions: Record<string, { label: string; color: string; desc: string }[]> = {
+            CANDIDATE_MATCHED:         [{ label: "→ Shortlist", color: "border-blue-500/40 text-blue-300 bg-blue-500/10", desc: "Shortlist this candidate" }],
+            CANDIDATE_SHORTLISTED:     [{ label: "→ Submit to HM", color: "border-sky-500/40 text-sky-300 bg-sky-500/10", desc: "Send to Hiring Manager" }],
+            INTERVIEW_SLOTS_PROPOSED:  [{ label: "→ Send Slots to Candidate", color: "border-cyan-500/40 text-cyan-300 bg-cyan-500/10", desc: "Recruiter action in Action Center" }],
+            CANDIDATE_SLOT_SELECTED:   [{ label: "→ Confirm Interview", color: "border-emerald-500/40 text-emerald-300 bg-emerald-500/10", desc: "Confirm selected slot" }],
+            INTERVIEW_CONFIRMED:       [{ label: "→ Complete & Evaluate", color: "border-amber-500/40 text-amber-300 bg-amber-500/10", desc: "Rate competencies post-interview" }],
+            INTERVIEW_GO:              [{ label: "→ Create Compensation Offer", color: "border-lime-500/40 text-lime-300 bg-lime-500/10", desc: "Draft and submit offer" }],
+            OFFER_CREATED:             [{ label: "→ Send Offer Letter", color: "border-purple-500/40 text-purple-300 bg-purple-500/10", desc: "Send offer to candidate" }],
+          };
+
+          const currentTransitions = stateTransitions[match.pipeline_state || ""];
+          const hasActionCenterTask = ["INTERVIEW_SLOTS_PROPOSED", "CANDIDATE_SLOT_SELECTED", "INTERVIEW_GO", "OFFER_CREATED"].includes(match.pipeline_state || "");
+
+          if (!currentTransitions && !hasActionCenterTask) return null;
+
+          return (
+            <div className="mt-4 pt-4 border-t border-slate-800 flex flex-wrap items-center gap-3">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Next Actions:</span>
+              {currentTransitions?.map((t) => (
+                <span key={t.label} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold ${t.color}`} title={t.desc}>
+                  {t.label}
+                </span>
+              ))}
+              {hasActionCenterTask && (
+                <Link
+                  to="/recruiter/action-center"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-500/40 bg-rose-500/10 text-rose-300 text-xs font-bold hover:bg-rose-500/20 transition-colors"
+                >
+                  ⚡ Execute in Action Center
+                  <ArrowRight className="w-3 h-3" />
+                </Link>
+              )}
+            </div>
+          );
+        })()}
+      </div>
 
       {/* Main Candidate Header Card */}
+
       <div className="bg-card border border-border/80 rounded-2xl p-6 shadow-sm">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
           {/* Left: Info */}
@@ -665,7 +734,41 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
       </div>
 
       {/* ── SCHEDULED INTERVIEWS & VIDEO LINKS BANNER ────────────────────── */}
-      {latestInterview && (
+      {isHiredOrAccepted ? (
+        <div className="relative overflow-hidden bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-5 shadow-sm space-y-3">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-foreground text-base">
+                    Candidate Hired & Offer Formalized
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                    HIRED • OFFER ACCEPTED
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
+                  <UserCheck className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Candidate has successfully cleared all interview evaluation stages and accepted the official employment offer.</span>
+                </p>
+              </div>
+            </div>
+
+            {candidateOffer && (
+              <Link
+                to={`/recruiter/offers/${candidateOffer.id}`}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition shrink-0"
+              >
+                <FileCheck className="w-3.5 h-3.5" />
+                View Finalized Offer
+              </Link>
+            )}
+          </div>
+        </div>
+      ) : latestInterview && !isOfferPhase && (
         <div className="relative overflow-hidden bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-sky-500/10 border border-emerald-500/30 rounded-2xl p-5 shadow-sm space-y-3">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -675,10 +778,12 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-extrabold text-foreground text-base">
-                    {latestInterview.interview_type || "Technical Interview"} Scheduled
+                    {latestInterview.status === "pending_slot"
+                      ? `${latestInterview.interview_type || "Technical Interview"} Slot Selection Pending`
+                      : `${latestInterview.interview_type || "Technical Interview"} Scheduled`}
                   </h3>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                    {latestInterview.status}
+                    {latestInterview.status?.replace(/_/g, " ")}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
@@ -790,7 +895,8 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
           candidateName={match.candidate.full_name}
           rounds={interviewRounds}
           onRoundsUpdated={loadData}
-          canManageRounds={true}
+          canManageRounds={!isHiredOrAccepted}
+          isOfferPhase={isOfferPhase}
         />
       )}
 

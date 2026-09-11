@@ -156,3 +156,24 @@ class JobOut(BaseModel):
     job_skills: list[JobSkillOut]
     created_at: datetime
     updated_at: datetime
+
+
+class JobPipelineSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    department: Optional[str] = None
+    client_name: Optional[str] = None
+    status: str
+    min_experience_years: float = 0
+    work_mode: Optional[str] = "Hybrid"
+    required_skills_count: int = 0
+    total_candidates: int = 0
+    in_screening_count: int = 0
+    in_interview_count: int = 0
+    in_offer_count: int = 0
+    hired_count: int = 0
+    has_active_pipeline: bool = False
+    sourcing_needed: bool = True
+

@@ -13,7 +13,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { recruiterApi, matchingApi } from "../../services/api";
+import { recruiterApi, matchingApi, jobsApi } from "../../services/api";
 import { MatchResult, RecruiterJobItem } from "../../types";
 import { CandidateCard } from "../../components/candidate/CandidateCard";
 import { cn } from "../../lib/utils";
@@ -22,8 +22,9 @@ export const RecruiterCandidatesPage: React.FC = () => {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // URL Query Params
-  const initialJobId = searchParams.get("jobId") ? Number(searchParams.get("jobId")) : undefined;
+  // URL Query Params - support both snake_case and camelCase
+  const qJobId = searchParams.get("job_id") || searchParams.get("jobId");
+  const initialJobId = qJobId ? Number(qJobId) : undefined;
 
   // Filters State
   const [selectedJobId, setSelectedJobId] = useState<number | undefined>(initialJobId);
@@ -38,6 +39,12 @@ export const RecruiterCandidatesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Synchronize state when URL query params change
+  useEffect(() => {
+    const currentParam = searchParams.get("job_id") || searchParams.get("jobId");
+    setSelectedJobId(currentParam ? Number(currentParam) : undefined);
+  }, [searchParams]);
+
   // Load assigned jobs on mount
   useEffect(() => {
     loadAssignedJobs();
@@ -51,7 +58,25 @@ export const RecruiterCandidatesPage: React.FC = () => {
   const loadAssignedJobs = async () => {
     try {
       const assigned = await recruiterApi.getAssignedJobs();
-      setJobs(assigned);
+      if (assigned && assigned.length > 0) {
+        setJobs(assigned);
+      } else {
+        const allJobs = await jobsApi.list();
+        setJobs(
+          allJobs.map((j) => ({
+            id: j.id,
+            title: j.title,
+            status: j.status,
+            min_experience_years: j.min_experience_years,
+            work_mode: j.work_mode,
+            created_at: j.created_at,
+            assignment_role: "RECRUITER",
+            total_candidates: 0,
+            pending_review: 0,
+            assigned_to_me: 0,
+          }))
+        );
+      }
     } catch (err) {
       console.error("Failed to load assigned jobs:", err);
     }

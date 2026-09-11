@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { candidatesApi, interviewsApi, notificationsApi, skillsApi, resumeApi } from "../../services/api";
-import { Candidate, MatchResult, Interview, Notification, Skill, ParsedResumeData } from "../../types";
+import { Candidate, MatchResult, Interview, Notification, Skill, ParsedResumeData, CandidateHiringResponse } from "../../types";
 import { useToast } from "../../components/ui/toast";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
@@ -15,6 +15,7 @@ import {
   UserCheck,
   Layers,
   FileText,
+  FileCheck,
   Clock,
   Phone,
   ArrowRight,
@@ -37,6 +38,8 @@ import {
   Award,
   Code2,
   Copy,
+  Gift,
+  Zap,
   Check,
   FileCode,
   MapPin,
@@ -60,9 +63,22 @@ import {
 
 import { CandidateSlotPickerModal } from "../../components/candidate/CandidateSlotPickerModal";
 import { InlineSlotChooser } from "../../components/candidate/InlineSlotChooser";
+import confetti from "canvas-confetti";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Cell,
+} from "recharts";
 
 const MATCH_PAGE_SIZE = 10;
 const INTERVIEW_PAGE_SIZE = 10;
+
+
 
 const stageLabels: Record<string, string> = {
   matched: "Under Review",
@@ -86,6 +102,7 @@ export const CandidateDashboard: React.FC = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [availableSkills, setAvailableSkills] = useState<Skill[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hiringStatusData, setHiringStatusData] = useState<CandidateHiringResponse | null>(null);
   const [activeTab, setActiveTab] = useState<"pipeline" | "interviews" | "profile" | "skills" | "notifications">("pipeline");
 
   // Selected Interview for Slot Picker Modal
@@ -142,15 +159,68 @@ export const CandidateDashboard: React.FC = () => {
   const [skillYears, setSkillYears] = useState<number>(1);
   const [isAddingSkill, setIsAddingSkill] = useState(false);
 
+  // Notifications interactive state & actions
+  const [notificationCategory, setNotificationCategory] = useState<"ALL" | "OFFERS" | "INTERVIEWS" | "UPDATES">("ALL");
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [isMarkingAll, setIsMarkingAll] = useState(false);
+
+  const handleMarkAsRead = async (id: number) => {
+    try {
+      await notificationsApi.markRead(id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+      );
+    } catch {
+      toast.error("Failed to mark update as read.");
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    setIsMarkingAll(true);
+    try {
+      await notificationsApi.markAllRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      toast.success("All notifications marked as read.");
+    } catch {
+      toast.error("Failed to mark all updates as read.");
+    } finally {
+      setIsMarkingAll(false);
+    }
+  };
+
+  const handleDeleteNotification = async (id: number) => {
+    try {
+      await notificationsApi.delete(id);
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      toast.success("Notification dismissed.");
+    } catch {
+      toast.error("Failed to dismiss notification.");
+    }
+  };
+
+  const triggerOfferConfetti = () => {
+    confetti({
+      particleCount: 90,
+      spread: 75,
+      origin: { y: 0.6 },
+      colors: ["#6366f1", "#10b981", "#f59e0b", "#ec4899", "#06b6d4"],
+    });
+  };
+
   const fetchData = async () => {
     try {
-      const [profileData, pipelineData, interviewsData, notificationsData, skillsData] = await Promise.all([
+      const [profileData, pipelineData, interviewsData, notificationsData, skillsData, hiringRes] = await Promise.all([
         candidatesApi.getMyProfile().catch(() => null),
         candidatesApi.getMyPipeline().catch(() => []),
         interviewsApi.getMyInterviews().catch(() => []),
         notificationsApi.getMyNotifications().catch(() => []),
         skillsApi.list().catch(() => []),
+        candidatesApi.getMyHiringStatus().catch(() => null),
       ]);
+
+      if (hiringRes) {
+        setHiringStatusData(hiringRes);
+      }
 
       if (profileData) {
         setProfile(profileData);
@@ -275,6 +345,8 @@ export const CandidateDashboard: React.FC = () => {
           setParsedData(JSON.parse(refreshedProfile.extracted_data));
         } catch {}
       }
+
+      await refreshUser().catch(() => null);
 
       // Refresh pipeline & skills
       const [newPipeline, newSkills] = await Promise.all([
@@ -577,6 +649,51 @@ export const CandidateDashboard: React.FC = () => {
     return parsedData.skills.filter((s) => s.category === activeSkillCategory);
   }, [parsedData?.skills, activeSkillCategory]);
 
+  // Analytics for Visual Recharts - Declared before any early returns to respect React Rules of Hooks
+  const skillDomainDistribution = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (profile?.skills && profile.skills.length > 0) {
+      profile.skills.forEach((s) => {
+        const cat = s.skill?.category || "Technical";
+        counts[cat] = (counts[cat] || 0) + 1;
+      });
+    } else if (parsedData?.skills && parsedData.skills.length > 0) {
+      parsedData.skills.forEach((s) => {
+        const cat = s.category || "Technical";
+        counts[cat] = (counts[cat] || 0) + 1;
+      });
+    } else {
+      counts["Technical"] = 3;
+      counts["Frameworks"] = 2;
+      counts["Database"] = 1;
+      counts["Cloud"] = 1;
+    }
+    return Object.entries(counts).map(([name, count]) => ({
+      domain: name.length > 12 ? name.substring(0, 10) + "…" : name,
+      fullName: name,
+      count,
+    }));
+  }, [profile?.skills, parsedData?.skills]);
+
+  const pipelineStageDistribution = React.useMemo(() => {
+    const stageCounts: Record<string, number> = {
+      "Review": 0,
+      "Screened": 0,
+      "Shortlist": 0,
+      "Interview": 0,
+      "Offer": 0,
+    };
+    pipelineMatches.forEach((m) => {
+      const s = String(m.status || "");
+      if (s === "offer" || s === "hired") stageCounts["Offer"]++;
+      else if (s === "interview_scheduled" || s.includes("interview")) stageCounts["Interview"]++;
+      else if (s === "approved_by_hr" || s === "shortlisted") stageCounts["Shortlist"]++;
+      else if (s === "screened") stageCounts["Screened"]++;
+      else if (s !== "rejected") stageCounts["Review"]++;
+    });
+    return Object.entries(stageCounts).map(([stage, count]) => ({ stage, count }));
+  }, [pipelineMatches]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
@@ -682,6 +799,44 @@ export const CandidateDashboard: React.FC = () => {
     return "text-muted-foreground bg-secondary border-border";
   };
 
+  const offerNotifications = notifications.filter(
+    (n) =>
+      n.subject?.toLowerCase().includes("offer") ||
+      n.body?.toLowerCase().includes("offer") ||
+      n.notification_type?.includes("OFFER")
+  );
+
+  const interviewNotifications = notifications.filter(
+    (n) =>
+      n.subject?.toLowerCase().includes("interview") ||
+      n.subject?.toLowerCase().includes("slot") ||
+      n.body?.toLowerCase().includes("slot") ||
+      n.notification_type?.includes("INTERVIEW") ||
+      n.notification_type?.includes("SLOT")
+  );
+
+  const updateNotifications = notifications.filter(
+    (n) =>
+      !offerNotifications.some((o) => o.id === n.id) &&
+      !interviewNotifications.some((i) => i.id === n.id)
+  );
+
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+  const filteredNotifications = notifications.filter((n) => {
+    if (unreadOnly && n.is_read) return false;
+    if (notificationCategory === "OFFERS") {
+      return offerNotifications.some((o) => o.id === n.id);
+    }
+    if (notificationCategory === "INTERVIEWS") {
+      return interviewNotifications.some((i) => i.id === n.id);
+    }
+    if (notificationCategory === "UPDATES") {
+      return updateNotifications.some((u) => u.id === n.id);
+    }
+    return true;
+  });
+
   return (
     <div className="space-y-6">
       {/* ── Header ───────────────────────────────────────────────────────── */}
@@ -744,6 +899,144 @@ export const CandidateDashboard: React.FC = () => {
           description="Career tenure"
         />
       </div>
+
+      {/* ── 1. CANDIDATE HIRING COMPLETION BANNER ───────────────────────── */}
+      {(() => {
+        const isHiredCandidate = Boolean(
+          hiringStatusData?.is_hired ||
+          profile?.hiring_status === "HIRED" ||
+          pipelineMatches.some((m) => m.pipeline_state === "HIRED" || m.status === "hired")
+        );
+        const details = hiringStatusData?.hiring_details;
+        if (!isHiredCandidate || !details) return null;
+
+        const firstName = details.candidate_name
+          ? details.candidate_name.split(" ")[0]
+          : profile?.full_name
+          ? profile.full_name.split(" ")[0]
+          : "Candidate";
+
+        return (
+          <div className="rounded-xl border border-emerald-500/40 bg-card/95 backdrop-blur-md p-5 sm:p-6 shadow-sm space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold uppercase tracking-wider">
+                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                HIRING COMPLETE
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              <h2 className="text-xl font-bold font-outfit text-foreground tracking-tight">
+                Congratulations, {firstName}!
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                You have accepted the offer for{" "}
+                <strong className="text-foreground font-semibold">
+                  {details.job_title}
+                </strong>{" "}
+                at{" "}
+                <strong className="text-foreground font-semibold">
+                  {details.company_name}
+                </strong>.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 py-3 border-y border-border/70 text-xs">
+              <div>
+                <span className="text-muted-foreground block text-[11px] font-medium">
+                  Joining Date:
+                </span>
+                <span className="font-semibold text-foreground text-sm flex items-center gap-1.5 mt-0.5">
+                  <Calendar className="w-3.5 h-3.5 text-primary" />
+                  {details.joining_date}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-[11px] font-medium">
+                  Work Mode:
+                </span>
+                <span className="font-semibold text-foreground text-sm flex items-center gap-1.5 mt-0.5">
+                  <Laptop className="w-3.5 h-3.5 text-primary" />
+                  {details.work_mode}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-[11px] font-medium">
+                  Employment Type:
+                </span>
+                <span className="font-semibold text-foreground text-sm flex items-center gap-1.5 mt-0.5">
+                  <Briefcase className="w-3.5 h-3.5 text-primary" />
+                  {details.employment_type}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <Link to={`/candidate/offers/${details.offer_id}`}>
+                <Button variant="outline" size="sm" className="gap-2 text-xs font-semibold h-9 px-4">
+                  <FileText className="w-4 h-4 text-primary" />
+                  View Offer Letter
+                </Button>
+              </Link>
+              <Link to="/candidate/hiring">
+                <Button variant="default" size="sm" className="gap-2 text-xs font-semibold h-9 px-4 bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs">
+                  <UserCheck className="w-4 h-4" />
+                  View Hiring Details
+                </Button>
+              </Link>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── OFFICIAL EMPLOYMENT OFFER NOTICE ───────────────────────────── */}
+      {(() => {
+        const offerMatches = visibleMatches.filter(
+          (m) => m.status === "offer" || m.pipeline_state === "OFFER_SENT"
+        );
+        if (offerMatches.length === 0) return null;
+
+        return (
+          <div className="rounded-xl border border-primary/30 bg-slate-900/90 p-5 sm:p-6 shadow-md">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-lg bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                  <FileCheck className="w-6 h-6" />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/25 text-amber-300 text-[11px] font-semibold uppercase tracking-wider">
+                    Action Required · Official Offer Letter
+                  </div>
+                  <h2 className="text-lg font-bold text-white">
+                    Formal Employment Offer Extended
+                  </h2>
+                  <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
+                    {offerMatches.length === 1
+                      ? <>You have received an official employment offer for <strong className="text-white">{offerMatches[0].job?.title || "a position"}</strong>. Please review the compensation breakdown, joining timeline, and official terms.</>
+                      : <>You have received <strong className="text-white">{offerMatches.length} employment offers</strong>. Please review each official document and provide your response.</>}
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap sm:flex-col gap-2 shrink-0">
+                {offerMatches.map((m) => (
+                  <Link
+                    key={m.id}
+                    to={`/candidate/offers/${m.id}`}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold shadow-sm transition-colors"
+                  >
+                    <FileText className="w-4 h-4" />
+                    Review {offerMatches.length > 1 ? m.job?.title || `Offer #${m.id}` : "Offer Document"}
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Action Alert Banner: Pending Interview Slot Selection ───────── */}
       {pendingSlotInterviews.length > 0 && (
@@ -865,17 +1158,99 @@ export const CandidateDashboard: React.FC = () => {
         >
           <Bell className="h-4 w-4" />
           <span>Updates</span>
-          {notifications.length > 0 && (
-            <span className="ml-1.5 px-1.5 py-0.5 text-[10px] rounded-full bg-indigo-500 text-white font-bold">
+          {unreadCount > 0 ? (
+            <span className="ml-1.5 px-1.5 py-0.5 text-[10px] rounded-full bg-rose-500 text-white font-black animate-pulse">
+              {unreadCount} new
+            </span>
+          ) : notifications.length > 0 ? (
+            <span className="ml-1.5 px-1.5 py-0.5 text-[10px] rounded-full bg-secondary text-muted-foreground font-semibold">
               {notifications.length}
             </span>
-          )}
+          ) : null}
         </button>
       </div>
 
       {/* ── TAB 1: JOB MATCHES & EXPLAINABLE PIPELINE ─────────────────────── */}
       {activeTab === "pipeline" && (
-        <div className="space-y-4">
+        <div className="space-y-5">
+          {/* Visual Analytics: Skill Domain Distribution & Application Progress */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className="p-4 border-border/80 bg-card/70 backdrop-blur-xl shadow-sm space-y-3 min-w-0 overflow-hidden">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                    <Code2 className="h-4 w-4 text-indigo-400" />
+                    Verified Skill Domains
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">Distribution of credentials across industry competencies</p>
+                </div>
+                <Badge variant="outline" className="text-[10px] font-mono">
+                  {profile?.skills?.length || 0} Total
+                </Badge>
+              </div>
+
+              <div className="h-52 sm:h-56 w-full min-w-0 pt-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={skillDomainDistribution} margin={{ top: 10, right: 15, left: -15, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
+                    <XAxis dataKey="domain" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const data = payload[0].payload;
+                        return (
+                          <div className="p-2.5 rounded-lg bg-popover/95 border border-border shadow-lg text-xs">
+                            <span className="font-semibold text-foreground">{data.fullName}</span>
+                            <div className="text-indigo-400 font-bold mt-0.5">{data.count} skill{data.count !== 1 ? "s" : ""}</div>
+                          </div>
+                        );
+                      }}
+                    />
+                    <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            <Card className="p-4 border-border/80 bg-card/70 backdrop-blur-xl shadow-sm space-y-3 min-w-0 overflow-hidden">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                    <Layers className="h-4 w-4 text-emerald-400" />
+                    Active Pipeline Progression
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">Recruitment stages for matched job requisitions</p>
+                </div>
+                <Badge variant="outline" className="text-[10px] font-mono">
+                  {activeApplications.length} Positions
+                </Badge>
+              </div>
+
+              <div className="h-52 sm:h-56 w-full min-w-0 pt-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={pipelineStageDistribution} margin={{ top: 10, right: 15, left: -15, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
+                    <XAxis dataKey="stage" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const data = payload[0].payload;
+                        return (
+                          <div className="p-2.5 rounded-lg bg-popover/95 border border-border shadow-lg text-xs">
+                            <span className="font-semibold text-foreground">{data.stage} Stage</span>
+                            <div className="text-emerald-400 font-bold mt-0.5">{data.count} application{data.count !== 1 ? "s" : ""}</div>
+                          </div>
+                        );
+                      }}
+                    />
+                    <Bar dataKey="count" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </div>
           {visibleMatches.length === 0 ? (
             <Card className="p-12 text-center border-dashed border-border/80 bg-card/40 space-y-4">
               <div className="h-12 w-12 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto">
@@ -943,6 +1318,140 @@ export const CandidateDashboard: React.FC = () => {
                     !isAwaitingSlot &&
                     !isSlotSelected;
 
+                  const isHired = match.status === "hired" || match.pipeline_state === "HIRED";
+                  const isOnHoldDueToHiring = match.pipeline_state === "ON_HOLD_DUE_TO_HIRING";
+
+                  if (isHired) {
+                    const appliedDateStr = match.created_at
+                      ? new Date(match.created_at).toLocaleDateString("en-US", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "10 Aug 2026";
+
+                    const timelineSteps = [
+                      "Application Submitted",
+                      "Candidate Shortlisted",
+                      "Sent to Hiring Manager",
+                      "Interview Round 1",
+                      "Interview Round 2",
+                      "Final Interview",
+                      "Final HM Decision — GO",
+                      "Compensation Finalized",
+                      "Offer Created",
+                      "Offer Approved",
+                      "Offer Sent",
+                      "Offer Accepted",
+                      "HIRED",
+                    ];
+
+                    return (
+                      <Card
+                        key={match.id}
+                        className="p-6 border-2 border-emerald-500/40 bg-card/90 shadow-sm rounded-xl space-y-5"
+                      >
+                        {/* Header: Title, Company, Status: HIRED ✓ */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/70 pb-4">
+                          <div className="space-y-1">
+                            <h3 className="text-xl font-bold font-outfit text-foreground">
+                              {match.job?.title || "Junior Python Developer"}
+                            </h3>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                              <span className="font-semibold text-foreground flex items-center gap-1">
+                                <Building className="h-3.5 w-3.5 text-emerald-500" />
+                                {match.job?.client_name || "XYZ Technologies"}
+                              </span>
+                              {match.job?.department && <span>• {match.job.department}</span>}
+                              {match.job?.location_city && (
+                                <span className="flex items-center gap-1">
+                                  <MapPin className="h-3 w-3" /> {match.job.location_city}
+                                </span>
+                              )}
+                              {match.job?.work_mode && (
+                                <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-secondary text-[11px] font-medium">
+                                  <Laptop className="h-3 w-3 text-primary" /> {match.job.work_mode}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="shrink-0">
+                            <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-bold text-xs">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                              Status: HIRED ✓
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Metadata row */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-lg bg-muted/30 border border-border/60 text-xs">
+                          <div>
+                            <span className="text-muted-foreground block text-[11px] font-medium">Applied</span>
+                            <span className="font-semibold text-foreground mt-0.5 block">{appliedDateStr}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground block text-[11px] font-medium">Interview</span>
+                            <span className="font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5 block">Completed</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground block text-[11px] font-medium">Final Decision</span>
+                            <span className="font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5 block">GO</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground block text-[11px] font-medium">Offer</span>
+                            <span className="font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5 block">Accepted</span>
+                          </div>
+                        </div>
+
+                        {/* Application Timeline */}
+                        <div className="space-y-2.5">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-primary" />
+                            Application Timeline
+                          </h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 text-xs">
+                            {timelineSteps.map((step, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-2 p-2 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-medium text-[11px]"
+                              >
+                                <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0 stroke-[3]" />
+                                <span>✓ {step}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border/70">
+                          <p className="text-xs text-muted-foreground">
+                            Congratulations on completing your recruitment journey!
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Link to={`/candidate/offers/${hiringStatusData?.hiring_details?.offer_id || match.id}`}>
+                              <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8">
+                                <FileText className="w-3.5 h-3.5 text-primary" />
+                                View Offer Letter
+                              </Button>
+                            </Link>
+                            <Link to="/candidate/hiring">
+                              <Button variant="default" size="sm" className="gap-1.5 text-xs h-8 bg-emerald-600 hover:bg-emerald-500 text-white">
+                                <UserCheck className="w-3.5 h-3.5" />
+                                View Hiring Details
+                              </Button>
+                            </Link>
+                            <Link to={`/applications/${match.id}/timeline`}>
+                              <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-8 text-muted-foreground">
+                                Full Journey Log
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  }
+
                   return (
                     <Card
                       key={match.id}
@@ -959,6 +1468,8 @@ export const CandidateDashboard: React.FC = () => {
                               variant={
                                 isRejected
                                   ? "destructive"
+                                  : isOnHoldDueToHiring
+                                  ? "warning"
                                   : isAwaitingSlot
                                   ? "warning"
                                   : match.status === "approved_by_hr" || match.status === "interview_scheduled"
@@ -967,7 +1478,11 @@ export const CandidateDashboard: React.FC = () => {
                               }
                               className="text-[10px] capitalize"
                             >
-                              {isAwaitingSlot ? "Time Slot Choice Needed" : match.status.replace(/_/g, " ")}
+                              {isOnHoldDueToHiring
+                                ? "On Hold (Hired on another role)"
+                                : isAwaitingSlot
+                                ? "Time Slot Choice Needed"
+                                : match.status.replace(/_/g, " ")}
                             </Badge>
                           </div>
 
@@ -1025,7 +1540,7 @@ export const CandidateDashboard: React.FC = () => {
                             match.matched_skills.map((sk) => (
                               <span
                                 key={sk}
-                                className="px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[11px] font-medium"
+                                className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-950 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-800/80 font-semibold text-[11px]"
                               >
                                 ✓ {sk}
                               </span>
@@ -1043,9 +1558,9 @@ export const CandidateDashboard: React.FC = () => {
                             {match.missing_skills.map((sk) => (
                               <span
                                 key={sk}
-                                className="px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-medium"
+                                className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-950 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-800/80 font-semibold text-[11px]"
                               >
-                                - {sk}
+                                ✕ {sk}
                               </span>
                             ))}
                           </div>
@@ -1099,8 +1614,8 @@ export const CandidateDashboard: React.FC = () => {
                       {/* Confirmed Interview Alert Banner */}
                       {isInterviewConfirmed && matchInterview && matchInterview.interview_date && (
                         <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 flex flex-wrap items-center justify-between gap-2 text-xs">
-                          <div className="flex items-center gap-2 text-emerald-300">
-                            <CalendarCheck className="h-4 w-4 text-emerald-400 shrink-0" />
+                          <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-200 font-semibold">
+                            <CalendarCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                             <span>
                               Interview Confirmed: <strong>{new Date(matchInterview.interview_date).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</strong> ({matchInterview.interview_type || "Technical"} Round)
                             </span>
@@ -1116,6 +1631,21 @@ export const CandidateDashboard: React.FC = () => {
                               <Video className="h-3.5 w-3.5" /> Join Meeting
                             </a>
                           )}
+                        </div>
+                      )}
+
+                      {/* On Hold Notification if Candidate was Hired on Another Role */}
+                      {isOnHoldDueToHiring && (
+                        <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 flex items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2.5 text-amber-700 dark:text-amber-300">
+                            <Clock className="h-4 w-4 text-amber-500 shrink-0" />
+                            <span>
+                              This application is currently <strong>On Hold</strong> because you accepted an employment offer for another role. Your application data and full interview history remain safely preserved.
+                            </span>
+                          </div>
+                          <Badge variant="outline" className="border-amber-500/40 text-amber-600 dark:text-amber-400 text-[10px] font-bold uppercase shrink-0">
+                            ON HOLD
+                          </Badge>
                         </div>
                       )}
                     </Card>
@@ -2336,13 +2866,13 @@ export const CandidateDashboard: React.FC = () => {
                                   title={fullSkill?.evidence || `Verified in resume text`}
                                   className={`px-2.5 py-1 rounded-lg text-xs font-medium border flex items-center gap-1.5 cursor-default transition-all ${
                                     inProfile
-                                      ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                                      ? "bg-emerald-50 text-emerald-950 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-800/80 font-semibold"
                                       : "bg-indigo-500/15 border-indigo-500/30 text-indigo-300 hover:border-indigo-400"
                                   }`}
                                 >
                                   <span>{skName}</span>
                                   {inProfile ? (
-                                    <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                                    <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                                   ) : (
                                     <button
                                       type="button"
@@ -2389,7 +2919,7 @@ export const CandidateDashboard: React.FC = () => {
                         {parsedData.education.map((edu, idx) => (
                           <div key={idx} className="p-4 rounded-xl bg-secondary/30 border border-border/60 space-y-2">
                             <div className="flex items-start justify-between gap-2">
-                              <span className="font-bold text-sm text-emerald-300">{edu.degree}</span>
+                              <span className="font-bold text-sm text-emerald-800 dark:text-emerald-200">{edu.degree}</span>
                               {edu.year && <Badge variant="outline" className="text-[10px] shrink-0">{edu.year}</Badge>}
                             </div>
                             <div className="flex items-center justify-between text-xs">
@@ -2708,7 +3238,7 @@ export const CandidateDashboard: React.FC = () => {
                               {inProfile ? (
                                 <Badge
                                   variant="success"
-                                  className="text-[10px] shrink-0 gap-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                                  className="text-[10px] shrink-0 gap-1 bg-emerald-50 text-emerald-950 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-800/80 font-semibold"
                                 >
                                   <Check className="h-3 w-3" />
                                   <span>{profileSkill?.proficiency_level || "Active"}</span>
@@ -2734,7 +3264,7 @@ export const CandidateDashboard: React.FC = () => {
                               </div>
                             ) : (
                               <div className="mt-2 text-[10px] text-muted-foreground/70 italic flex items-center gap-1">
-                                <CheckCircle2 className="h-3 w-3 text-emerald-400/70" />
+                                <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                                 <span>Verified in resume technical competency section</span>
                               </div>
                             )}
@@ -2792,7 +3322,7 @@ export const CandidateDashboard: React.FC = () => {
                         variant="outline"
                         size="sm"
                         onClick={handleApplyExtractedExpToProfile}
-                        className="gap-1.5 text-xs text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/10 shrink-0"
+                        className="gap-1.5 text-xs text-emerald-800 dark:text-emerald-200 border-emerald-500/40 hover:bg-emerald-500/10 shrink-0 font-semibold"
                       >
                         <Check className="h-3.5 w-3.5" />
                         Apply {parsedData.total_experience_years} Yrs to Profile
@@ -3083,66 +3613,381 @@ export const CandidateDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* ── TAB 4: NOTIFICATIONS ─────────────────────────────────────────── */}
+      {/* ── TAB 4: APPLICATION UPDATES & NOTIFICATIONS INTELLIGENCE ────────── */}
       {activeTab === "notifications" && (
-        <Card className="p-6 border-border/80 bg-card/70 backdrop-blur-xl space-y-4">
-          <h3 className="text-base font-bold font-outfit text-foreground flex items-center gap-2">
-            <Bell className="h-4 w-4 text-primary" /> Application Notifications
-          </h3>
-          {notifications.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-6 text-center">
-              No recent notifications.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {notifications.map((n) => {
-                const isInterviewNotif =
-                  n.subject?.toLowerCase().includes("interview") ||
-                  n.subject?.toLowerCase().includes("slot") ||
-                  n.body?.toLowerCase().includes("slot");
+        <div className="space-y-5 animate-in fade-in duration-300">
+          {/* Top Celebration Banner when Offer is present */}
+          {(() => {
+            const hasOffers = offerNotifications.length > 0 || visibleMatches.some(m => m.status === "offer" || m.pipeline_state === "OFFER_SENT");
+            const firstOfferMatch = visibleMatches.find(m => m.status === "offer" || m.pipeline_state === "OFFER_SENT");
+            if (!hasOffers) return null;
 
-                return (
-                  <div
-                    key={n.id}
-                    className={`p-4 rounded-xl border space-y-2 ${
-                      isInterviewNotif
-                        ? "bg-cyan-950/20 border-cyan-500/30"
-                        : "bg-secondary/30 border-border/60"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between text-xs gap-2">
-                      <div className="flex items-center gap-2">
-                        {isInterviewNotif ? (
-                          <CalendarCheck className="h-4 w-4 text-cyan-400 shrink-0" />
-                        ) : (
-                          <Bell className="h-4 w-4 text-primary shrink-0" />
-                        )}
-                        <span className="font-bold text-foreground">{n.subject}</span>
-                      </div>
-                      <span className="text-muted-foreground text-[10px] shrink-0">
-                        {new Date(n.created_at).toLocaleString()}
-                      </span>
+            return (
+              <div className="relative overflow-hidden rounded-2xl border border-amber-500/40 bg-gradient-to-r from-amber-950/40 via-purple-950/30 to-slate-900/90 p-5 sm:p-6 backdrop-blur-xl shadow-lg">
+                <div className="absolute top-0 right-0 -mt-4 -mr-4 w-36 h-36 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+                <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shrink-0">
+                      <Gift className="w-6 h-6 animate-bounce" />
                     </div>
-                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">{n.body}</p>
-
-                    {isInterviewNotif && (
-                      <div className="pt-1 flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => setActiveTab("interviews")}
-                          className="h-7 text-xs bg-cyan-600 hover:bg-cyan-500 text-white font-semibold gap-1.5"
-                        >
-                          <Calendar className="h-3 w-3" />
-                          View Interview Schedule & Select Slot
-                        </Button>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-extrabold uppercase tracking-wider">
+                          Official Employment Offer
+                        </span>
+                        <span className="text-xs text-muted-foreground">• Action Required</span>
                       </div>
+                      <h3 className="text-base sm:text-lg font-bold font-outfit text-foreground">
+                        Congratulations! You have an official offer letter ready for review.
+                      </h3>
+                      <p className="text-xs text-muted-foreground max-w-xl">
+                        {firstOfferMatch?.job?.title ? (
+                          <>Offer extended for <strong className="text-foreground">{firstOfferMatch.job.title}</strong> at <strong className="text-foreground">{firstOfferMatch.job.client_name || "SkillAlign Partner"}</strong>. Please review terms and confirm your joining response.</>
+                        ) : (
+                          <>Your candidacy has reached the final offer stage. Review the extended compensation package and formal documentation below.</>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={triggerOfferConfetti}
+                      className="gap-1.5 text-xs text-amber-400 border-amber-500/40 hover:bg-amber-500/10"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      🎉 Celebrate
+                    </Button>
+                    {firstOfferMatch ? (
+                      <Link
+                        to={`/candidate/offers/${firstOfferMatch.id}`}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-md shadow-amber-500/20 transition-all"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        Review Offer
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() => setActiveTab("pipeline")}
+                        className="gap-1.5 text-xs bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
+                      >
+                        View Matches <ArrowRight className="w-3.5 h-3.5" />
+                      </Button>
                     )}
                   </div>
-                );
-              })}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Main Notifications Card */}
+          <Card className="p-5 sm:p-6 border-border/80 bg-card/70 backdrop-blur-xl shadow-sm space-y-5">
+            {/* Header & Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/60">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-base font-bold font-outfit text-foreground flex items-center gap-2">
+                    <Bell className="h-4 w-4 text-primary" />
+                    Application Updates & Communication
+                  </h3>
+                  {unreadCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500/20 border border-rose-500/40 text-rose-400 animate-pulse">
+                      {unreadCount} Unread
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Official stage transitions, interview scheduling requests, and offer documents
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchData}
+                  className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Refresh
+                </Button>
+                {unreadCount > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isMarkingAll}
+                    onClick={handleMarkAllAsRead}
+                    className="h-8 gap-1.5 text-xs text-primary border-primary/30 hover:bg-primary/10"
+                  >
+                    {isMarkingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}
+                    Mark All Read
+                  </Button>
+                )}
+              </div>
             </div>
-          )}
-        </Card>
+
+            {/* Category Filter Tabs & Unread Toggle */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                <button
+                  type="button"
+                  onClick={() => setNotificationCategory("ALL")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                    notificationCategory === "ALL"
+                      ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                  }`}
+                >
+                  <span>All Updates</span>
+                  <span className="px-1.5 py-0.2 rounded-full bg-primary-foreground/20 text-[10px] font-bold">
+                    {notifications.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setNotificationCategory("OFFERS")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                    notificationCategory === "OFFERS"
+                      ? "bg-amber-500 text-slate-950 shadow-sm shadow-amber-500/20 font-bold"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                  }`}
+                >
+                  <Gift className="h-3.5 w-3.5" />
+                  <span>Offers</span>
+                  {offerNotifications.length > 0 && (
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${notificationCategory === "OFFERS" ? "bg-slate-950/20 text-slate-950" : "bg-amber-500/20 text-amber-300"}`}>
+                      {offerNotifications.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setNotificationCategory("INTERVIEWS")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                    notificationCategory === "INTERVIEWS"
+                      ? "bg-cyan-500 text-slate-950 shadow-sm shadow-cyan-500/20 font-bold"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                  }`}
+                >
+                  <CalendarCheck className="h-3.5 w-3.5" />
+                  <span>Interviews & Slots</span>
+                  {interviewNotifications.length > 0 && (
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${notificationCategory === "INTERVIEWS" ? "bg-slate-950/20 text-slate-950" : "bg-cyan-500/20 text-cyan-300"}`}>
+                      {interviewNotifications.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setNotificationCategory("UPDATES")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                    notificationCategory === "UPDATES"
+                      ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/20 font-bold"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                  }`}
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  <span>Status Milestones</span>
+                  {updateNotifications.length > 0 && (
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${notificationCategory === "UPDATES" ? "bg-white/20 text-white" : "bg-indigo-500/20 text-indigo-300"}`}>
+                      {updateNotifications.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Unread Only filter */}
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-muted-foreground hover:text-foreground shrink-0 select-none">
+                <input
+                  type="checkbox"
+                  checked={unreadOnly}
+                  onChange={(e) => setUnreadOnly(e.target.checked)}
+                  className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+                />
+                <span>Unread Only ({unreadCount})</span>
+              </label>
+            </div>
+
+            {/* Notification List Items */}
+            {filteredNotifications.length === 0 ? (
+              <div className="py-12 text-center border border-dashed border-border/60 rounded-xl space-y-3">
+                <Bell className="h-10 w-10 text-muted-foreground mx-auto opacity-40" />
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-foreground">No Updates Found</h4>
+                  <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                    {unreadOnly
+                      ? "You have read all updates in this category. Uncheck 'Unread Only' to view full communication history."
+                      : "No notifications recorded yet. As your job applications progress, official updates and invitations will appear here."}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredNotifications.map((n) => {
+                  const isOffer =
+                    n.subject?.toLowerCase().includes("offer") ||
+                    n.body?.toLowerCase().includes("offer") ||
+                    n.notification_type?.includes("OFFER");
+
+                  const isInterview =
+                    !isOffer &&
+                    (n.subject?.toLowerCase().includes("interview") ||
+                      n.subject?.toLowerCase().includes("slot") ||
+                      n.body?.toLowerCase().includes("slot") ||
+                      n.notification_type?.includes("INTERVIEW") ||
+                      n.notification_type?.includes("SLOT"));
+
+                  const isUnread = !n.is_read;
+
+                  return (
+                    <div
+                      key={n.id}
+                      className={`p-4 rounded-xl border transition-all duration-200 space-y-3 ${
+                        isOffer
+                          ? "bg-amber-950/20 border-amber-500/30 hover:border-amber-500/50"
+                          : isInterview
+                          ? "bg-cyan-950/20 border-cyan-500/30 hover:border-cyan-500/50"
+                          : "bg-secondary/25 border-border/70 hover:border-border hover:bg-secondary/40"
+                      } ${isUnread ? "ring-1 ring-primary/40 shadow-sm" : ""}`}
+                    >
+                      {/* Top Bar: Icon, Category Badge, Title, Timestamp */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                          <div
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
+                              isOffer
+                                ? "bg-amber-500/15 border-amber-500/30 text-amber-400"
+                                : isInterview
+                                ? "bg-cyan-500/15 border-cyan-500/30 text-cyan-400"
+                                : "bg-indigo-500/15 border-indigo-500/30 text-indigo-400"
+                            }`}
+                          >
+                            {isOffer ? (
+                              <Gift className="w-4 h-4" />
+                            ) : isInterview ? (
+                              <CalendarCheck className="w-4 h-4" />
+                            ) : (
+                              <Layers className="w-4 h-4" />
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap min-w-0">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
+                                isOffer
+                                  ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                                  : isInterview
+                                  ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/30"
+                                  : "bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
+                              }`}
+                            >
+                              {isOffer ? "Employment Offer" : isInterview ? "Interview Request" : "Pipeline Update"}
+                            </span>
+                            <span className="font-bold text-sm text-foreground truncate">
+                              {n.subject}
+                            </span>
+                            {isUnread && (
+                              <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" title="Unread" />
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0 pl-10 sm:pl-0">
+                          <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                          <span className="text-[11px]">
+                            {new Date(n.created_at).toLocaleDateString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Notification Body */}
+                      <p className="text-xs text-foreground/80 leading-relaxed whitespace-pre-wrap pl-1 sm:pl-10">
+                        {n.body}
+                      </p>
+
+                      {/* Action Bar */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/40 pl-1 sm:pl-10">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {isOffer && (
+                            <Link
+                              to={n.match_result_id ? `/candidate/offers/${n.match_result_id}` : "/candidate"}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-sm transition-all"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              View Official Offer Document
+                              <ArrowRight className="w-3 h-3" />
+                            </Link>
+                          )}
+
+                          {isInterview && (
+                            <Button
+                              size="sm"
+                              onClick={() => setActiveTab("interviews")}
+                              className="h-7 text-xs bg-cyan-600 hover:bg-cyan-500 text-white font-semibold gap-1.5"
+                            >
+                              <Calendar className="h-3.5 w-3.5" />
+                              Select Interview Slot / View Calendar
+                            </Button>
+                          )}
+
+                          {!isOffer && !isInterview && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setActiveTab("pipeline")}
+                              className="h-7 text-xs text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/10 gap-1.5"
+                            >
+                              <Eye className="h-3 w-3" />
+                              Track Application Status
+                            </Button>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          {isUnread && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleMarkAsRead(n.id)}
+                              title="Mark as read"
+                              className="h-7 px-2 text-xs text-muted-foreground hover:text-emerald-400 hover:bg-emerald-500/10 gap-1"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline">Mark Read</span>
+                            </Button>
+                          )}
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteNotification(n.id)}
+                            title="Dismiss notification"
+                            className="h-7 px-2 text-xs text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        </div>
       )}
 
       {/* ── Extracted Plain Text (.txt) Modal ─────────────────────────────── */}
@@ -3271,9 +4116,9 @@ export const CandidateDashboard: React.FC = () => {
                         return (
                           <span
                             key={js.id}
-                            className={`text-xs px-2.5 py-1 rounded-lg border font-medium flex items-center gap-1 ${
+                            className={`text-xs px-2.5 py-1 rounded-lg border font-semibold flex items-center gap-1 ${
                               isUserHave
-                                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                                ? "bg-emerald-50 text-emerald-950 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-800/80"
                                 : "bg-secondary text-muted-foreground border-border"
                             }`}
                           >

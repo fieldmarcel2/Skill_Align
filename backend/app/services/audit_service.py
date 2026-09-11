@@ -47,16 +47,50 @@ def log_audit(
     return log_entry
 
 
+from sqlalchemy import func
+
+
+def prune_audit_logs(db: Session, max_keep: int = 50) -> int:
+    """
+    Prunes older audit logs so the table retains at most `max_keep` latest entries.
+    Ensures the Admin activity feed does not grow indefinitely and stays performant.
+    Returns the number of pruned entries.
+    """
+    total_count = db.query(func.count(AuditLog.id)).scalar() or 0
+    if total_count <= max_keep:
+        return 0
+
+    # Get the exact IDs of the max_keep newest records
+    keep_ids = [
+        row[0]
+        for row in db.query(AuditLog.id)
+        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        .limit(max_keep)
+        .all()
+    ]
+
+    if not keep_ids:
+        return 0
+
+    deleted = (
+        db.query(AuditLog)
+        .filter(~AuditLog.id.in_(keep_ids))
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return deleted
+
+
 def list_audit_logs(
     db: Session,
     job_id: Optional[int] = None,
     candidate_id: Optional[int] = None,
     limit: int = 50,
 ) -> List[AuditLog]:
-    """Retrieve audit history filtered by job and/or candidate."""
+    """Retrieve audit history filtered by job and/or candidate, capped at limit."""
     query = db.query(AuditLog)
     if job_id is not None:
         query = query.filter(AuditLog.job_id == job_id)
     if candidate_id is not None:
         query = query.filter(AuditLog.candidate_id == candidate_id)
-    return query.order_by(AuditLog.created_at.desc()).limit(limit).all()
+    return query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(min(limit, 50)).all()

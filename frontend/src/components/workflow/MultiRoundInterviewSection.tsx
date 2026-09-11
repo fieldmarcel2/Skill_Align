@@ -15,6 +15,7 @@ import {
   ArrowRight,
   Loader2,
   ExternalLink,
+  Zap,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
@@ -30,6 +31,7 @@ interface MultiRoundInterviewSectionProps {
   rounds: InterviewWithSlots[];
   onRoundsUpdated: () => void;
   canManageRounds?: boolean;
+  isOfferPhase?: boolean;
 }
 
 export const MultiRoundInterviewSection: React.FC<MultiRoundInterviewSectionProps> = ({
@@ -38,6 +40,7 @@ export const MultiRoundInterviewSection: React.FC<MultiRoundInterviewSectionProp
   rounds,
   onRoundsUpdated,
   canManageRounds = true,
+  isOfferPhase = false,
 }) => {
   const toast = useToast();
   const [isAddRoundOpen, setIsAddRoundOpen] = useState(false);
@@ -45,6 +48,38 @@ export const MultiRoundInterviewSection: React.FC<MultiRoundInterviewSectionProp
   const [roundType, setRoundType] = useState("TECHNICAL");
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fast-Track to Final GO state (Single Round or Direct Offer clearance)
+  const [isFastTrackOpen, setIsFastTrackOpen] = useState(false);
+  const [isFastTracking, setIsFastTracking] = useState(false);
+
+  const handleFastTrackConfirm = async () => {
+    if (rounds.length === 0) return;
+    const latestRound = rounds[rounds.length - 1];
+    setIsFastTracking(true);
+    try {
+      await workflowApi.submitRoundFeedback(
+        latestRound.id,
+        "GO",
+        true,
+        {
+          overall_rating: 5,
+          technical_rating: 5,
+          communication_rating: 5,
+          problem_solving_rating: 5,
+          role_fit_rating: 5,
+        },
+        "Fast-tracked with Final GO to Offer."
+      );
+      toast.success("Candidate fast-tracked to Compensation & Offer phase with Final GO!");
+      setIsFastTrackOpen(false);
+      onRoundsUpdated();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to fast-track candidate to offer.");
+    } finally {
+      setIsFastTracking(false);
+    }
+  };
 
   const handleAddRound = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,6 +110,13 @@ export const MultiRoundInterviewSection: React.FC<MultiRoundInterviewSectionProp
   };
 
   const getStatusBadge = (status: string) => {
+    if (isOfferPhase && (status === "PENDING_SLOT_SELECTION" || status === "PENDING_SCHEDULING" || status === "SCHEDULED" || !status)) {
+      return (
+        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+          <CheckCircle2 className="w-3 h-3" /> Cleared (Advanced to Offer)
+        </span>
+      );
+    }
     switch (status) {
       case "COMPLETED":
         return <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Completed</span>;
@@ -155,6 +197,60 @@ export const MultiRoundInterviewSection: React.FC<MultiRoundInterviewSectionProp
         )}
       </div>
 
+      {/* ── Interview Pipeline Plan Banner (Single Round vs Multi-Round) ── */}
+      <div className="p-3.5 rounded-xl border border-border bg-card/60 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2.5">
+          <span className={`p-2 rounded-lg border ${
+            rounds.length <= 1
+              ? "bg-amber-500/10 text-amber-500 border-amber-500/25"
+              : "bg-blue-500/10 text-blue-500 border-blue-500/25"
+          }`}>
+            {rounds.length <= 1 ? <Zap className="w-4 h-4" /> : <Layers className="w-4 h-4" />}
+          </span>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-foreground">
+                {rounds.length <= 1 ? "Single-Round Assessment Plan" : `Multi-Stage Assessment Pipeline (${rounds.length} Rounds)`}
+              </span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-secondary text-foreground border border-border">
+                {rounds.length <= 1 ? "1 Interview Role" : `${rounds.length} Active Rounds`}
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {rounds.length <= 1
+                ? "This position requires a single comprehensive evaluation. Once concluded, the HM directly grants Final GO to advance to offer drafting."
+                : "This position is evaluated across progressive assessment rounds. Each round is assessed and cleared sequentially."}
+            </p>
+          </div>
+        </div>
+
+        {canManageRounds && !isOfferPhase && (
+          <div className="flex items-center gap-2 shrink-0">
+            {rounds.length > 0 && rounds[rounds.length - 1].round_status !== "PASSED" && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setIsFastTrackOpen(true)}
+                disabled={isFastTracking}
+                className="text-xs h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs cursor-pointer"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                {rounds.length <= 1 ? "Grant Final GO to Offer" : "Fast-Track to Final GO"}
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsAddRoundOpen(true)}
+              className="text-xs h-8 gap-1.5 cursor-pointer"
+            >
+              <PlusCircle className="w-3.5 h-3.5 text-primary" />
+              Add Extra Round
+            </Button>
+          </div>
+        )}
+      </div>
+
       {rounds.length === 0 ? (
         <Card className="p-8 text-center text-muted-foreground border-dashed bg-card/40">
           <Calendar className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-50" />
@@ -217,7 +313,11 @@ export const MultiRoundInterviewSection: React.FC<MultiRoundInterviewSectionProp
                       <div>
                         Interview Date:{" "}
                         <strong className="text-foreground">
-                          {round.interview_date ? new Date(round.interview_date).toLocaleString() : "Not scheduled yet"}
+                          {round.interview_date
+                            ? new Date(round.interview_date).toLocaleString()
+                            : isOfferPhase
+                            ? "Concluded / Advanced to Offer"
+                            : "Not scheduled yet"}
                         </strong>
                       </div>
                       {round.interview_mode && (
@@ -291,8 +391,10 @@ export const MultiRoundInterviewSection: React.FC<MultiRoundInterviewSectionProp
                         )}
                       </div>
                     ) : (
-                      <div className="text-muted-foreground py-2 text-center">
-                        Evaluation pending completion of interview round.
+                      <div className="text-muted-foreground py-2 text-center text-xs">
+                        {isOfferPhase
+                          ? "Round concluded — Candidate advanced to Compensation & Offer stage."
+                          : "Evaluation pending completion of interview round."}
                       </div>
                     )}
                   </div>
@@ -384,6 +486,62 @@ export const MultiRoundInterviewSection: React.FC<MultiRoundInterviewSectionProp
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Fast-Track to Final GO */}
+      <Dialog open={isFastTrackOpen} onOpenChange={setIsFastTrackOpen}>
+        <DialogContent className="sm:max-w-[440px] bg-card border-border shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+              <Zap className="w-5 h-5 text-emerald-500" />
+              {rounds.length <= 1 ? "Grant Final GO & Proceed to Offer" : "Fast-Track to Final GO"}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {rounds.length <= 1
+                ? `Confirm successful completion of the single-round interview for ${candidateName}. This will record a Final GO and advance the candidate directly to Compensation & Offer drafting.`
+                : `Candidate ${candidateName} will be cleared with a Final GO recommendation, concluding the interview evaluation stage and advancing directly to Compensation & Offer drafting.`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-3.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-700 dark:text-emerald-300 space-y-1.5">
+            <div className="font-bold flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              Automated Next Steps:
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              1. Pipeline state transitions to <strong>COMPENSATION_DISCUSSION</strong>.<br />
+              2. Recruiter is notified with high-priority task to structure and draft the offer package.<br />
+              3. Interview rounds for this candidate are marked as successfully concluded.
+            </p>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsFastTrackOpen(false)}
+              disabled={isFastTracking}
+              className="text-xs h-8"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleFastTrackConfirm}
+              disabled={isFastTracking}
+              className="gap-1.5 text-xs h-8 bg-emerald-600 hover:bg-emerald-500 text-white"
+            >
+              {isFastTracking ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <CheckCircle2 className="w-3.5 h-3.5" />
+              )}
+              Confirm Final GO
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

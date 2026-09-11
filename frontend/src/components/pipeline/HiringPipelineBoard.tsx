@@ -409,7 +409,7 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
       <div className="space-y-1.5 pt-0.5">
         {resumeSkills.length > 0 ? (
           <div>
-            <div className="flex items-center gap-1 text-[9px] font-bold text-emerald-400 uppercase tracking-wider mb-1">
+            <div className="flex items-center gap-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-1">
               <Sparkles className="h-2.5 w-2.5" /> Verified Resume Skills:
             </div>
             <div className="flex flex-wrap gap-1">
@@ -420,17 +420,17 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
                   <span
                     key={rs.id || rs.skill_id || sName}
                     title={evText ? `Resume Context: "${evText}"` : "Extracted from candidate resume"}
-                    className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 truncate max-w-[115px] flex items-center gap-1 cursor-help"
+                    className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-950 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-800/80 truncate max-w-[115px] flex items-center gap-1 cursor-help shadow-xs"
                   >
                     <span>{sName}</span>
-                    <span className="text-[7px] px-0.5 py-0 rounded bg-emerald-500/30 text-emerald-200 font-mono">
+                    <span className="text-[7px] px-1 py-0 rounded bg-emerald-200/90 text-emerald-950 dark:bg-emerald-900/90 dark:text-emerald-100 font-mono font-bold">
                       Resume
                     </span>
                   </span>
                 );
               })}
               {resumeSkills.length > 3 && (
-                <span className="text-[9px] px-1 py-0.5 text-emerald-400 font-bold self-center">
+                <span className="text-[9px] px-1 py-0.5 text-emerald-700 dark:text-emerald-400 font-bold self-center">
                   +{resumeSkills.length - 3}
                 </span>
               )}
@@ -514,9 +514,9 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
         )}
 
         {isInterviewConfirmed && (
-          <div className="flex items-center justify-between gap-1.5 p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-300">
+          <div className="flex items-center justify-between gap-1.5 p-1.5 rounded-lg bg-emerald-50 text-emerald-950 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-800/80 text-[11px] font-semibold">
             <span className="flex items-center gap-1 font-semibold">
-              <CalendarCheck className="h-3.5 w-3.5" /> Confirmed
+              <CalendarCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> Confirmed
             </span>
             <Button
               size="sm"

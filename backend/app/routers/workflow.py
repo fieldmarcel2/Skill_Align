@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.database.session import get_db
 from app.core.dependencies import (
@@ -49,7 +49,9 @@ from app.schemas.workflow import (
     HMFeedbackRequest,
     CreateOfferRequest,
     UpdateOfferRequest,
+    HMUpdateOfferRequest,
     OfferRespondRequest,
+    OfferStatsOut,
     WorkflowStateOut,
     InterviewWithSlotsOut,
     InterviewSlotOut,
@@ -96,6 +98,49 @@ def _get_active_interview(db: Session, match_result: MatchResult) -> Interview:
             detail="No interview found for this application.",
         )
     return interview
+
+
+def _complete_tasks_for_match(db: Session, match_result_id: int, action_types: Optional[list] = None):
+    try:
+        from datetime import datetime, timezone
+        q = db.query(RecruitmentTask).filter(
+            RecruitmentTask.match_result_id == match_result_id,
+            RecruitmentTask.status == "OPEN",
+        )
+        if action_types:
+            q = q.filter(RecruitmentTask.action_type.in_(action_types))
+        tasks = q.all()
+        for t in tasks:
+            t.status = "COMPLETED"
+            t.completed_at = datetime.now(timezone.utc)
+        if tasks:
+            db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to auto-complete recruitment tasks for match {match_result_id}: {e}")
+
+
+@router.post(
+    "/tasks/{task_id}/complete",
+    status_code=status.HTTP_200_OK,
+    summary="Mark an Action Center task as completed",
+)
+def complete_workflow_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_recruiter),
+):
+    from datetime import datetime, timezone
+    if task_id < 0:
+        return {"status": "success", "task_id": task_id, "message": "Item marked completed"}
+    
+    task = db.query(RecruitmentTask).filter(RecruitmentTask.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    
+    task.status = "COMPLETED"
+    task.completed_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"status": "success", "task_id": task.id, "message": "Task completed successfully"}
 
 
 def _interview_with_slots_out(interview: Interview) -> InterviewWithSlotsOut:
@@ -195,6 +240,16 @@ def _offer_out(offer: Offer) -> OfferOut:
         salary_min=float(offer.salary_min) if offer.salary_min else None,
         salary_max=float(offer.salary_max) if offer.salary_max else None,
         proposed_salary=float(offer.proposed_salary) if offer.proposed_salary else None,
+        fixed_compensation=float(offer.fixed_compensation) if getattr(offer, 'fixed_compensation', None) else None,
+        variable_compensation=float(offer.variable_compensation) if getattr(offer, 'variable_compensation', None) else None,
+        total_compensation=float(offer.total_compensation) if getattr(offer, 'total_compensation', None) else (float(offer.proposed_salary) if offer.proposed_salary else None),
+        bonus=float(offer.bonus) if getattr(offer, 'bonus', None) else None,
+        joining_bonus=float(offer.joining_bonus) if getattr(offer, 'joining_bonus', None) else None,
+        other_benefits=getattr(offer, 'other_benefits', None),
+        notice_period=getattr(offer, 'notice_period', None),
+        expected_joining_date=getattr(offer, 'expected_joining_date', None),
+        override_reason=getattr(offer, 'override_reason', None),
+        override_approved_by=getattr(offer, 'override_approved_by', None),
         role_scope=offer.role_scope,
         employment_type=offer.employment_type,
         joining_date=offer.joining_date,
@@ -207,15 +262,21 @@ def _offer_out(offer: Offer) -> OfferOut:
         sent_at=offer.sent_at,
         responded_at=offer.responded_at,
         candidate_response_note=offer.candidate_response_note,
+        accepted_at=getattr(offer, 'accepted_at', None),
+        rejected_at=getattr(offer, 'rejected_at', None),
+        rejection_reason=getattr(offer, 'rejection_reason', None),
         created_at=offer.created_at,
         updated_at=offer.updated_at,
         # Offer approval workflow fields
         workflow_state=getattr(offer, 'workflow_state', offer.status),
+        submitted_to_hm_at=getattr(offer, 'submitted_to_hm_at', None),
         approved_by=getattr(offer, 'approved_by', None),
         approved_at=getattr(offer, 'approved_at', None),
+        hm_approved_at=getattr(offer, 'hm_approved_at', None),
         hm_comments=getattr(offer, 'hm_comments', None),
         recruiter_comments=getattr(offer, 'recruiter_comments', None),
-        # PDF fields
+        # PDF fields & versioning
+        pdf_version=getattr(offer, 'pdf_version', 1) or 1,
         pdf_file_name=getattr(offer, 'pdf_file_name', None),
         pdf_file_size=getattr(offer, 'pdf_file_size', None),
         pdf_generated_at=getattr(offer, 'pdf_generated_at', None),
@@ -262,6 +323,7 @@ def shortlist_candidate(
     """Recruiter shortlists a matched candidate. Transition: CANDIDATE_MATCHED → CANDIDATE_SHORTLISTED."""
     mr = _get_match_result_or_404(db, match_id)
     mr = workflow_service.shortlist_candidate(db, mr, current_user, note=data.note)
+    _complete_tasks_for_match(db, mr.id, ["SCREEN_CANDIDATE"])
     return WorkflowStateOut(
         match_result_id=mr.id,
         pipeline_state=mr.pipeline_state,
@@ -289,6 +351,7 @@ def submit_to_hm(
         hiring_manager_id=data.hiring_manager_id,
         note=data.note,
     )
+    _complete_tasks_for_match(db, mr.id, ["SUBMIT_TO_HM", "SCREEN_CANDIDATE"])
     return WorkflowStateOut(
         match_result_id=mr.id,
         pipeline_state=mr.pipeline_state,
@@ -348,6 +411,7 @@ def send_slots_to_candidate(
         logger.warning(f"Failed to send slot selection email: {e}")
 
     db.refresh(interview)
+    _complete_tasks_for_match(db, mr.id, ["SEND_SLOTS_TO_CANDIDATE", "SLOTS_PROPOSAL"])
     return _interview_with_slots_out(interview)
 
 
@@ -381,6 +445,8 @@ def confirm_interview(
             )
     except Exception as e:
         logger.warning(f"Failed to send confirmation email: {e}")
+
+    _complete_tasks_for_match(db, mr.id, ["CONFIRM_INTERVIEW", "BOOKING_CONFIRMATION"])
 
     return WorkflowStateOut(
         match_result_id=mr.id,
@@ -466,6 +532,14 @@ def create_offer(
         salary_min=data.salary_min,
         salary_max=data.salary_max,
         salary_currency=data.salary_currency,
+        fixed_compensation=data.fixed_compensation,
+        variable_compensation=data.variable_compensation,
+        total_compensation=data.total_compensation,
+        bonus=data.bonus,
+        joining_bonus=data.joining_bonus,
+        other_benefits=data.other_benefits,
+        notice_period=data.notice_period,
+        expected_joining_date=data.expected_joining_date,
         role_scope=data.role_scope,
         employment_type=data.employment_type,
         joining_date=data.joining_date,
@@ -474,6 +548,7 @@ def create_offer(
         location=data.location,
         work_mode=data.work_mode,
         additional_terms=data.additional_terms,
+        override_reason=data.override_reason,
     )
     return _offer_out(offer)
 
@@ -560,6 +635,8 @@ def request_interview(
         db, mr, current_user, slots=slots_data,
         interview_type=data.interview_type,
         meeting_link=data.meeting_link,
+        interview_structure=data.interview_structure or "single_round",
+        round_name=data.round_name,
     )
     db.refresh(interview)
     return _interview_with_slots_out(interview)
@@ -645,6 +722,33 @@ def candidate_select_slot(
 # ─────────────────────────────────────────────────────────────────────────────
 
 @offer_router.get(
+    "/stats",
+    response_model=OfferStatsOut,
+    summary="Get count of offers across states",
+)
+def get_offer_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_hr_or_recruiter),
+):
+    """Returns real-time offer counts by workflow state for dashboard metrics."""
+    from sqlalchemy import func
+    results = db.query(Offer.workflow_state, func.count(Offer.id)).group_by(Offer.workflow_state).all()
+    count_map = {k: v for k, v in results}
+    return OfferStatsOut(
+        draft=count_map.get("DRAFT", 0),
+        pending_hm_review=count_map.get("PENDING_HM_REVIEW", 0),
+        hm_changes_requested=count_map.get("HM_CHANGES_REQUESTED", 0),
+        hm_approved=count_map.get("HM_APPROVED", 0),
+        offer_ready=count_map.get("OFFER_READY", 0),
+        sent=count_map.get("SENT", 0),
+        accepted=count_map.get("ACCEPTED", 0),
+        rejected=count_map.get("REJECTED", 0),
+        expired=count_map.get("EXPIRED", 0),
+        total=sum(count_map.values()),
+    )
+
+
+@offer_router.get(
     "/pending-review",
     response_model=List[OfferOut],
     summary="HM: List offers pending HM review",
@@ -672,6 +776,41 @@ def get_pending_hm_offers(
 
 
 @offer_router.get(
+    "",
+    response_model=List[OfferOut],
+    summary="List offers filtered by workflow state/status",
+)
+def list_offers(
+    status: Optional[str] = Query(None, description="Filter by status or workflow_state"),
+    job_id: Optional[int] = Query(None),
+    access_token: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Returns offers filtered by status for interactive dashboard drill-down."""
+    if not current_user and access_token:
+        try:
+            from app.core.security import decode_access_token
+            payload = decode_access_token(access_token)
+            if payload and "sub" in payload:
+                current_user = db.query(User).filter(User.email == payload["sub"]).first()
+        except Exception:
+            pass
+
+    query = db.query(Offer)
+    if job_id:
+        query = query.filter(Offer.job_id == job_id)
+    if status and status.upper() != "ALL":
+        st = status.upper()
+        if st == "HM_APPROVED":
+            query = query.filter(Offer.workflow_state.in_(("HM_APPROVED", "OFFER_READY")))
+        else:
+            query = query.filter(or_(Offer.workflow_state == st, Offer.status == st))
+    offers = query.order_by(Offer.updated_at.desc()).all()
+    return [_offer_out(o) for o in offers]
+
+
+@offer_router.get(
     "/{offer_id}",
     response_model=OfferOut,
     summary="Get offer details",
@@ -679,10 +818,24 @@ def get_pending_hm_offers(
 def get_offer(
     offer_id: int,
     token: Optional[str] = Query(None),
+    access_token: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
+    # Authenticate via access_token if current_user is None
+    if not current_user and access_token:
+        try:
+            from app.core.security import decode_access_token
+            payload = decode_access_token(access_token)
+            if payload and "sub" in payload:
+                current_user = db.query(User).filter(User.email == payload["sub"]).first()
+        except Exception:
+            pass
+
     offer = db.query(Offer).filter(Offer.id == offer_id).first()
+    if not offer:
+        # Fallback: check if offer_id is match_result_id
+        offer = db.query(Offer).filter(Offer.match_result_id == offer_id).first()
     if not offer:
         raise HTTPException(status_code=404, detail="Offer not found.")
 
@@ -700,7 +853,9 @@ def get_offer(
         elif role not in ("HR", "Recruiter", "Admin"):
             raise HTTPException(status_code=403, detail="Access denied.")
     else:
-        raise HTTPException(status_code=401, detail="Authentication required.")
+        # Public candidate view: if offer is already SENT, ACCEPTED, or REJECTED
+        if offer.status not in ("SENT", "ACCEPTED", "REJECTED"):
+            raise HTTPException(status_code=401, detail="Authentication required.")
 
     return _offer_out(offer)
 
@@ -724,7 +879,7 @@ def get_offer_by_match(
 @offer_router.patch(
     "/{offer_id}",
     response_model=OfferOut,
-    summary="Recruiter: Update a DRAFT offer",
+    summary="Recruiter: Update a DRAFT or approved offer",
 )
 def update_offer(
     offer_id: int,
@@ -735,21 +890,110 @@ def update_offer(
     offer = db.query(Offer).filter(Offer.id == offer_id).first()
     if not offer:
         raise HTTPException(status_code=404, detail="Offer not found.")
-    editable_states = ["DRAFT", "HM_CHANGES_REQUESTED"]
+
+    editable_states = ["DRAFT", "HM_CHANGES_REQUESTED", "HM_APPROVED", "OFFER_READY"]
     current_state = getattr(offer, 'workflow_state', offer.status) or offer.status
     if current_state not in editable_states and offer.status != "DRAFT":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only DRAFT or HM_CHANGES_REQUESTED offers can be edited.",
+            detail=f"Offers in state '{current_state}' cannot be edited.",
         )
+
+    # Validate salary band
+    s_min = data.salary_min if data.salary_min is not None else (float(offer.salary_min) if offer.salary_min else None)
+    s_max = data.salary_max if data.salary_max is not None else (float(offer.salary_max) if offer.salary_max else None)
+    p_sal = data.proposed_salary if data.proposed_salary is not None else (float(offer.proposed_salary) if offer.proposed_salary else None)
+    o_reason = data.override_reason or offer.override_reason
+
+    if s_min is not None and s_max is not None and p_sal is not None:
+        if p_sal < s_min or p_sal > s_max:
+            if not o_reason or not o_reason.strip():
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Proposed salary ({p_sal:,.0f}) is outside configured band ({s_min:,.0f} – {s_max:,.0f}). An explicit override reason is required.",
+                )
+
+    old_sal = float(offer.proposed_salary) if offer.proposed_salary else None
+    mr = db.query(MatchResult).filter(MatchResult.id == offer.match_result_id).first()
+    now = datetime.now(timezone.utc)
+
+    # If recruiter alters an already approved offer -> invalidate HM approval!
+    was_approved = current_state in ("HM_APPROVED", "OFFER_READY")
+    if was_approved:
+        offer.workflow_state = "PENDING_HM_REVIEW"
+        offer.status = "PENDING_HM_REVIEW"
+        offer.approved_by = None
+        offer.approved_at = None
+        offer.hm_approved_at = None
+        offer.pdf_version = (offer.pdf_version or 1) + 1
+        offer.pdf_storage_key = None
+        offer.pdf_file_name = None
+
+        if mr and mr.hiring_manager_id:
+            _create_notification(
+                db, mr.hiring_manager_id,
+                subject="⚠️ Approved Offer Modified by Recruiter — Re-approval Required",
+                body=f"Recruiter {current_user.name} modified terms for {mr.candidate.full_name if mr.candidate else 'candidate'}. Please review and re-approve.",
+                notification_type="OFFER_REVIEW_REQUIRED",
+                match_result_id=mr.id,
+            )
 
     update_data = data.model_dump(exclude_none=True)
     for key, value in update_data.items():
         setattr(offer, key, value)
 
+    # Recalculate total compensation if not explicitly provided
+    if not offer.total_compensation:
+        comp_parts = [c for c in [offer.fixed_compensation, offer.variable_compensation, offer.bonus, offer.joining_bonus] if c is not None]
+        if comp_parts:
+            offer.total_compensation = sum(comp_parts)
+        else:
+            offer.total_compensation = offer.proposed_salary
+
+    # Audit compensation update if salary changed
+    if p_sal is not None and old_sal is not None and p_sal != old_sal and mr:
+        _create_audit_log(
+            db, current_user.id, "COMPENSATION_UPDATED", mr,
+            from_state=mr.pipeline_state, to_state=mr.pipeline_state,
+            details=json.dumps({
+                "old_value": old_sal,
+                "new_value": p_sal,
+                "currency": offer.salary_currency,
+                "actor": current_user.name,
+                "reason": o_reason or "Recruiter updated offer details",
+                "timestamp": now.isoformat(),
+            }),
+        )
+
     db.commit()
     db.refresh(offer)
     return _offer_out(offer)
+
+
+@offer_router.patch(
+    "/{offer_id}/hm-edit",
+    response_model=OfferOut,
+    summary="HM: Edit permitted offer fields during review",
+)
+def hm_edit_offer_endpoint(
+    offer_id: int,
+    data: HMUpdateOfferRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_hr),
+):
+    """Hiring Manager updates permitted offer terms before approving or requesting changes."""
+    offer = db.query(Offer).filter(Offer.id == offer_id).first()
+    if not offer:
+        raise HTTPException(status_code=404, detail="Offer not found.")
+    mr = _get_match_result_or_404(db, offer.match_result_id)
+    updated = workflow_service.hm_update_offer(
+        db=db,
+        offer=offer,
+        match_result=mr,
+        hm_user=current_user,
+        data=data.model_dump(exclude_none=True),
+    )
+    return _offer_out(updated)
 
 
 @offer_router.post(
@@ -851,54 +1095,283 @@ def get_timeline(
     summary="Recruiter: Get Action Center — all pending workflow actions",
 )
 def get_action_center(
+    job_id: Optional[int] = Query(None, description="Filter tasks by Job Requisition ID"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_recruiter),
 ):
-    """Returns all open workflow action tasks for the current recruiter, ordered by priority."""
-    tasks = (
-        db.query(RecruitmentTask)
-        .filter(
-            RecruitmentTask.assigned_to == current_user.id,
-            RecruitmentTask.status == "OPEN",
-            RecruitmentTask.action_type.in_([
-                "SEND_SLOTS_TO_CANDIDATE",
-                "CONFIRM_INTERVIEW",
-                "CREATE_OFFER",
-                "SEND_OFFER",
-            ]),
-        )
-        .order_by(RecruitmentTask.created_at.desc())
-        .all()
-    )
+    """Returns all open workflow action tasks for the recruiter or assigned jobs, ordered by priority."""
+    from app.models.job_recruiter_assignment import JobRecruiterAssignment
+
+    # Determine assigned job IDs for this user
+    is_elevated = current_user.role.name in ("Admin", "HR")
+    assigned_job_ids = []
+    if not is_elevated:
+        assigned_job_ids = [
+            r[0] for r in db.query(JobRecruiterAssignment.job_id)
+            .filter(JobRecruiterAssignment.recruiter_id == current_user.id)
+            .all()
+        ]
+
+    # Query tasks with eager loading to eliminate N+1 queries
+    task_q = db.query(RecruitmentTask).options(
+        joinedload(RecruitmentTask.candidate),
+        joinedload(RecruitmentTask.job),
+    ).filter(RecruitmentTask.status == "OPEN")
+    if isinstance(job_id, int):
+        task_q = task_q.filter(RecruitmentTask.job_id == job_id)
+    elif not is_elevated:
+        if assigned_job_ids:
+            task_q = task_q.filter(
+                or_(
+                    RecruitmentTask.assigned_to == current_user.id,
+                    RecruitmentTask.job_id.in_(assigned_job_ids),
+                )
+            )
+        else:
+            task_q = task_q.filter(RecruitmentTask.assigned_to == current_user.id)
+
+    tasks = task_q.order_by(RecruitmentTask.created_at.desc()).all()
 
     result = []
+    covered_match_ids = set()
+
+    TERMINAL_STATES = {"HIRED", "REJECTED", "WITHDRAWN", "BLACKLISTED", "ON_HOLD_DUE_TO_HIRING"}
+
     for task in tasks:
         candidate_name = None
+        candidate_id = None
         job_title = task.job.title if task.job else None
+        job_item_id = task.job_id
         pipeline_state = None
 
         if task.candidate:
             candidate_name = task.candidate.full_name
+            candidate_id = task.candidate.id
+            if getattr(task.candidate, "hiring_status", None) == "HIRED":
+                # Candidate is already hired; skip pre-hire open tasks
+                continue
 
-        if task.match_result_id:
-            mr = db.query(MatchResult).filter(MatchResult.id == task.match_result_id).first()
+        actual_match_id = task.match_result_id
+        if actual_match_id:
+            covered_match_ids.add(actual_match_id)
+            mr = db.query(MatchResult).filter(MatchResult.id == actual_match_id).first()
             if mr:
                 pipeline_state = mr.pipeline_state
+                if pipeline_state in TERMINAL_STATES or mr.status in ("hired", "rejected", "withdrawn", "on_hold"):
+                    # Match is finalized or on hold; skip obsolete task
+                    continue
+                if not candidate_id and mr.candidate_id:
+                    candidate_id = mr.candidate_id
+                if not candidate_name and mr.candidate:
+                    candidate_name = mr.candidate.full_name
+                if not job_title and mr.job:
+                    job_title = mr.job.title
+                if not job_item_id:
+                    job_item_id = mr.job_id
+        elif candidate_id and job_item_id:
+            # Fallback: Task was created with candidate_id and job_id without explicit match_result_id
+            mr = db.query(MatchResult).filter(
+                MatchResult.candidate_id == candidate_id,
+                MatchResult.job_id == job_item_id,
+            ).first()
+            if mr:
+                pipeline_state = mr.pipeline_state
+                actual_match_id = mr.id
+                covered_match_ids.add(mr.id)
+                if not job_title and mr.job:
+                    job_title = mr.job.title
 
         result.append(ActionCenterItem(
             task_id=task.id,
             action_type=task.action_type or "GENERAL",
             title=task.title,
             description=task.description,
-            priority=task.priority,
-            match_result_id=task.match_result_id,
+            priority=task.priority or "MEDIUM",
+            match_result_id=actual_match_id,
+            candidate_id=candidate_id,
             candidate_name=candidate_name,
+            job_id=job_item_id,
             job_title=job_title,
             pipeline_state=pipeline_state,
             due_at=task.due_at,
             created_at=task.created_at,
         ))
+
+    # Also dynamically discover matches in actionable stages not covered by existing open tasks
+    mr_q = db.query(MatchResult).options(
+        joinedload(MatchResult.candidate),
+        joinedload(MatchResult.job),
+    )
+    if job_id:
+        mr_q = mr_q.filter(MatchResult.job_id == job_id)
+    elif not is_elevated and assigned_job_ids:
+        mr_q = mr_q.filter(MatchResult.job_id.in_(assigned_job_ids))
+
+    actionable_states = [
+        "CANDIDATE_MATCHED",
+        "CANDIDATE_SHORTLISTED",
+        "HIRING_MANAGER_REVIEW",
+        "INTERVIEW_SLOTS_PROPOSED",
+        "CANDIDATE_SLOT_SELECTED",
+        "WAITING_FOR_HM_FEEDBACK",
+        "INTERVIEW_COMPLETED",
+        "INTERVIEW_GO",
+        "COMPENSATION_DISCUSSION",
+        "OFFER_CREATED",
+    ]
+    candidate_matches = (
+        mr_q.filter(
+            or_(
+                MatchResult.pipeline_state.in_(actionable_states),
+                MatchResult.status.in_(["matched", "screened"]),
+            ),
+            MatchResult.pipeline_state.notin_(["HIRED", "REJECTED", "WITHDRAWN", "BLACKLISTED", "ON_HOLD_DUE_TO_HIRING"]),
+            MatchResult.status.notin_(["hired", "rejected", "withdrawn", "on_hold"]),
+        )
+        .order_by(MatchResult.overall_score.desc())
+        .all()
+    )
+
+    # Track how many screening tasks have been created per candidate to avoid spamming
+    # redundant identical screening tasks across dozens of requisitions
+    candidate_screening_counts: dict[int, int] = {}
+
+    for mr in candidate_matches:
+        if mr.id in covered_match_ids:
+            continue
+        if mr.candidate and getattr(mr.candidate, "hiring_status", None) == "HIRED":
+            # Candidate is already hired on another requisition; do not generate active tasks
+            continue
+
+        p_state = mr.pipeline_state or "CANDIDATE_MATCHED"
+        act_type = "GENERAL"
+        prio = "MEDIUM"
+        c_name = mr.candidate.full_name if mr.candidate else "Candidate"
+        title = f"Action Required: {c_name}"
+        desc = "Follow up with candidate in recruitment workflow"
+
+        if p_state in ("CANDIDATE_MATCHED",) or mr.status == "matched":
+            # Only include qualified candidate matches (>= 60% match score) in Action Center
+            match_score = float(mr.overall_score or 0)
+            if match_score < 60.0:
+                continue
+
+            # Cap screening tasks to top 2 best-fit matches per candidate to prevent redundancy
+            c_id = mr.candidate_id or 0
+            if candidate_screening_counts.get(c_id, 0) >= 2:
+                continue
+            candidate_screening_counts[c_id] = candidate_screening_counts.get(c_id, 0) + 1
+
+            act_type = "SCREEN_CANDIDATE"
+            prio = "MEDIUM"  # STANDARD priority (not High/Urgent) for initial match screening
+            title = f"Screen Candidate: {c_name}"
+            desc = f"Review candidate match ({int(match_score)}% alignment) for {mr.job.title if mr.job else 'requisition'}"
+        elif p_state == "CANDIDATE_SHORTLISTED":
+            act_type = "SUBMIT_TO_HM"
+            prio = "HIGH"
+            title = f"Submit to HM: {c_name}"
+            desc = "Candidate is shortlisted. Forward to hiring manager for review"
+        elif p_state == "INTERVIEW_SLOTS_PROPOSED":
+            act_type = "SEND_SLOTS_TO_CANDIDATE"
+            prio = "HIGH"
+            title = f"Send Proposed Slots: {c_name}"
+            desc = "Interview slots have been formulated. Send them to candidate"
+        elif p_state == "CANDIDATE_SLOT_SELECTED":
+            act_type = "CONFIRM_INTERVIEW"
+            prio = "URGENT"
+            title = f"Confirm Interview Slot: {c_name}"
+            desc = "Candidate selected an interview slot. Confirm booking"
+        elif p_state in ("WAITING_FOR_HM_FEEDBACK", "INTERVIEW_COMPLETED"):
+            act_type = "COLLECT_FEEDBACK"
+            prio = "HIGH"
+            title = f"Collect HM Feedback: {c_name}"
+            desc = "Interview has completed. Follow up with hiring manager for GO/NO-GO evaluation"
+        elif p_state in ("INTERVIEW_GO", "COMPENSATION_DISCUSSION"):
+            act_type = "CREATE_OFFER"
+            prio = "URGENT"
+            title = f"Draft Employment Offer: {c_name}"
+            desc = "Candidate passed interviews with GO decision. Prepare formal offer"
+        elif p_state == "OFFER_CREATED":
+            act_type = "SEND_OFFER"
+            prio = "URGENT"
+            title = f"Send Formal Offer: {c_name}"
+            desc = "Offer document drafted and ready to be dispatched to candidate"
+
+        result.append(ActionCenterItem(
+            task_id=-mr.id,
+            action_type=act_type,
+            title=title,
+            description=desc,
+            priority=prio,
+            match_result_id=mr.id,
+            candidate_id=mr.candidate_id,
+            candidate_name=c_name,
+            job_id=mr.job_id,
+            job_title=mr.job.title if mr.job else None,
+            pipeline_state=p_state,
+            due_at=None,
+            created_at=getattr(mr, "matched_at", None) or getattr(mr, "updated_at", None) or datetime.now(timezone.utc),
+        ))
+
     return result
+
+
+@router.get(
+    "/action-center/count",
+    summary="Recruiter: Get Action Center item counts for badge polling",
+)
+def get_action_center_count(
+    job_id: Optional[int] = Query(None, description="Filter tasks by Job Requisition ID"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_recruiter),
+):
+    """Returns lightweight count of pending actions for efficient sidebar polling without fetching the entire list."""
+    items = get_action_center(job_id=job_id, db=db, current_user=current_user)
+    urgent_count = sum(1 for item in items if item.priority == "URGENT")
+    high_count = sum(1 for item in items if item.priority == "HIGH")
+    standard_count = sum(1 for item in items if item.priority not in ("URGENT", "HIGH"))
+    return {
+        "count": len(items),
+        "urgent_count": urgent_count,
+        "high_count": high_count,
+        "standard_count": standard_count,
+    }
+
+
+@router.get(
+    "/recent-activity",
+    response_model=List[AuditLogOut],
+    summary="Recruiter: Get recent recruitment activity logs",
+)
+def get_recent_activity(
+    job_id: Optional[int] = Query(None, description="Filter activity by Job Requisition ID"),
+    limit: int = Query(20, le=50),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_recruiter),
+):
+    """Returns recent recruitment pipeline transitions and audit events."""
+    q = db.query(AuditLog)
+    if job_id:
+        m_ids = [r[0] for r in db.query(MatchResult.id).filter(MatchResult.job_id == job_id).all()]
+        if m_ids:
+            q = q.filter(AuditLog.entity_type == "MatchResult", AuditLog.entity_id.in_(m_ids))
+        else:
+            return []
+    logs = q.order_by(AuditLog.created_at.desc()).limit(limit).all()
+    return [
+        AuditLogOut(
+            id=log.id,
+            actor_id=log.actor_id,
+            actor_name=log.actor.name if log.actor else "System",
+            action=log.action,
+            entity_type=log.entity_type,
+            from_state=log.from_state,
+            to_state=log.to_state,
+            details=log.details,
+            created_at=log.created_at,
+        )
+        for log in logs
+    ]
 
 
 @router.get(
@@ -1256,27 +1729,90 @@ def generate_pdf_offer(
 
 @offer_router.get(
     "/{offer_id}/pdf",
-    summary="Recruiter/HM: Download generated offer PDF",
+    summary="Download or view generated offer PDF (Candidate, Recruiter, HR, Admin, or via token)",
 )
 def download_offer_pdf(
     offer_id: int,
+    token: Optional[str] = Query(None),
+    access_token: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_hr_or_recruiter),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """Download the generated offer letter PDF (HR/Recruiter access)."""
+    """View/Download the official offer letter PDF with S3 persistence and role authorization."""
     from fastapi.responses import Response
+
+    if not current_user and access_token:
+        try:
+            from app.core.security import decode_access_token
+            payload = decode_access_token(access_token)
+            if payload and "sub" in payload:
+                current_user = db.query(User).filter(User.email == payload["sub"]).first()
+        except Exception:
+            pass
 
     offer = db.query(Offer).filter(Offer.id == offer_id).first()
     if not offer:
+        offer = db.query(Offer).filter(Offer.match_result_id == offer_id).first()
+    if not offer:
         raise HTTPException(status_code=404, detail="Offer not found.")
 
-    pdf_bytes = workflow_service.get_offer_pdf_bytes(offer)
+    # Authorization check
+    is_authorized = False
+    if token and offer.offer_token and token.strip() == offer.offer_token:
+        is_authorized = True
+    elif current_user:
+        if current_user.role.name in ("Admin", "HR", "Recruiter"):
+            is_authorized = True
+        elif current_user.role.name == "Candidate":
+            if offer.candidate and offer.candidate.user_id == current_user.id:
+                is_authorized = True
+    elif offer.status in ("SENT", "ACCEPTED", "OFFER_READY", "HM_APPROVED"):
+        is_authorized = True
+
+    if not is_authorized:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unauthorized to access this offer letter.",
+        )
+
+    pdf_bytes = None
+    if offer.pdf_storage_key:
+        try:
+            pdf_bytes = workflow_service.get_offer_pdf_bytes(offer)
+        except Exception:
+            pdf_bytes = None
+
+    if not pdf_bytes:
+        # Generate on demand using OfferPDFService and save to S3/storage
+        from app.services.offer_pdf_service import OfferPDFService
+        from app.services.storage.storage_manager import get_storage
+        recruiter = offer.creator or db.query(User).first()
+        hm_user = offer.match_result.hiring_manager if offer.match_result else None
+        pdf_bytes = OfferPDFService.generate(
+            offer=offer,
+            candidate=offer.candidate,
+            job=offer.job,
+            recruiter=recruiter,
+            hm_user=hm_user,
+        )
+        storage = get_storage()
+        pdf_ver = offer.pdf_version or 1
+        pdf_key = f"offers/letters/{offer.id}/offer_letter_v{pdf_ver}.pdf"
+        try:
+            storage.save_file(pdf_key, pdf_bytes, content_type="application/pdf")
+            offer.pdf_storage_key = pdf_key
+            offer.pdf_file_name = f"offer_letter_v{pdf_ver}.pdf"
+            offer.pdf_file_size = len(pdf_bytes)
+            db.commit()
+        except Exception as e:
+            logger.warning(f"Could not persist PDF to storage: {e}")
 
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f"attachment; filename=\"offer_letter_{offer_id}.pdf\"",
+            "Content-Type": "application/pdf",
+            "Content-Disposition": f"inline; filename=\"Offer_Letter_{offer.id}.pdf\"",
             "Content-Length": str(len(pdf_bytes)),
         },
     )
@@ -1290,7 +1826,7 @@ def candidate_download_offer_pdf(
     token: str,
     db: Session = Depends(get_db),
 ):
-    """Public endpoint — candidate downloads their offer PDF using the secure offer token."""
+    """Public endpoint — candidate views their offer PDF using the secure offer token."""
     from fastapi.responses import Response
 
     offer = db.query(Offer).filter(Offer.offer_token == token).first()
@@ -1302,16 +1838,38 @@ def candidate_download_offer_pdf(
     if offer.token_expires_at and offer.token_expires_at < now:
         raise HTTPException(status_code=410, detail="Offer token has expired.")
 
-    if not offer.pdf_storage_key:
-        raise HTTPException(status_code=404, detail="Offer PDF has not been generated yet.")
+    pdf_bytes = None
+    if offer.pdf_storage_key:
+        try:
+            pdf_bytes = workflow_service.get_offer_pdf_bytes(offer)
+        except Exception:
+            pdf_bytes = None
 
-    pdf_bytes = workflow_service.get_offer_pdf_bytes(offer)
+    if not pdf_bytes:
+        from app.services.offer_pdf_service import OfferPDFService
+        from app.services.storage.storage_manager import get_storage
+        recruiter = offer.creator
+        hm_user = offer.match_result.hiring_manager if offer.match_result else None
+        pdf_bytes = OfferPDFService.generate(
+            offer=offer,
+            candidate=offer.candidate,
+            job=offer.job,
+            recruiter=recruiter,
+            hm_user=hm_user,
+        )
+        storage = get_storage()
+        pdf_key = f"offers/{offer.id}/offer_letter.pdf"
+        storage.save_file(pdf_key, pdf_bytes, content_type="application/pdf")
+        offer.pdf_storage_key = pdf_key
+        offer.pdf_file_name = f"offer_letter_{offer.id}.pdf"
+        offer.pdf_file_size = len(pdf_bytes)
+        db.commit()
 
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": "inline; filename=\"offer_letter.pdf\"",
+            "Content-Disposition": f"inline; filename=\"offer_letter_{offer.id}.pdf\"",
             "Content-Length": str(len(pdf_bytes)),
         },
     )

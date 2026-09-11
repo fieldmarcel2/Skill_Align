@@ -194,12 +194,12 @@ def get_job_candidates(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_hr_or_recruiter),
 ):
-    if current_user.role.name == "Recruiter":
-        if not recruiter_assignment_service.is_recruiter_assigned(db, job_id, current_user.id):
-            raise HTTPException(
-                status_code=http_status.HTTP_403_FORBIDDEN,
-                detail="Access denied: You are not assigned to this job requisition.",
-            )
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail="Job requisition not found.",
+        )
 
     query = db.query(MatchResult).filter(MatchResult.job_id == job_id)
 
@@ -276,14 +276,13 @@ def get_all_assigned_candidates(
 ):
     assigned_job_ids = recruiter_assignment_service.get_recruiter_assigned_job_ids(db, current_user.id)
     if job_id is not None:
-        # If specific job requested, verify recruiter is assigned to it (unless Admin/HR)
-        if current_user.role.name == "Recruiter" and (not assigned_job_ids or job_id not in assigned_job_ids):
-            return []
         target_job_ids = [job_id]
     elif assigned_job_ids:
         target_job_ids = assigned_job_ids
     else:
-        # Recruiter has no assigned jobs — strictly return empty pool for multi-recruiter isolation
+        target_job_ids = [j.id for j in db.query(Job.id).filter(Job.status == "ACTIVE").all()]
+    
+    if not target_job_ids:
         return []
 
     query = db.query(MatchResult).filter(MatchResult.job_id.in_(target_job_ids))

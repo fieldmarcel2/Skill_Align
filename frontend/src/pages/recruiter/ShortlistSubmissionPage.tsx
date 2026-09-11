@@ -210,7 +210,7 @@ export const ShortlistSubmissionPage: React.FC = () => {
                       {c.matched_skills.slice(0, 5).map((s, idx) => (
                         <span
                           key={idx}
-                          className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
+                          className="px-2 py-0.5 rounded text-[10px] bg-emerald-50 text-emerald-900 border border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800 font-semibold"
                         >
                           ✓ {s}
                         </span>
@@ -218,7 +218,7 @@ export const ShortlistSubmissionPage: React.FC = () => {
                       {c.missing_skills.slice(0, 2).map((s, idx) => (
                         <span
                           key={idx}
-                          className="px-2 py-0.5 rounded text-[10px] bg-rose-500/10 text-rose-300 border border-rose-500/20"
+                          className="px-2 py-0.5 rounded text-[10px] bg-rose-50 text-rose-900 border border-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800 font-semibold"
                         >
                           ✗ {s}
                         </span>

@@ -9,6 +9,8 @@ Endpoints:
 """
 
 import json
+import math
+import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Any, Dict
 from fastapi import APIRouter, Depends, status, Query
@@ -27,6 +29,7 @@ from app.schemas.audit_log import HiringLogsResponse, HiringAuditLogEntry, Hirin
 from app.services import user_service
 
 router = APIRouter(prefix="/api/admin", tags=["Admin Management"])
+logger = logging.getLogger("skillalign.admin")
 
 
 @router.get(
@@ -280,12 +283,18 @@ def get_hiring_logs(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    import math
+    from app.services.audit_service import prune_audit_logs
+    # Prune database to retain maximum 50 most recent audit activities
+    try:
+        prune_audit_logs(db, max_keep=50)
+    except Exception as e:
+        logger.warning(f"Audit log auto-prune notice: {e}")
 
-    # Calculate overall metrics
+    # Calculate overall metrics bounded by latest 50 entries
     now = datetime.now(timezone.utc)
     h24 = now - timedelta(hours=24)
 
+    page_size = min(page_size, 50)
     total_logs_count = db.query(func.count(AuditLog.id)).scalar() or 0
     total_hires = db.query(func.count(AuditLog.id)).filter(AuditLog.action == "OFFER_ACCEPTED").scalar() or 0
     total_offers = db.query(func.count(AuditLog.id)).filter(

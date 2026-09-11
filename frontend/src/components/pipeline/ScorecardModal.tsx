@@ -289,7 +289,7 @@ export const ScorecardModal: React.FC<ScorecardModalProps> = ({
                         {matchDetail.matched_skills.map((sk) => (
                           <span
                             key={sk}
-                            className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 text-xs font-medium"
+                            className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-950 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-800/80 text-xs font-semibold"
                           >
                             ✓ {sk}
                           </span>

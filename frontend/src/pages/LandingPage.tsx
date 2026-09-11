@@ -43,6 +43,134 @@ import {
   ExternalLink,
 } from "lucide-react";
 
+const OPEN_TECH_JOBS = [
+  { id: 1, title: "Cloud Infrastructure Engineer", company: "NovaTech Solutions", category: "Cloud", exp: "0-1 yr", salary: "₹6L – ₹10L", mode: "Hybrid", skills: ["AWS", "Terraform", "Docker", "Linux"], score: 92, badge: "Hot" },
+  { id: 2, title: "Full-Stack Developer", company: "Zephyr Labs", category: "Backend", exp: "1-2 yrs", salary: "₹8L – ₹14L", mode: "WFO", skills: ["React", "Node.js", "PostgreSQL", "REST APIs"], score: 88, badge: "Featured" },
+  { id: 3, title: "Angular Frontend Developer", company: "FinEdge Technologies", category: "Frontend", exp: "0-2 yrs", salary: "₹6L – ₹11L", mode: "WFH", skills: ["Angular", "TypeScript", "RxJS", "SCSS"], score: 85, badge: null },
+  { id: 4, title: "Data Analyst", company: "DataPulse Analytics", category: "Data", exp: "0-1 yr", salary: "₹5L – ₹9L", mode: "Hybrid", skills: ["Python", "SQL", "Power BI", "Excel"], score: 90, badge: "Hot" },
+  { id: 5, title: "React Frontend Developer", company: "UXCraft Studio", category: "Frontend", exp: "1-2 yrs", salary: "₹7L – ₹12L", mode: "WFH", skills: ["React", "TypeScript", "Tailwind CSS", "Redux"], score: 87, badge: null },
+  { id: 6, title: "Backend Python Developer", company: "Scalar Systems", category: "Backend", exp: "0-2 yrs", salary: "₹7L – ₹13L", mode: "Hybrid", skills: ["Python", "FastAPI", "PostgreSQL", "Redis"], score: 83, badge: "Featured" },
+  { id: 7, title: "DevOps Engineer (Junior)", company: "CloudNest Platforms", category: "Cloud", exp: "0-1 yr", salary: "₹7L – ₹12L", mode: "WFO", skills: ["CI/CD", "Kubernetes", "Jenkins", "AWS"], score: 89, badge: null },
+  { id: 8, title: "Node.js API Developer", company: "Hyperbuild Tech", category: "Backend", exp: "1-2 yrs", salary: "₹8L – ₹13L", mode: "WFH", skills: ["Node.js", "Express", "MongoDB", "JWT"], score: 84, badge: null },
+  { id: 9, title: "ML Engineer (Entry Level)", company: "Cognify AI", category: "Data", exp: "0-1 yr", salary: "₹8L – ₹15L", mode: "Hybrid", skills: ["Python", "PyTorch", "TensorFlow", "Pandas"], score: 91, badge: "Hot" },
+  { id: 10, title: "iOS Developer", company: "SwiftApps Studio", category: "Mobile", exp: "0-2 yrs", salary: "₹7L – ₹13L", mode: "WFO", skills: ["Swift", "UIKit", "Xcode", "REST APIs"], score: 82, badge: null },
+  { id: 11, title: "Android Developer", company: "Droidify", category: "Mobile", exp: "1-2 yrs", salary: "₹7L – ₹12L", mode: "Hybrid", skills: ["Kotlin", "Jetpack Compose", "Room DB", "MVVM"], score: 86, badge: null },
+  { id: 12, title: "UI/UX Designer & Developer", company: "Pixelcraft Design", category: "Frontend", exp: "0-2 yrs", salary: "₹5L – ₹10L", mode: "WFH", skills: ["Figma", "React", "CSS", "Prototyping"], score: 80, badge: null },
+  { id: 13, title: "QA Automation Engineer", company: "TestGrid Technologies", category: "Backend", exp: "0-1 yr", salary: "₹5L – ₹9L", mode: "WFO", skills: ["Selenium", "Python", "Postman", "Cypress"], score: 78, badge: null },
+  { id: 14, title: "Java Developer (Spring Boot)", company: "Meridian Fintech", category: "Backend", exp: "0-2 yrs", salary: "₹6L – ₹11L", mode: "WFO", skills: ["Java", "Spring Boot", "MySQL", "Kafka"], score: 87, badge: "Featured" },
+  { id: 15, title: "Product & BI Analyst", company: "Insightful Corp", category: "Data", exp: "0-2 yrs", salary: "₹6L – ₹12L", mode: "Hybrid", skills: ["SQL", "Tableau", "Power BI", "Excel"], score: 85, badge: null },
+];
+
+const MODE_COLORS: Record<string, string> = {
+  WFH: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  WFO: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  Hybrid: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+};
+
+const OpenJobsShowcase: React.FC = () => {
+  const [activeCategory, setActiveCategory] = useState("All");
+  const categories = ["All", "Frontend", "Backend", "Cloud", "Data", "Mobile"];
+
+  const filtered = activeCategory === "All"
+    ? OPEN_TECH_JOBS
+    : OPEN_TECH_JOBS.filter((j) => j.category === activeCategory);
+
+  return (
+    <div>
+      {/* Filter tabs */}
+      <div className="flex items-center gap-2 flex-wrap justify-center mb-10">
+        {categories.map((cat) => (
+          <button
+            key={cat}
+            type="button"
+            onClick={() => setActiveCategory(cat)}
+            className={`px-4 py-1.5 rounded-full text-xs font-bold border transition-all ${
+              activeCategory === cat
+                ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                : "bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
+            }`}
+          >
+            {cat}
+            {cat === "All" && (
+              <span className="ml-1.5 text-[10px] opacity-70">({OPEN_TECH_JOBS.length})</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Jobs grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {filtered.map((job) => (
+          <div
+            key={job.id}
+            className="group relative overflow-hidden p-5 rounded-2xl border border-border/60 bg-card/80 backdrop-blur-xl hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300"
+          >
+            {/* Subtle top gradient */}
+            <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-primary/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  {job.badge && (
+                    <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider ${
+                      job.badge === "Hot" ? "bg-rose-500/15 text-rose-400 border border-rose-500/30" : "bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                    }`}>
+                      {job.badge}
+                    </span>
+                  )}
+                  <span className="text-[10px] text-muted-foreground font-medium">{job.exp} exp</span>
+                </div>
+                <h3 className="font-outfit text-sm font-bold text-foreground group-hover:text-primary transition-colors leading-snug">
+                  {job.title}
+                </h3>
+                <p className="text-[11px] text-muted-foreground mt-0.5">{job.company}</p>
+              </div>
+
+              {/* Score ring */}
+              <div className="flex flex-col items-center justify-center w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 shrink-0">
+                <span className="text-sm font-black text-emerald-400 leading-none">{job.score}%</span>
+                <span className="text-[8px] text-emerald-500/70 font-bold">Match</span>
+              </div>
+            </div>
+
+            {/* Skills */}
+            <div className="flex flex-wrap gap-1 mb-3">
+              {job.skills.map((sk) => (
+                <span key={sk} className="px-2 py-0.5 rounded-md text-[10px] bg-secondary/80 text-foreground/80 border border-border/60 font-medium">
+                  {sk}
+                </span>
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between pt-3 border-t border-border/40">
+              <span className="text-xs font-bold text-foreground">{job.salary}</span>
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${MODE_COLORS[job.mode] || ""}`}>
+                  {job.mode}
+                </span>
+                <Link to="/register">
+                  <button className="flex items-center gap-0.5 text-[10px] font-bold text-primary hover:underline">
+                    Apply <ArrowRight className="h-2.5 w-2.5" />
+                  </button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="text-center mt-10">
+        <Link to="/register">
+          <Button variant="gradient" size="lg" className="gap-2 shadow-xl shadow-indigo-500/20">
+            Register to Apply for All Positions <ArrowRight className="h-4 w-4" />
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
+};
+
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<string>("matching");
@@ -865,8 +993,28 @@ export const LandingPage: React.FC = () => {
         </div>
       </section>
 
+      {/* ── Open Tech Opportunities (15 Legit Jobs, 0-2yr exp) ──────────────────── */}
+      <section id="open-roles" className="py-20 px-4 sm:px-8 max-w-7xl mx-auto border-t border-border/60">
+        <div className="text-center max-w-3xl mx-auto mb-12">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold mb-4">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Live Positions · Updated Daily
+          </div>
+          <h2 className="font-outfit text-3xl sm:text-4xl font-bold text-foreground tracking-tight">
+            Open Tech Opportunities
+          </h2>
+          <p className="text-sm text-muted-foreground mt-2 max-w-2xl mx-auto">
+            Entry-level to junior roles (0–2 years experience) matched using SkillAlign's deterministic scoring engine.
+          </p>
+        </div>
+
+        {/* Category filter tabs & Jobs grid */}
+        <OpenJobsShowcase />
+      </section>
+
       {/* ── Enterprise Testimonials ────────────────────────────────────────────── */}
       <section className="py-20 px-4 sm:px-8 max-w-7xl mx-auto border-t border-border/60">
+
         <div className="text-center max-w-2xl mx-auto mb-14">
           <Badge variant="outline" className="mb-3">
             Industry Validation

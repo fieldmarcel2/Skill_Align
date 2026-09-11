@@ -18,16 +18,19 @@ from app.services.storage.base_storage import StorageProvider
 def get_storage() -> StorageProvider:
     """
     Return the configured storage provider (singleton).
-
-    Set STORAGE_BACKEND env var to switch providers:
-      - 'local' (default): LocalStorageProvider
-      - 's3': S3StorageProvider (not yet implemented)
+    Automatically enables S3StorageProvider when AWS S3 credentials are configured,
+    with seamless local storage fallback.
     """
-    backend = os.getenv("STORAGE_BACKEND", "local").lower()
+    backend = os.getenv("STORAGE_BACKEND", "").lower()
 
     if backend == "local":
         from app.services.storage.local_storage import LocalStorageProvider
         return LocalStorageProvider()
 
-    # Future: S3, Azure Blob, GCS
-    raise ValueError(f"Unknown STORAGE_BACKEND: {backend!r}. Supported: 'local'")
+    from app.services.s3_service import s3_service
+    if backend == "s3" or s3_service._is_s3_configured():
+        from app.services.storage.s3_storage import S3StorageProvider
+        return S3StorageProvider()
+
+    from app.services.storage.local_storage import LocalStorageProvider
+    return LocalStorageProvider()

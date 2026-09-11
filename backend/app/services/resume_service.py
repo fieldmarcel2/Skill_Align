@@ -116,11 +116,30 @@ async def store_resume_and_queue(
     # 5. Check if Celery worker is active; if not, execute synchronously immediately
     task_id = None
     processed_immediately = False
+
+    def _check_celery_worker():
+        try:
+            import socket
+            from urllib.parse import urlparse
+            broker = settings.effective_celery_broker() if callable(getattr(settings, "effective_celery_broker", None)) else getattr(settings, "REDIS_URL", "redis://localhost:6379/0")
+            parsed = urlparse(broker)
+            host = parsed.hostname or "127.0.0.1"
+            port = parsed.port or 6379
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.2)
+            res = s.connect_ex((host, port))
+            s.close()
+            if res != 0:
+                return False
+            from app.celery_app import celery_app
+            insp = celery_app.control.inspect(timeout=0.25)
+            return bool(insp and insp.ping())
+        except Exception:
+            return False
+
     try:
-        from app.celery_app import celery_app
-        insp = celery_app.control.inspect(timeout=0.2)
-        active_workers = insp.ping() if insp else None
-        if active_workers:
+        if _check_celery_worker():
+            from app.celery_app import celery_app
             from app.tasks.resume_tasks import process_resume_task
             task = process_resume_task.apply_async(
                 args=[candidate.id, original_s3_key, original_filename, content_type],
@@ -137,7 +156,7 @@ async def store_resume_and_queue(
             task_id = "sync-completed"
             processed_immediately = True
             db.refresh(candidate)
-            logger.info(f"Resume processed immediately for candidate_id={candidate.id}: {sync_res.get()}")
+            logger.info(f"Resume processed immediately for candidate_id={candidate.id}")
     except Exception as e:
         logger.error(f"Error in async dispatch; attempting direct execution: {e}")
         try:
@@ -158,6 +177,20 @@ async def store_resume_and_queue(
         else "Resume uploaded successfully. Processing has been queued."
     )
 
+    parsed_dict = None
+    if candidate.extracted_data:
+        try:
+            parsed_dict = json.loads(candidate.extracted_data)
+        except Exception:
+            pass
+
+    auto_skills = []
+    if candidate.skills:
+        auto_skills = [
+            cs.skill.name for cs in candidate.skills
+            if getattr(cs, "source", None) == "resume" and cs.skill
+        ]
+
     return {
         "status": status_str,
         "message": msg_str,
@@ -165,6 +198,10 @@ async def store_resume_and_queue(
         "task_id": task_id,
         "filename": original_filename,
         "uploaded_at": now_utc.isoformat(),
+        "resume_s3_key": candidate.resume_s3_key,
+        "resume_file_path": candidate.resume_file_path or candidate.resume_s3_key,
+        "parsed_data": parsed_dict,
+        "auto_added_skills": auto_skills,
     }
 
 

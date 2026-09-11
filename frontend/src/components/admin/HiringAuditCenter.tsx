@@ -23,6 +23,9 @@ import {
   Zap,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Code2,
   Eye,
   X,
   Copy,
@@ -55,6 +58,7 @@ export const HiringAuditCenter: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedLog, setSelectedLog] = useState<HiringAuditLogEntry | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showRawPayload, setShowRawPayload] = useState(false);
 
   // Debounce search term
   useEffect(() => {
@@ -71,13 +75,14 @@ export const HiringAuditCenter: React.FC = () => {
     try {
       const data: HiringLogsResponse = await adminApi.getHiringLogs({
         page: currentPage,
-        page_size: pageSize,
+        page_size: Math.min(pageSize, 50),
         category: category !== "ALL" ? category : undefined,
         search: debouncedSearch.trim() || undefined,
       });
-      setLogs(data.items);
-      setTotal(data.total);
-      setTotalPages(data.total_pages);
+      setLogs(data.items.slice(0, 50));
+      const cappedTotal = Math.min(data.total, 50);
+      setTotal(cappedTotal);
+      setTotalPages(Math.max(1, Math.ceil(cappedTotal / pageSize)));
       setMetrics(data.metrics);
     } catch (err) {
       console.error("Failed to load hiring audit logs:", err);
@@ -189,6 +194,17 @@ export const HiringAuditCenter: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Scalability Notice Banner */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 rounded-lg bg-muted/60 border border-border/80 text-xs">
+        <span className="flex items-center gap-2 text-foreground font-medium">
+          <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+          Displaying latest 50 operational activities (auto-pruned for optimal system scalability)
+        </span>
+        <span className="font-mono text-[11px] text-muted-foreground">
+          {logs.length} of {total} recent entries
+        </span>
+      </div>
 
       {/* Controls & Filter Bar */}
       <Card className="border-border/80 bg-card/60 backdrop-blur-xl">
@@ -467,94 +483,197 @@ export const HiringAuditCenter: React.FC = () => {
 
             {/* Modal Body */}
             <div className="p-5 overflow-y-auto space-y-5">
-              {/* Context Summary */}
-              <div className="grid grid-cols-2 gap-3 bg-muted/40 p-3.5 rounded-xl border border-border/60 text-xs">
-                <div>
-                  <span className="text-muted-foreground block text-[11px]">Actor:</span>
-                  <span className="font-semibold text-foreground">
-                    {selectedLog.actor_name || "System"} {selectedLog.actor_role ? `(${selectedLog.actor_role})` : ""}
+              {/* Lifecycle State Transition Stepper */}
+              {(selectedLog.from_state || selectedLog.to_state) && (
+                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/90 border border-border/80 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                      Recruitment State Machine Transition
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono px-2.5 py-1 rounded-md bg-secondary text-foreground border border-border font-semibold">
+                        {selectedLog.from_state || "INITIATION"}
+                      </span>
+                      <ArrowRight className="w-3.5 h-3.5 text-primary shrink-0" />
+                      <span className="text-xs font-mono px-2.5 py-1 rounded-md bg-primary/15 text-primary border border-primary/30 font-bold">
+                        {selectedLog.to_state || "CURRENT"}
+                      </span>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] uppercase font-mono tracking-wider">
+                    {selectedLog.action}
+                  </Badge>
+                </div>
+              )}
+
+              {/* Stakeholder & Requisition Context Hub */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Actor Card */}
+                <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      <User className="w-3 h-3 text-primary" /> Authorized Actor
+                    </span>
+                    {selectedLog.actor_role && (
+                      <span className={`text-[9px] px-1.5 py-0.2 rounded border font-semibold ${getRoleBadgeClass(selectedLog.actor_role)}`}>
+                        {selectedLog.actor_role}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs font-bold text-foreground truncate">
+                    {selectedLog.actor_name || "System Automated"}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground flex items-center gap-1 font-mono">
+                    <Clock className="w-3 h-3" />
+                    {new Date(selectedLog.created_at).toLocaleString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </div>
+                </div>
+
+                {/* Candidate Card */}
+                <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-500" /> Candidate Talent
                   </span>
+                  <div className="text-xs font-bold text-foreground truncate">
+                    {selectedLog.candidate_name || "N/A (Requisition Scope)"}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {selectedLog.candidate_name ? "Linked Candidate Profile" : "General Administrative Action"}
+                  </div>
                 </div>
-                <div>
-                  <span className="text-muted-foreground block text-[11px]">Timestamp:</span>
-                  <span className="font-semibold text-foreground">{selectedLog.created_at}</span>
+
+                {/* Requisition Card */}
+                <div className="p-3 rounded-xl bg-muted/40 border border-border/70 space-y-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                    <Briefcase className="w-3 h-3 text-indigo-500" /> Job Requisition
+                  </span>
+                  <div className="text-xs font-bold text-foreground truncate">
+                    {selectedLog.job_title || "Company Wide / System"}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {selectedLog.job_title ? "Assigned Corporate Position" : "Platform Governance"}
+                  </div>
                 </div>
-                {selectedLog.candidate_name && (
-                  <div>
-                    <span className="text-muted-foreground block text-[11px]">Candidate:</span>
-                    <span className="font-semibold text-amber-400">{selectedLog.candidate_name}</span>
-                  </div>
-                )}
-                {selectedLog.job_title && (
-                  <div>
-                    <span className="text-muted-foreground block text-[11px]">Job Requisition:</span>
-                    <span className="font-semibold text-indigo-400">{selectedLog.job_title}</span>
-                  </div>
-                )}
-                {selectedLog.from_state && (
-                  <div>
-                    <span className="text-muted-foreground block text-[11px]">From State:</span>
-                    <span className="font-mono text-muted-foreground">{selectedLog.from_state}</span>
-                  </div>
-                )}
-                {selectedLog.to_state && (
-                  <div>
-                    <span className="text-muted-foreground block text-[11px]">To State:</span>
-                    <span className="font-mono font-medium text-primary">{selectedLog.to_state}</span>
-                  </div>
-                )}
               </div>
 
-              {/* Parsed Details KV */}
+              {/* Structured Event Parameters & Context */}
               {selectedLog.details && Object.keys(selectedLog.details).length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Event Parameters & Context
+                <div className="space-y-2.5">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                    <Filter className="w-3.5 h-3.5 text-primary" />
+                    Operational Event Parameters & Context
                   </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {Object.entries(selectedLog.details).map(([key, val]) => (
-                      <div
-                        key={key}
-                        className="bg-background/80 border border-border/80 rounded-lg p-2.5 text-xs"
-                      >
-                        <span className="text-muted-foreground text-[10px] block uppercase font-mono tracking-wider">
-                          {key.replace(/_/g, " ")}
-                        </span>
-                        <span className="font-medium text-foreground break-words">
-                          {typeof val === "object" ? JSON.stringify(val) : String(val)}
-                        </span>
-                      </div>
-                    ))}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {Object.entries(selectedLog.details).map(([key, val]) => {
+                      const formattedKey = key
+                        .replace(/_/g, " ")
+                        .replace(/\b\w/g, (c) => c.toUpperCase());
+
+                      let displayContent: React.ReactNode;
+
+                      if (typeof val === "boolean") {
+                        displayContent = (
+                          <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${val ? "bg-emerald-50 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300" : "bg-muted text-muted-foreground"}`}>
+                            {val ? "Confirmed (Yes)" : "False (No)"}
+                          </span>
+                        );
+                      } else if (typeof val === "number") {
+                        if (key.toLowerCase().includes("ctc") || key.toLowerCase().includes("salary") || key.toLowerCase().includes("amount")) {
+                          displayContent = <span className="font-mono font-bold text-primary">₹{val.toLocaleString()}</span>;
+                        } else {
+                          displayContent = <span className="font-mono font-semibold text-foreground">{val}</span>;
+                        }
+                      } else if (Array.isArray(val)) {
+                        displayContent = (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {val.map((item, i) => (
+                              <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-foreground border border-border font-medium">
+                                {typeof item === "object" ? JSON.stringify(item) : String(item)}
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      } else if (typeof val === "object" && val !== null) {
+                        displayContent = (
+                          <div className="mt-1 p-2 rounded bg-muted/50 border border-border/60 text-[11px] space-y-1">
+                            {Object.entries(val).map(([subK, subV]) => (
+                              <div key={subK} className="flex justify-between gap-2">
+                                <span className="text-muted-foreground">{subK}:</span>
+                                <span className="font-medium text-foreground">{String(subV)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      } else {
+                        displayContent = <span className="font-medium text-foreground">{String(val)}</span>;
+                      }
+
+                      return (
+                        <div
+                          key={key}
+                          className="bg-card/90 border border-border/80 rounded-xl p-3 text-xs shadow-xs space-y-1"
+                        >
+                          <span className="text-muted-foreground text-[10px] block font-semibold uppercase tracking-wider">
+                            {formattedKey}
+                          </span>
+                          <div className="break-words">{displayContent}</div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
-              {/* Raw JSON viewer */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Raw JSON Audit Record
-                  </h4>
-                  <button
-                    onClick={() => handleCopyJson(selectedLog)}
-                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                  >
-                    {copied ? (
-                      <>
-                        <Check className="h-3.5 w-3.5 text-green-400" />
-                        <span className="text-green-400">Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-3.5 w-3.5" />
-                        <span>Copy JSON</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-                <pre className="p-3.5 bg-background border border-border rounded-xl text-xs font-mono text-muted-foreground overflow-x-auto max-h-48">
-                  {JSON.stringify(selectedLog, null, 2)}
-                </pre>
+              {/* Collapsible Technical Payload */}
+              <div className="pt-2 border-t border-border/80">
+                <button
+                  type="button"
+                  onClick={() => setShowRawPayload(!showRawPayload)}
+                  className="w-full flex items-center justify-between text-xs font-semibold text-muted-foreground hover:text-foreground py-2 cursor-pointer transition-colors"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Code2 className="w-3.5 h-3.5 text-primary" />
+                    Developer Diagnostic Payload (JSON)
+                  </span>
+                  {showRawPayload ? (
+                    <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  )}
+                </button>
+
+                {showRawPayload && (
+                  <div className="mt-2 space-y-2 animate-in fade-in duration-150">
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span>Raw database audit record representation</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyJson(selectedLog)}
+                        className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-medium cursor-pointer"
+                      >
+                        {copied ? (
+                          <>
+                            <Check className="h-3.5 w-3.5 text-green-500" />
+                            <span className="text-green-500">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3.5 w-3.5" />
+                            <span>Copy JSON</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <pre className="p-3.5 bg-slate-950 text-slate-200 border border-border rounded-xl text-xs font-mono overflow-x-auto max-h-48 leading-relaxed">
+                      {JSON.stringify(selectedLog, null, 2)}
+                    </pre>
+                  </div>
+                )}
               </div>
             </div>
 

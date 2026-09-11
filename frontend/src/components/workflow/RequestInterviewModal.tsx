@@ -9,6 +9,8 @@ import {
   X,
   Sparkles,
   Link as LinkIcon,
+  Zap,
+  Layers,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog";
 import { Button } from "../ui/button";
@@ -32,6 +34,8 @@ export const RequestInterviewModal: React.FC<RequestInterviewModalProps> = ({
   onSuccess,
 }) => {
   const toast = useToast();
+  const [interviewStructure, setInterviewStructure] = useState<"single_round" | "multi_round">("single_round");
+  const [roundName, setRoundName] = useState<string>("Comprehensive Technical & Role Fit Assessment");
   const [interviewType, setInterviewType] = useState("Technical Interview");
   const [interviewMode, setInterviewMode] = useState<"online" | "in_person">("online");
   const [meetingLink, setMeetingLink] = useState("https://meet.google.com/new");
@@ -91,6 +95,8 @@ export const RequestInterviewModal: React.FC<RequestInterviewModalProps> = ({
         slots: payloadSlots,
         interview_type: interviewType,
         meeting_link: interviewMode === "online" ? meetingLink : undefined,
+        interview_structure: interviewStructure,
+        round_name: roundName.trim(),
       });
 
       toast.success(
@@ -139,6 +145,78 @@ export const RequestInterviewModal: React.FC<RequestInterviewModalProps> = ({
             <span className="text-xs font-bold text-emerald-400 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
               {Math.round(Number(match.overall_score))}% Fit Match
             </span>
+          </div>
+
+          {/* Interview Process Structure Selector (1 Round vs Multi-Round) */}
+          <div className="space-y-2">
+            <label className="block text-xs font-semibold text-foreground">
+              Interview Process Format
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div
+                onClick={() => {
+                  setInterviewStructure("single_round");
+                  setRoundName("Comprehensive Technical & Role Fit Assessment");
+                }}
+                className={`p-3 rounded-xl border cursor-pointer transition-all space-y-1 ${
+                  interviewStructure === "single_round"
+                    ? "border-primary bg-primary/10 ring-1 ring-primary shadow-xs"
+                    : "border-border bg-card/60 hover:border-border/80"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-500" />
+                    Single Comprehensive Round
+                  </span>
+                  {interviewStructure === "single_round" && (
+                    <CheckCircle2 className="w-4 h-4 text-primary" />
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Fast-track: 1 focused interview. Once finished, HM directly makes the Final GO decision to proceed to offer.
+                </p>
+              </div>
+
+              <div
+                onClick={() => {
+                  setInterviewStructure("multi_round");
+                  setRoundName("Round 1: Technical Screening");
+                }}
+                className={`p-3 rounded-xl border cursor-pointer transition-all space-y-1 ${
+                  interviewStructure === "multi_round"
+                    ? "border-primary bg-primary/10 ring-1 ring-primary shadow-xs"
+                    : "border-border bg-card/60 hover:border-border/80"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-blue-500" />
+                    Multi-Stage Pipeline (2+ Rounds)
+                  </span>
+                  {interviewStructure === "multi_round" && (
+                    <CheckCircle2 className="w-4 h-4 text-primary" />
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Sequential assessment (Screening → Coding / Deep Dive → HM Leadership). Cleared round-by-round.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Round Title / Identifier */}
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              Round Name & Assessment Focus
+            </label>
+            <input
+              type="text"
+              value={roundName}
+              onChange={(e) => setRoundName(e.target.value)}
+              placeholder="e.g. Comprehensive Technical Assessment, System Architecture, etc."
+              className="w-full h-9 px-3 rounded-lg border border-border bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
           </div>
 
           {/* Interview Type & Mode */}

@@ -29,4 +29,8 @@ class NotificationOut(BaseModel):
     subject: str
     body: str
     status: str
+    is_read: bool = False
+    notification_type: Optional[str] = None
+    match_result_id: Optional[int] = None
+    action_url: Optional[str] = None
     created_at: datetime

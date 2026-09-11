@@ -106,12 +106,12 @@ export const MatchExplanationCard: React.FC<MatchExplanationCardProps> = ({
           <div className="flex flex-wrap gap-1.5 mt-1">
             {matchedSkills.length > 0 ? (
               matchedSkills.map((s, idx) => (
-                <span
-                  key={idx}
-                  className="px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/25"
-                >
-                  ✓ {s}
-                </span>
+                  <span
+                    key={idx}
+                    className="px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-950 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-800/80"
+                  >
+                    ✓ {s}
+                  </span>
               ))
             ) : (
               <span className="text-xs text-slate-500 italic">No direct required skills matched</span>

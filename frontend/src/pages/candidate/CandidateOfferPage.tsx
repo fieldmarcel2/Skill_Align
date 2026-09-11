@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import {
-  FileCheck,
   CheckCircle2,
-  XCircle,
   AlertTriangle,
-  Award,
   ShieldAlert,
   ArrowLeft,
-  Sparkles,
+  Building2,
+  XCircle,
+  Download,
+  UserCheck,
+  FileText,
 } from "lucide-react";
 import { offerApi } from "../../services/api";
 import { Offer } from "../../types";
@@ -17,7 +18,6 @@ import OfferCard from "../../components/workflow/OfferCard";
 export const CandidateOfferPage: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
 
   const token = searchParams.get("token") || "";
   const offerId = parseInt(id || searchParams.get("offer_id") || "0", 10);
@@ -33,8 +33,8 @@ export const CandidateOfferPage: React.FC = () => {
   const [declineReason, setDeclineReason] = useState<string>("");
 
   const fetchOffer = async () => {
-    if (!offerId) {
-      setError("Invalid offer link.");
+    if (!offerId && !token) {
+      setError("Invalid or missing offer link reference.");
       setLoading(false);
       return;
     }
@@ -42,7 +42,16 @@ export const CandidateOfferPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await offerApi.getOffer(offerId, token || undefined);
+      let data: Offer;
+      try {
+        data = await offerApi.getOffer(offerId, token || undefined);
+      } catch (firstErr: any) {
+        if (firstErr.response?.status === 404 && offerId) {
+          data = await offerApi.getOfferByMatch(offerId);
+        } else {
+          throw firstErr;
+        }
+      }
       setOffer(data);
     } catch (err: any) {
       setError(
@@ -59,13 +68,13 @@ export const CandidateOfferPage: React.FC = () => {
   }, [offerId, token]);
 
   const handleAcceptOffer = async () => {
-    if (!offerId) return;
+    if (!offer?.id) return;
     setActionLoading(true);
     setError(null);
     try {
-      const updated = await offerApi.respondOffer(offerId, token, true);
+      const updated = await offerApi.respondOffer(offer.id, token, true);
       setOffer(updated);
-      setSuccessMsg("🎉 Congratulations! You have accepted the offer and your hiring is finalized.");
+      setSuccessMsg("Offer acceptance confirmed. Your hiring record has been finalized and onboarding initiated.");
     } catch (err: any) {
       setError(err.response?.data?.detail || "Failed to accept offer. Please try again.");
     } finally {
@@ -74,14 +83,14 @@ export const CandidateOfferPage: React.FC = () => {
   };
 
   const handleDeclineOffer = async () => {
-    if (!offerId) return;
+    if (!offer?.id) return;
     setActionLoading(true);
     setError(null);
     try {
-      const updated = await offerApi.respondOffer(offerId, token, false, declineReason || undefined);
+      const updated = await offerApi.respondOffer(offer.id, token, false, declineReason || undefined);
       setOffer(updated);
       setShowDeclineModal(false);
-      setSuccessMsg("Offer declined. A 6-month placement cooldown has been initiated as per policy.");
+      setSuccessMsg("Offer declined. A 6-month placement cooldown has been recorded as per policy.");
     } catch (err: any) {
       setError(err.response?.data?.detail || "Failed to decline offer.");
     } finally {
@@ -92,142 +101,224 @@ export const CandidateOfferPage: React.FC = () => {
   const getBlacklistUntilDate = (respondedAt?: string | null) => {
     const base = respondedAt ? new Date(respondedAt) : new Date();
     const until = new Date(base.getTime() + 183 * 24 * 60 * 60 * 1000);
-    return until.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    return until.toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-slate-400 font-medium">Loading employment offer...</p>
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs text-muted-foreground font-medium">Loading employment offer...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 text-slate-100 pb-16">
-      <div className="fixed inset-0 bg-gradient-to-tr from-amber-950/20 via-slate-950 to-blue-950/20 -z-10" />
-
-      <div className="max-w-2xl w-full space-y-6">
-        {/* Navigation & Brand */}
+    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-start py-8 px-4 sm:px-6">
+      <div className="max-w-3xl w-full space-y-6">
+        {/* Navigation & Header */}
         <div className="flex items-center justify-between">
           <Link
-            to="/candidate/dashboard"
-            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+            to="/candidate"
+            className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Candidate Dashboard
           </Link>
-          <span className="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5" />
-            Official Offer Portal
-          </span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted border border-border text-xs font-semibold text-muted-foreground">
+            <Building2 className="w-3.5 h-3.5 text-primary" />
+            Official Candidate Portal
+          </div>
         </div>
 
         {/* Notifications */}
         {error && (
-          <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center justify-between">
+          <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs flex items-center justify-between">
             <span>{error}</span>
-            <button onClick={() => setError(null)} className="text-rose-400 hover:text-white">✕</button>
+            <button onClick={() => setError(null)} className="text-rose-700 dark:text-rose-400 hover:opacity-75">✕</button>
           </div>
         )}
         {successMsg && (
-          <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center justify-between">
+          <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs flex items-center justify-between">
             <span>{successMsg}</span>
-            <button onClick={() => setSuccessMsg(null)} className="text-emerald-400 hover:text-white">✕</button>
+            <button onClick={() => setSuccessMsg(null)} className="text-emerald-700 dark:text-emerald-400 hover:opacity-75">✕</button>
           </div>
         )}
 
-        {/* Celebration Banner if ACCEPTED / HIRED */}
+        {/* My Offers Header & Acceptance Summary Card */}
         {offer && offer.status === "ACCEPTED" && (
-          <div className="bg-gradient-to-r from-emerald-600/20 via-emerald-500/10 to-transparent border border-emerald-500/30 rounded-2xl p-6 text-center space-y-2 shadow-2xl">
-            <div className="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
-              <Award className="w-8 h-8" />
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold font-outfit text-foreground">My Offers</h2>
+              <span className="text-xs text-muted-foreground">Official Placement Record</span>
             </div>
-            <h2 className="text-xl font-bold text-white">Welcome to the Team! 🎉</h2>
-            <p className="text-xs text-slate-300 max-w-md mx-auto">
-              Your formal offer acceptance has been received. Our HR onboarding team will contact you prior to your joining date ({offer.joining_date ? new Date(offer.joining_date).toLocaleDateString() : "TBD"}).
-            </p>
-          </div>
-        )}
 
-        {/* Blacklist / Rejection Notice if REJECTED */}
-        {offer && offer.status === "REJECTED" && (
-          <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-6 text-center space-y-3 shadow-xl">
-            <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
-              <ShieldAlert className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-rose-300">Offer Declined</h3>
-            <div className="bg-slate-950/80 border border-rose-500/20 rounded-xl p-4 max-w-md mx-auto text-xs space-y-2.5 text-left">
-              <div className="grid grid-cols-2 gap-2 border-b border-slate-800 pb-2.5">
+            <div className="bg-card border-2 border-emerald-500/40 rounded-xl p-6 shadow-sm space-y-4">
+              <div className="space-y-1">
+                <h3 className="text-lg font-bold font-outfit text-foreground">
+                  {offer.job_title || "Junior Python Developer"}
+                </h3>
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-emerald-500" />
+                  {offer.company_name || "SkillAlign Technologies"}
+                </p>
+              </div>
+
+              <div className="pt-2 border-t border-border/70 space-y-2">
                 <div>
-                  <span className="text-[10px] text-slate-500 uppercase block font-semibold">Blacklisted From</span>
-                  <span className="font-semibold text-slate-300">
-                    {offer.responded_at
-                      ? new Date(offer.responded_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
-                      : "Today"}
+                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                    Offer Status
                   </span>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-bold text-xs mt-1">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    ACCEPTED ✓
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[10px] text-slate-500 uppercase block font-semibold">Blacklisted Until</span>
-                  <span className="font-semibold text-rose-400">
-                    {getBlacklistUntilDate(offer.responded_at)}
-                  </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground block text-[11px] font-medium">Accepted on:</span>
+                    <strong className="text-foreground text-sm mt-0.5 block">
+                      {offer.responded_at || offer.updated_at
+                        ? new Date(offer.responded_at || offer.updated_at!).toLocaleDateString("en-US", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "20 Sep 2026"}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-[11px] font-medium">Joining Date:</span>
+                    <strong className="text-foreground text-sm mt-0.5 block">
+                      {offer.expected_joining_date || offer.joining_date
+                        ? new Date(offer.expected_joining_date || offer.joining_date!).toLocaleDateString("en-US", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "01 Oct 2026"}
+                    </strong>
+                  </div>
                 </div>
               </div>
-              <p className="text-rose-300 font-bold">
-                Candidate unavailable for interview consideration until {getBlacklistUntilDate(offer.responded_at)}.
-              </p>
-              <p className="text-slate-400 text-[11px] leading-relaxed">
-                During this period, you will not appear in interview recommendations and are not eligible for interview scheduling. You can still manage your profile.
-              </p>
+
+              <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-border/70">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById("offer-details-document");
+                    el?.scrollIntoView({ behavior: "smooth" });
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold border border-border transition-colors cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5 text-primary" />
+                  View Offer Letter
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (token) {
+                      window.open(offerApi.downloadOfferPdfForCandidate(token), "_blank");
+                    } else if (offer.id) {
+                      window.open(`/api/offers/${offer.id}/pdf`, "_blank");
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold border border-border transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-primary" />
+                  Download PDF
+                </button>
+                <Link
+                  to="/candidate/hiring"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors"
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  My Hiring / Onboarding
+                </Link>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Offer Summary Card */}
+        {/* Status Notice if REJECTED */}
+        {offer && offer.status === "REJECTED" && (
+          <div className="bg-card border border-rose-500/30 rounded-xl p-6 space-y-4 shadow-sm">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                <XCircle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1.5 flex-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 text-[11px] font-semibold uppercase tracking-wider">
+                  Status: REJECTED
+                </div>
+                <h3 className="text-base font-bold text-foreground">Recruitment Closed</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Your recruitment process for this position has been closed.
+                </p>
+                <div className="pt-1 text-xs text-muted-foreground">
+                  <span className="font-semibold text-foreground">Application Status: </span>
+                  <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground font-mono text-[11px]">
+                    CLOSED
+                  </span>
+                </div>
+                {offer.rejection_reason && (
+                  <p className="text-xs text-muted-foreground pt-1">
+                    <span className="font-medium text-foreground">Note: </span>
+                    {offer.rejection_reason}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Main Offer Card */}
         {offer && (
-          <OfferCard
-            offer={offer}
-            onAccept={handleAcceptOffer}
-            onReject={() => setShowDeclineModal(true)}
-            loading={actionLoading}
-            viewMode="candidate"
-          />
+          <div id="offer-details-document">
+            <OfferCard
+              offer={offer}
+              candidateToken={token}
+              onAccept={handleAcceptOffer}
+              onReject={() => setShowDeclineModal(true)}
+              loading={actionLoading}
+              viewMode="candidate"
+            />
+          </div>
         )}
       </div>
 
       {/* Decline Confirmation Modal */}
       {showDeclineModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl">
-            <div className="flex items-center gap-2.5 text-rose-400 font-bold">
-              <AlertTriangle className="w-5 h-5 text-rose-400" />
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full space-y-4 shadow-lg">
+            <div className="flex items-center gap-2.5 text-rose-600 dark:text-rose-400 font-bold">
+              <AlertTriangle className="w-5 h-5 text-rose-500" />
               <h3>Confirm Decline Decision</h3>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-red-950/40 border border-red-800/40 text-xs text-rose-300 space-y-1.5">
-              <p className="font-semibold text-red-200">
-                ⚠️ Policy Warning: 6-Month Cooldown Period
+            <div className="p-3.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-700 dark:text-rose-300 space-y-1.5">
+              <p className="font-semibold text-rose-800 dark:text-rose-200">
+                Placement Policy Notice
               </p>
-              <p className="text-slate-300 leading-relaxed">
+              <p className="text-muted-foreground leading-relaxed">
                 Declining a formal employment offer will place your profile on a{" "}
-                <strong className="text-white">6-month cooldown blacklist</strong> during which you cannot be recommended for other positions.
+                <strong className="text-foreground">6-month cooldown period</strong> during which your profile is removed from active matching.
               </p>
             </div>
 
-            <div className="space-y-1">
-              <label className="block text-xs font-semibold text-slate-400">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-muted-foreground">
                 Reason for declining (Optional)
               </label>
               <textarea
                 value={declineReason}
                 onChange={(e) => setDeclineReason(e.target.value)}
-                placeholder="E.g., Accepted another offer, compensation expectation mismatch..."
+                placeholder="E.g., Accepted another offer, compensation mismatch, location preference..."
                 rows={3}
-                className="w-full p-3 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-rose-500"
+                className="w-full p-3 bg-muted/20 border border-border rounded-lg text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
 
@@ -235,7 +326,7 @@ export const CandidateOfferPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowDeclineModal(false)}
-                className="px-4 py-2 text-xs text-slate-400 hover:text-white"
+                className="px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
               >
                 Go Back
               </button>
@@ -243,9 +334,9 @@ export const CandidateOfferPage: React.FC = () => {
                 type="button"
                 onClick={handleDeclineOffer}
                 disabled={actionLoading}
-                className="px-5 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/20"
+                className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
               >
-                {actionLoading ? "Processing..." : "Confirm & Decline"}
+                {actionLoading ? "Processing..." : "Confirm & Decline Offer"}
               </button>
             </div>
           </div>
@@ -254,4 +345,5 @@ export const CandidateOfferPage: React.FC = () => {
     </div>
   );
 };
+
 export default CandidateOfferPage;

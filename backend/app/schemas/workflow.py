@@ -31,6 +31,8 @@ class RequestInterviewRequest(BaseModel):
     slots: List[SlotProposal]
     interview_type: str = "technical"
     meeting_link: Optional[str] = None
+    interview_structure: Optional[str] = "single_round"  # "single_round" | "multi_round"
+    round_name: Optional[str] = None
 
     @field_validator("slots")
     @classmethod
@@ -85,14 +87,23 @@ class CreateOfferRequest(BaseModel):
     salary_min: Optional[float] = None
     salary_max: Optional[float] = None
     salary_currency: str = "INR"
+    fixed_compensation: Optional[float] = None
+    variable_compensation: Optional[float] = None
+    total_compensation: Optional[float] = None
+    bonus: Optional[float] = None
+    joining_bonus: Optional[float] = None
+    other_benefits: Optional[str] = None
+    notice_period: Optional[str] = None
     role_scope: Optional[str] = None
     employment_type: str = "Full-time"
     joining_date: Optional[datetime] = None
+    expected_joining_date: Optional[datetime] = None
     joining_timeline: Optional[str] = None
     offer_expiry_date: Optional[datetime] = None
     location: Optional[str] = None
     work_mode: Optional[str] = None
     additional_terms: Optional[str] = None
+    override_reason: Optional[str] = None
 
 
 class UpdateOfferRequest(BaseModel):
@@ -100,20 +111,62 @@ class UpdateOfferRequest(BaseModel):
     salary_min: Optional[float] = None
     salary_max: Optional[float] = None
     salary_currency: Optional[str] = None
+    fixed_compensation: Optional[float] = None
+    variable_compensation: Optional[float] = None
+    total_compensation: Optional[float] = None
+    bonus: Optional[float] = None
+    joining_bonus: Optional[float] = None
+    other_benefits: Optional[str] = None
+    notice_period: Optional[str] = None
     role_scope: Optional[str] = None
     employment_type: Optional[str] = None
     joining_date: Optional[datetime] = None
+    expected_joining_date: Optional[datetime] = None
     joining_timeline: Optional[str] = None
     offer_expiry_date: Optional[datetime] = None
     location: Optional[str] = None
     work_mode: Optional[str] = None
     additional_terms: Optional[str] = None
+    override_reason: Optional[str] = None
+
+
+class HMUpdateOfferRequest(BaseModel):
+    """Restricted update request for Hiring Manager during offer review."""
+    proposed_salary: Optional[float] = None
+    fixed_compensation: Optional[float] = None
+    variable_compensation: Optional[float] = None
+    total_compensation: Optional[float] = None
+    bonus: Optional[float] = None
+    joining_bonus: Optional[float] = None
+    other_benefits: Optional[str] = None
+    role_scope: Optional[str] = None
+    employment_type: Optional[str] = None
+    joining_timeline: Optional[str] = None
+    joining_date: Optional[datetime] = None
+    expected_joining_date: Optional[datetime] = None
+    location: Optional[str] = None
+    work_mode: Optional[str] = None
+    additional_terms: Optional[str] = None
+    override_reason: Optional[str] = None
 
 
 class OfferRespondRequest(BaseModel):
     token: str
     accept: bool
     note: Optional[str] = None
+
+
+class OfferStatsOut(BaseModel):
+    draft: int = 0
+    pending_hm_review: int = 0
+    hm_changes_requested: int = 0
+    hm_approved: int = 0
+    offer_ready: int = 0
+    sent: int = 0
+    accepted: int = 0
+    rejected: int = 0
+    expired: int = 0
+    total: int = 0
 
 
 # ── Response Schemas ──────────────────────────────────────────────────────────
@@ -156,6 +209,16 @@ class OfferOut(BaseModel):
     salary_min: Optional[float] = None
     salary_max: Optional[float] = None
     proposed_salary: Optional[float] = None
+    fixed_compensation: Optional[float] = None
+    variable_compensation: Optional[float] = None
+    total_compensation: Optional[float] = None
+    bonus: Optional[float] = None
+    joining_bonus: Optional[float] = None
+    other_benefits: Optional[str] = None
+    notice_period: Optional[str] = None
+    expected_joining_date: Optional[datetime] = None
+    override_reason: Optional[str] = None
+    override_approved_by: Optional[int] = None
     role_scope: Optional[str] = None
     employment_type: Optional[str] = None
     joining_date: Optional[datetime] = None
@@ -168,15 +231,21 @@ class OfferOut(BaseModel):
     sent_at: Optional[datetime] = None
     responded_at: Optional[datetime] = None
     candidate_response_note: Optional[str] = None
+    accepted_at: Optional[datetime] = None
+    rejected_at: Optional[datetime] = None
+    rejection_reason: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     # Offer Approval Workflow (v2)
     workflow_state: Optional[str] = None
+    submitted_to_hm_at: Optional[datetime] = None
     approved_by: Optional[int] = None
     approved_at: Optional[datetime] = None
+    hm_approved_at: Optional[datetime] = None
     hm_comments: Optional[str] = None
     recruiter_comments: Optional[str] = None
-    # PDF info
+    # PDF info & Versioning
+    pdf_version: int = 1
     pdf_file_name: Optional[str] = None
     pdf_file_size: Optional[int] = None
     pdf_generated_at: Optional[datetime] = None
@@ -235,7 +304,9 @@ class ActionCenterItem(BaseModel):
     description: Optional[str] = None
     priority: str
     match_result_id: Optional[int] = None
+    candidate_id: Optional[int] = None
     candidate_name: Optional[str] = None
+    job_id: Optional[int] = None
     job_title: Optional[str] = None
     pipeline_state: Optional[str] = None
     due_at: Optional[datetime] = None

@@ -87,3 +87,70 @@ def list_notifications(
     if user_id:
         query = query.filter(Notification.user_id == user_id)
     return query.order_by(Notification.created_at.desc()).all()
+
+
+@router.patch(
+    "/{notification_id}/read",
+    response_model=NotificationOut,
+    status_code=status.HTTP_200_OK,
+    summary="Mark notification as read"
+)
+def mark_notification_read(
+    notification_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    notif = db.query(Notification).filter(
+        Notification.id == notification_id,
+        Notification.user_id == current_user.id
+    ).first()
+    if not notif:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Notification not found."
+        )
+    notif.is_read = True
+    db.commit()
+    db.refresh(notif)
+    return notif
+
+
+@router.post(
+    "/mark-all-read",
+    status_code=status.HTTP_200_OK,
+    summary="Mark all current user notifications as read"
+)
+def mark_all_notifications_read(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    db.query(Notification).filter(
+        Notification.user_id == current_user.id,
+        Notification.is_read == False
+    ).update({"is_read": True})
+    db.commit()
+    return {"message": "All notifications marked as read."}
+
+
+@router.delete(
+    "/{notification_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Dismiss or delete notification"
+)
+def delete_notification(
+    notification_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    notif = db.query(Notification).filter(
+        Notification.id == notification_id,
+        Notification.user_id == current_user.id
+    ).first()
+    if not notif:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Notification not found."
+        )
+    db.delete(notif)
+    db.commit()
+    return {"message": "Notification dismissed."}

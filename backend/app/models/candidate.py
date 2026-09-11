@@ -62,6 +62,7 @@ class Candidate(Base):
     notice_period: Mapped[str | None] = mapped_column(String(50), nullable=True)
     current_ctc: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     expected_ctc: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    hiring_status: Mapped[str] = mapped_column(String(50), nullable=True, default="ACTIVE")
 
     # ── Relationships ─────────────────────────────────────────────────────────
     user: Mapped["User"] = relationship(  # type: ignore[name-defined]  # noqa: F821

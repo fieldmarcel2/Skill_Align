@@ -266,12 +266,26 @@ def process_resume_task(
         # 8. Trigger auto-matching against active jobs
         from app.tasks.matching_tasks import run_candidate_matching_task
         try:
-            insp = celery_app.control.inspect(timeout=0.2)
-            if insp and insp.ping():
-                run_candidate_matching_task.apply_async(
-                    args=[candidate_id],
-                    queue="matching",
-                )
+            import socket
+            from urllib.parse import urlparse
+            from app.core.config import settings
+            broker = settings.effective_celery_broker() if callable(getattr(settings, "effective_celery_broker", None)) else getattr(settings, "REDIS_URL", "redis://localhost:6379/0")
+            parsed = urlparse(broker)
+            host = parsed.hostname or "127.0.0.1"
+            port = parsed.port or 6379
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.2)
+            has_redis = (s.connect_ex((host, port)) == 0)
+            s.close()
+            if has_redis:
+                insp = celery_app.control.inspect(timeout=0.25)
+                if insp and insp.ping():
+                    run_candidate_matching_task.apply_async(
+                        args=[candidate_id],
+                        queue="matching",
+                    )
+                else:
+                    run_candidate_matching_task.apply(args=[candidate_id])
             else:
                 run_candidate_matching_task.apply(args=[candidate_id])
         except Exception:

@@ -186,24 +186,47 @@ class OfferPDFService:
             rec_name = _safe_str(getattr(recruiter, "full_name", None), "Talent Acquisition Team")
 
         # Offer details
-        offer_ref = f"OL-{offer.id:06d}"
+        pdf_ver = getattr(offer, "pdf_version", 1) or 1
+        offer_ref = f"OL-{offer.id:06d}-V{pdf_ver}"
         issue_date = _fmt_date(datetime.now(timezone.utc))
+        curr = offer.salary_currency or "INR"
         proposed_salary = _fmt_currency(
             float(offer.proposed_salary) if offer.proposed_salary else None,
-            offer.salary_currency or "INR"
+            curr
         )
+        total_comp = _fmt_currency(
+            float(offer.total_compensation) if getattr(offer, "total_compensation", None) else (float(offer.proposed_salary) if offer.proposed_salary else None),
+            curr
+        )
+        fixed_comp = _fmt_currency(
+            float(offer.fixed_compensation) if getattr(offer, "fixed_compensation", None) else None,
+            curr
+        )
+        var_comp = _fmt_currency(
+            float(offer.variable_compensation) if getattr(offer, "variable_compensation", None) else None,
+            curr
+        )
+        bonus_val = _fmt_currency(
+            float(offer.bonus) if getattr(offer, "bonus", None) else None,
+            curr
+        )
+        joining_bonus_val = _fmt_currency(
+            float(offer.joining_bonus) if getattr(offer, "joining_bonus", None) else None,
+            curr
+        )
+        other_benefits_val = _safe_str(getattr(offer, "other_benefits", None), "")
         salary_band = ""
         if offer.salary_min and offer.salary_max:
             salary_band = (
-                f"{_fmt_currency(float(offer.salary_min), offer.salary_currency)} — "
-                f"{_fmt_currency(float(offer.salary_max), offer.salary_currency)}"
+                f"{_fmt_currency(float(offer.salary_min), curr)} — "
+                f"{_fmt_currency(float(offer.salary_max), curr)}"
             )
-        joining_date = _fmt_date(offer.joining_date)
+        joining_date = _fmt_date(getattr(offer, "expected_joining_date", None) or offer.joining_date)
         expiry_date = _fmt_date(offer.offer_expiry_date or offer.expires_at)
         work_mode = _safe_str(getattr(offer, "work_mode", None))
         location = _safe_str(getattr(offer, "location", None) or job_loc)
         emp_type = _safe_str(getattr(offer, "employment_type", None), "Full-time")
-        joining_timeline = _safe_str(getattr(offer, "joining_timeline", None))
+        joining_timeline = _safe_str(getattr(offer, "notice_period", None) or getattr(offer, "joining_timeline", None))
         role_scope = _safe_str(getattr(offer, "role_scope", None))
         additional_terms = _safe_str(getattr(offer, "additional_terms", None))
 
@@ -215,7 +238,7 @@ class OfferPDFService:
                     fontName="Helvetica-Bold", fontSize=16, textColor=BRAND_PRIMARY,
                     leading=20)),
                 Paragraph(
-                    f"<font color='#718096' size='8'>Offer Reference: {offer_ref}<br/>Issue Date: {issue_date}</font>",
+                    f"<font color='#718096' size='8'>Offer Reference: <b>{offer_ref}</b><br/>Issue Date: {issue_date}</font>",
                     ParagraphStyle("HeaderRef", fontName="Helvetica", fontSize=8,
                         textColor=TEXT_MUTED, leading=12, alignment=TA_RIGHT)
                 ),
@@ -310,22 +333,32 @@ class OfferPDFService:
         story.append(Spacer(1, 6))
 
         comp_data = [
-            [Paragraph("Component", label_style), Paragraph("Details", label_style)],
-            _detail_row("Proposed CTC (Annual)", proposed_salary),
+            [Paragraph("Compensation Component", label_style), Paragraph("Amount / Structure", label_style)],
+            _detail_row("Total Annual Compensation (CTC)", total_comp),
         ]
+        if fixed_comp != "—":
+            comp_data.append(_detail_row("Fixed Compensation (Base)", fixed_comp))
+        if var_comp != "—":
+            comp_data.append(_detail_row("Variable Compensation", var_comp))
+        if bonus_val != "—":
+            comp_data.append(_detail_row("Performance / Annual Bonus", bonus_val))
+        if joining_bonus_val != "—":
+            comp_data.append(_detail_row("Joining / Sign-on Bonus", joining_bonus_val))
+        if other_benefits_val:
+            comp_data.append(_detail_row("Other Benefits & Perks", other_benefits_val))
         if salary_band:
-            comp_data.append(_detail_row("Salary Band / Range", salary_band))
-        comp_data.append(_detail_row("Currency", offer.salary_currency or "INR"))
+            comp_data.append(_detail_row("Approved Requisition Band", salary_band))
+        comp_data.append(_detail_row("Currency", curr))
 
-        comp_table = Table(comp_data, colWidths=["30%", "70%"])
+        comp_table = Table(comp_data, colWidths=["35%", "65%"])
         comp_table.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), BRAND_ACCENT),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
             ("BACKGROUND", (0, 1), (0, -1), BRAND_LIGHT),
             ("ROWBACKGROUNDS", (1, 1), (1, -1), [colors.white, colors.HexColor("#F7FAFC")]),
             ("LINEBELOW", (0, 0), (-1, -2), 0.5, DIVIDER_COLOR),
-            ("TOPPADDING", (0, 0), (-1, -1), 7),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
             ("LEFTPADDING", (0, 0), (-1, -1), 8),
             ("RIGHTPADDING", (0, 0), (-1, -1), 8),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),

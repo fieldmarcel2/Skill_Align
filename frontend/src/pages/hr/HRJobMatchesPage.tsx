@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import confetti from "canvas-confetti";
 import { jobsApi, matchingApi, candidatesApi, resumeApi } from "../../services/api";
 import { Job, MatchResult, PipelineStatus } from "../../types";
 import { useToast } from "../../components/ui/toast";
@@ -136,13 +135,6 @@ export const HRJobMatchesPage: React.FC = () => {
       setMatches((prev) => prev.map((m) => (m.id === matchId ? updated : m)));
 
       if (newStatus === "approved_by_hr" || newStatus === "interview_scheduled") {
-        // Trigger celebratory confetti effect
-        confetti({
-          particleCount: 80,
-          spread: 60,
-          origin: { y: 0.6 },
-          colors: ["#6366f1", "#a855f7", "#10b981"],
-        });
         toast.success(`Candidate status updated to ${newStatus.replace(/_/g, " ")}.`, "Status Updated");
       } else {
         toast.info(`Candidate status updated to ${newStatus.replace(/_/g, " ")}.`, "Status Updated");

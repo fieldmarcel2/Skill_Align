@@ -36,6 +36,7 @@ import {
   FileText,
   RefreshCw,
   Code2,
+  Search,
 } from "lucide-react";
 
 export const CandidateSkillsPage: React.FC = () => {
@@ -48,6 +49,7 @@ export const CandidateSkillsPage: React.FC = () => {
   // Sub-navigation state
   const [activeSubTab, setActiveSubTab] = useState<"shelf" | "experience" | "portfolio">("shelf");
   const [activeCategory, setActiveCategory] = useState<string>("All");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [isSyncingAll, setIsSyncingAll] = useState(false);
   const [isReparsing, setIsReparsing] = useState(false);
 
@@ -105,9 +107,16 @@ export const CandidateSkillsPage: React.FC = () => {
 
   const filteredResumeSkills = useMemo(() => {
     if (!parsedData?.skills) return [];
-    if (activeCategory === "All") return parsedData.skills;
-    return parsedData.skills.filter((s) => s.category === activeCategory);
-  }, [parsedData?.skills, activeCategory]);
+    let list = parsedData.skills;
+    if (activeCategory !== "All") {
+      list = list.filter((s) => s.category === activeCategory);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter((s) => s.name.toLowerCase().includes(q) || s.evidence?.toLowerCase().includes(q));
+    }
+    return list;
+  }, [parsedData?.skills, activeCategory, searchQuery]);
 
   const handleAddSkill = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -306,79 +315,79 @@ export const CandidateSkillsPage: React.FC = () => {
             variant="outline"
             onClick={handleSyncAllResumeSkills}
             disabled={isSyncingAll}
-            className="gap-2 text-xs text-indigo-300 border-indigo-500/40 hover:bg-indigo-500/10 shadow-sm"
+            className="gap-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700 bg-indigo-50/80 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 shadow-xs shrink-0"
           >
             {isSyncingAll ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <Wand2 className="h-3.5 w-3.5 text-indigo-400" />
+              <Wand2 className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
             )}
             Sync All Resume Skills
           </Button>
         )}
       </div>
 
-      {/* ── Summary Metrics Banner ────────────────────────────────────────── */}
+      {/* ── Summary Metrics Banner (High Contrast & Visible) ──────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl border border-border/80 bg-card/70 backdrop-blur-xl shadow-sm">
+        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-medium">Declared in Profile</span>
-            <div className="h-7 w-7 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Declared in Profile</span>
+            <div className="h-7 w-7 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 flex items-center justify-center text-emerald-700 dark:text-emerald-300">
               <Code2 className="h-3.5 w-3.5" />
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-extrabold font-outfit text-foreground">
+            <span className="text-2xl font-black font-outfit text-slate-900 dark:text-slate-100">
               {profile?.skills.length || 0}
             </span>
-            <span className="text-xs text-muted-foreground">skills</span>
+            <span className="text-xs font-medium text-slate-600 dark:text-slate-400">skills</span>
           </div>
         </div>
 
-        <div className="p-4 rounded-xl border border-indigo-500/30 bg-indigo-500/5 backdrop-blur-xl shadow-sm">
+        <div className="p-4 rounded-xl border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/50 dark:bg-indigo-950/40 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-indigo-300 font-medium">Extracted from Resume</span>
-            <div className="h-7 w-7 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-300">
+            <span className="text-xs font-semibold text-indigo-900 dark:text-indigo-200">Extracted from Resume</span>
+            <div className="h-7 w-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/80 border border-indigo-300 dark:border-indigo-700 flex items-center justify-center text-indigo-700 dark:text-indigo-300">
               <Sparkles className="h-3.5 w-3.5" />
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-extrabold font-outfit text-indigo-300">
+            <span className="text-2xl font-black font-outfit text-indigo-950 dark:text-indigo-100">
               {parsedData?.skills?.length || 0}
             </span>
-            <span className="text-xs text-indigo-400/80">detected</span>
+            <span className="text-xs font-medium text-indigo-700/90 dark:text-indigo-300">detected</span>
           </div>
         </div>
 
-        <div className="p-4 rounded-xl border border-purple-500/30 bg-purple-500/5 backdrop-blur-xl shadow-sm">
+        <div className="p-4 rounded-xl border border-purple-200 dark:border-purple-800/80 bg-purple-50/50 dark:bg-purple-950/40 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-purple-300 font-medium">Verified Citations</span>
-            <div className="h-7 w-7 rounded-lg bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-300">
+            <span className="text-xs font-semibold text-purple-900 dark:text-purple-200">Verified Citations</span>
+            <div className="h-7 w-7 rounded-lg bg-purple-100 dark:bg-purple-900/80 border border-purple-300 dark:border-purple-700 flex items-center justify-center text-purple-700 dark:text-purple-300">
               <Quote className="h-3.5 w-3.5" />
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-extrabold font-outfit text-purple-300">
+            <span className="text-2xl font-black font-outfit text-purple-950 dark:text-purple-100">
               {parsedData?.skills?.filter((s) => s.evidence)?.length || 0}
             </span>
-            <span className="text-xs text-purple-400/80">evidence quotes</span>
+            <span className="text-xs font-medium text-purple-700/90 dark:text-purple-300">evidence quotes</span>
           </div>
         </div>
 
-        <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 backdrop-blur-xl shadow-sm">
+        <div className="p-4 rounded-xl border border-amber-200 dark:border-amber-800/80 bg-amber-50/50 dark:bg-amber-950/40 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-amber-300 font-medium">Industry Tenure</span>
-            <div className="h-7 w-7 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-300">
+            <span className="text-xs font-semibold text-amber-900 dark:text-amber-200">Industry Tenure</span>
+            <div className="h-7 w-7 rounded-lg bg-amber-100 dark:bg-amber-900/80 border border-amber-300 dark:border-amber-700 flex items-center justify-center text-amber-800 dark:text-amber-300">
               <Briefcase className="h-3.5 w-3.5" />
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-extrabold font-outfit text-amber-300">
+            <span className="text-2xl font-black font-outfit text-amber-950 dark:text-amber-100">
               {parsedData?.total_experience_years !== undefined
                 ? `${parsedData.total_experience_years} Yrs`
                 : `${profile?.total_experience_years || 0} Yrs`}
             </span>
-            <span className="text-xs text-amber-400/80">verified</span>
+            <span className="text-xs font-medium text-amber-800/90 dark:text-amber-300">verified</span>
           </div>
         </div>
       </div>
@@ -388,16 +397,18 @@ export const CandidateSkillsPage: React.FC = () => {
         <button
           type="button"
           onClick={() => setActiveSubTab("shelf")}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+          className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
             activeSubTab === "shelf"
-              ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20"
-              : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+              ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25"
+              : "text-slate-700 dark:text-slate-300 hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800/80 border border-slate-200/80 dark:border-slate-800"
           }`}
         >
           <Sparkles className="h-3.5 w-3.5" />
           <span>Resume-Extracted Skills Shelf</span>
           {parsedData?.skills && parsedData.skills.length > 0 && (
-            <span className="px-1.5 py-0.2 rounded-full bg-primary-foreground/20 text-[10px] font-bold">
+            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+              activeSubTab === "shelf" ? "bg-primary-foreground/20 text-primary-foreground" : "bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+            }`}>
               {parsedData.skills.length}
             </span>
           )}
@@ -406,16 +417,18 @@ export const CandidateSkillsPage: React.FC = () => {
         <button
           type="button"
           onClick={() => setActiveSubTab("experience")}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+          className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
             activeSubTab === "experience"
-              ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20"
-              : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+              ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25"
+              : "text-slate-700 dark:text-slate-300 hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800/80 border border-slate-200/80 dark:border-slate-800"
           }`}
         >
           <Briefcase className="h-3.5 w-3.5" />
           <span>Extracted Experience & Projects</span>
           {(parsedData?.experience?.length || 0) + (parsedData?.structured_projects?.length || 0) > 0 && (
-            <span className="px-1.5 py-0.2 rounded-full bg-primary-foreground/20 text-[10px] font-bold">
+            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+              activeSubTab === "experience" ? "bg-primary-foreground/20 text-primary-foreground" : "bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+            }`}>
               {(parsedData?.experience?.length || 0) + (parsedData?.structured_projects?.length || 0)}
             </span>
           )}
@@ -424,16 +437,18 @@ export const CandidateSkillsPage: React.FC = () => {
         <button
           type="button"
           onClick={() => setActiveSubTab("portfolio")}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+          className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
             activeSubTab === "portfolio"
-              ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20"
-              : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+              ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25"
+              : "text-slate-700 dark:text-slate-300 hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800/80 border border-slate-200/80 dark:border-slate-800"
           }`}
         >
           <Code2 className="h-3.5 w-3.5" />
           <span>Declared Profile Skills & Add</span>
-          <span className="px-1.5 py-0.2 rounded-full bg-secondary text-[10px] font-bold">
-            {profile?.skills.length || 0}
+          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+            activeSubTab === "portfolio" ? "bg-primary-foreground/20 text-primary-foreground" : "bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+          }`}>
+            {profile?.skills?.length || 0}
           </span>
         </button>
       </div>
@@ -442,11 +457,11 @@ export const CandidateSkillsPage: React.FC = () => {
       {activeSubTab === "shelf" && (
         <div className="space-y-4">
           {parsedData?.skills && parsedData.skills.length > 0 ? (
-            <Card className="p-6 border-indigo-500/30 bg-gradient-to-br from-card/90 via-card/70 to-indigo-950/20 backdrop-blur-xl space-y-5">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-border/50">
+            <Card className="p-6 border border-indigo-200 dark:border-indigo-900/60 bg-white dark:bg-slate-900 shadow-sm space-y-5">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-border/70">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-indigo-400 animate-pulse" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-indigo-500 animate-pulse" />
                     <h3 className="text-base font-bold font-outfit text-foreground flex items-center gap-2">
                       <span>Resume-Extracted Technical Skills & Verified Evidence</span>
                     </h3>
@@ -462,7 +477,7 @@ export const CandidateSkillsPage: React.FC = () => {
                   size="sm"
                   onClick={handleReparseResume}
                   disabled={isReparsing}
-                  className="gap-1.5 text-xs text-amber-300 border-amber-500/40 hover:bg-amber-500/10 shrink-0"
+                  className="gap-1.5 text-xs font-semibold text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700 bg-amber-50/80 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 shrink-0"
                 >
                   {isReparsing ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -473,34 +488,49 @@ export const CandidateSkillsPage: React.FC = () => {
                 </Button>
               </div>
 
-              {/* Category Filter Pills */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1 shrink-0">
-                  <Filter className="h-3.5 w-3.5 text-indigo-400" /> Category:
-                </span>
-                {skillCategories.map((cat) => {
-                  const count =
-                    cat === "All"
-                      ? parsedData.skills.length
-                      : parsedData.skills.filter((s) => s.category === cat).length;
-                  return (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setActiveCategory(cat)}
-                      className={`px-3 py-1 rounded-full text-xs font-semibold transition-all shrink-0 flex items-center gap-1.5 ${
-                        activeCategory === cat
-                          ? "bg-indigo-600 text-white shadow-sm shadow-indigo-500/30"
-                          : "bg-secondary/60 text-muted-foreground hover:text-foreground hover:bg-secondary"
-                      }`}
-                    >
-                      <span>{cat}</span>
-                      <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 font-bold">
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
+              {/* Category Filter Pills & Search Box */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 flex-1">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 shrink-0">
+                    <Filter className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" /> Category:
+                  </span>
+                  {skillCategories.map((cat) => {
+                    const count =
+                      cat === "All"
+                        ? parsedData.skills.length
+                        : parsedData.skills.filter((s) => s.category === cat).length;
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setActiveCategory(cat)}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold transition-all shrink-0 flex items-center gap-1.5 ${
+                          activeCategory === cat
+                            ? "bg-indigo-600 text-white shadow-xs font-bold"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-foreground hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700"
+                        }`}
+                      >
+                        <span>{cat}</span>
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                          activeCategory === cat ? "bg-white/20 text-white" : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
+                        }`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="relative min-w-[200px] sm:w-60">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Search extracted skills..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-8 h-8 text-xs bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                  />
+                </div>
               </div>
 
               {/* Skills Grid */}
@@ -518,19 +548,19 @@ export const CandidateSkillsPage: React.FC = () => {
                       key={sIdx}
                       className={`p-4 rounded-xl border transition-all flex flex-col justify-between space-y-3 ${
                         inProfile
-                          ? "bg-emerald-500/5 border-emerald-500/30 hover:border-emerald-500/50"
-                          : "bg-secondary/30 border-border/70 hover:border-indigo-500/50 hover:bg-secondary/50"
+                          ? "bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800 hover:border-emerald-500"
+                          : "bg-slate-50/70 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600"
                       }`}
                     >
                       <div className="space-y-2">
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <h4 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                            <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
                               <span>{sk.name}</span>
                             </h4>
                             <Badge
                               variant="outline"
-                              className="text-[10px] text-indigo-300 border-indigo-500/30 bg-indigo-500/10 mt-1"
+                              className="text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/60 mt-1"
                             >
                               {sk.category || "Technical"}
                             </Badge>
@@ -539,7 +569,7 @@ export const CandidateSkillsPage: React.FC = () => {
                           {inProfile ? (
                             <Badge
                               variant="success"
-                              className="text-[10px] shrink-0 gap-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                              className="text-[10px] shrink-0 gap-1 bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-200 dark:border-emerald-800 font-bold"
                             >
                               <Check className="h-3 w-3" />
                               <span>{profileSkill?.proficiency_level || "Active"}</span>
@@ -550,7 +580,7 @@ export const CandidateSkillsPage: React.FC = () => {
                               size="sm"
                               variant="outline"
                               onClick={() => handleAddSingleExtractedSkill(sk.name, sk.category)}
-                              className="h-7 text-xs gap-1 text-indigo-300 border-indigo-500/40 hover:bg-indigo-500/20 shrink-0"
+                              className="h-7 text-xs font-semibold gap-1 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 shrink-0"
                             >
                               <PlusCircle className="h-3 w-3" /> Add
                             </Button>
@@ -559,13 +589,13 @@ export const CandidateSkillsPage: React.FC = () => {
 
                         {/* Evidence Quote Block */}
                         {sk.evidence ? (
-                          <div className="mt-2 p-2.5 rounded-lg bg-card/60 border-l-2 border-indigo-500 text-[11px] text-muted-foreground leading-relaxed flex items-start gap-1.5">
-                            <Quote className="h-3 w-3 text-indigo-400 shrink-0 mt-0.5" />
+                          <div className="mt-2 p-2.5 rounded-lg bg-white dark:bg-slate-800/80 border-l-4 border-indigo-500 text-xs text-slate-700 dark:text-slate-200 leading-relaxed flex items-start gap-2 shadow-2xs">
+                            <Quote className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
                             <span className="italic line-clamp-3">"{sk.evidence}"</span>
                           </div>
                         ) : (
-                          <div className="mt-2 text-[10px] text-muted-foreground/70 italic flex items-center gap-1">
-                            <CheckCircle2 className="h-3 w-3 text-emerald-400/70" />
+                          <div className="mt-2 text-xs text-slate-600 dark:text-slate-400 italic flex items-center gap-1.5 font-medium">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                             <span>Verified in resume technical competency section</span>
                           </div>
                         )}
@@ -602,40 +632,40 @@ export const CandidateSkillsPage: React.FC = () => {
       {activeSubTab === "experience" && (
         <div className="space-y-6">
           {/* Work Experience */}
-          <Card className="p-6 border-border/80 bg-card/70 backdrop-blur-xl space-y-4">
+          <Card className="p-6 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm space-y-4">
             <h3 className="text-base font-bold font-outfit text-foreground flex items-center gap-2">
-              <Briefcase className="h-4 w-4 text-blue-400" /> Extracted Work Experience & Roles
+              <Briefcase className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Extracted Work Experience & Roles
             </h3>
 
             {parsedData?.experience && parsedData.experience.length > 0 ? (
               <div className="space-y-3">
                 {parsedData.experience.map((pos, idx) => (
-                  <div key={idx} className="p-4 rounded-xl bg-secondary/30 border border-border/60 space-y-2">
+                  <div key={idx} className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-2">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2.5">
-                        <div className="h-8 w-8 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+                        <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900/60 border border-blue-300 dark:border-blue-700 flex items-center justify-center text-blue-700 dark:text-blue-300 shrink-0">
                           <Briefcase className="h-4 w-4" />
                         </div>
                         <div>
-                          <h4 className="text-sm font-bold text-foreground">{pos.title}</h4>
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Building2 className="h-3 w-3 text-indigo-400" /> {pos.company || "Company Organization"}
+                          <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">{pos.title}</h4>
+                          <span className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                            <Building2 className="h-3 w-3 text-indigo-600 dark:text-indigo-400" /> {pos.company || "Company Organization"}
                           </span>
                         </div>
                       </div>
                       {pos.duration && (
-                        <Badge variant="outline" className="text-xs text-blue-300 border-blue-500/40 bg-blue-500/10 shrink-0">
+                        <Badge variant="outline" className="text-xs font-semibold text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/60 shrink-0">
                           {pos.duration}
                         </Badge>
                       )}
                     </div>
 
                     {pos.highlights && pos.highlights.length > 0 && (
-                      <ul className="space-y-1 text-xs text-muted-foreground pl-1 pt-1">
+                      <ul className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300 pl-1 pt-1">
                         {pos.highlights.map((bullet, bIdx) => (
-                          <li key={bIdx} className="flex items-start gap-2 text-foreground/90">
-                            <span className="h-1.5 w-1.5 rounded-full bg-blue-400 mt-1.5 shrink-0" />
-                            <span>{bullet}</span>
+                          <li key={bIdx} className="flex items-start gap-2">
+                            <span className="h-1.5 w-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                            <span className="leading-relaxed">{bullet}</span>
                           </li>
                         ))}
                       </ul>
@@ -651,22 +681,22 @@ export const CandidateSkillsPage: React.FC = () => {
           </Card>
 
           {/* Technical Projects */}
-          <Card className="p-6 border-border/80 bg-card/70 backdrop-blur-xl space-y-4">
+          <Card className="p-6 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm space-y-4">
             <h3 className="text-base font-bold font-outfit text-foreground flex items-center gap-2">
-              <FolderGit2 className="h-4 w-4 text-purple-400" /> Extracted Technical Projects
+              <FolderGit2 className="h-4 w-4 text-purple-600 dark:text-purple-400" /> Extracted Technical Projects
             </h3>
 
             {parsedData?.structured_projects && parsedData.structured_projects.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {parsedData.structured_projects.map((proj, idx) => (
-                  <div key={idx} className="p-4 rounded-xl bg-secondary/30 border border-border/60 space-y-2">
+                  <div key={idx} className="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-2.5">
                     <div className="flex items-start justify-between gap-2">
-                      <h4 className="text-sm font-bold text-foreground flex items-center gap-1.5">
-                        <FolderGit2 className="h-4 w-4 text-purple-400 shrink-0" />
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                        <FolderGit2 className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0" />
                         <span>{proj.title}</span>
                       </h4>
                       {proj.duration && (
-                        <Badge variant="outline" className="text-[10px] text-purple-300 border-purple-500/30 shrink-0">
+                        <Badge variant="outline" className="text-[10px] font-semibold text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/60 shrink-0">
                           {proj.duration}
                         </Badge>
                       )}
@@ -677,7 +707,7 @@ export const CandidateSkillsPage: React.FC = () => {
                         {proj.technologies.map((t, tIdx) => (
                           <span
                             key={tIdx}
-                            className="px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-500/15 border border-purple-500/30 text-purple-300"
+                            className="px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-purple-800 dark:text-purple-200"
                           >
                             {t}
                           </span>
@@ -686,16 +716,16 @@ export const CandidateSkillsPage: React.FC = () => {
                     )}
 
                     {proj.bullets && proj.bullets.length > 0 ? (
-                      <ul className="space-y-1 text-xs text-muted-foreground pt-1">
+                      <ul className="space-y-1 text-xs text-slate-700 dark:text-slate-300 pt-1">
                         {proj.bullets.map((b, bIdx) => (
-                          <li key={bIdx} className="flex items-start gap-2 text-foreground/80">
-                            <span className="h-1 w-1 rounded-full bg-purple-400 mt-1.5 shrink-0" />
-                            <span>{b}</span>
+                          <li key={bIdx} className="flex items-start gap-2">
+                            <span className="h-1 w-1 rounded-full bg-purple-500 mt-1.5 shrink-0" />
+                            <span className="leading-relaxed">{b}</span>
                           </li>
                         ))}
                       </ul>
                     ) : (
-                      <p className="text-xs text-muted-foreground">{proj.description}</p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">{proj.description}</p>
                     )}
                   </div>
                 ))}
@@ -713,7 +743,7 @@ export const CandidateSkillsPage: React.FC = () => {
       {activeSubTab === "portfolio" && (
         <div className="space-y-6">
           {/* Add New Skill Form Card */}
-          <Card className="border-border/80 bg-card/70 backdrop-blur-xl p-6">
+          <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-6">
             <form onSubmit={handleAddSkill} className="space-y-4">
               <h3 className="text-base font-bold font-outfit text-foreground flex items-center gap-2">
                 <PlusCircle className="h-4 w-4 text-primary" /> Add Skill to Portfolio
@@ -726,7 +756,7 @@ export const CandidateSkillsPage: React.FC = () => {
                     value={selectedSkillId}
                     onChange={(e) => setSelectedSkillId(e.target.value ? Number(e.target.value) : "")}
                     required
-                    className="w-full h-10 px-3 rounded-lg border border-border bg-secondary/50 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary"
                   >
                     <option value="">Choose from taxonomy...</option>
                     {unaddedSkills.map((s) => (
@@ -742,7 +772,7 @@ export const CandidateSkillsPage: React.FC = () => {
                   <select
                     value={proficiency}
                     onChange={(e) => setProficiency(e.target.value)}
-                    className="w-full h-10 px-3 rounded-lg border border-border bg-secondary/50 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary"
                   >
                     <option value="Expert">Expert (5+ yrs / Advanced)</option>
                     <option value="Intermediate">Intermediate (3-5 yrs / Autonomous)</option>
@@ -761,6 +791,7 @@ export const CandidateSkillsPage: React.FC = () => {
                     required
                     value={yearsExp}
                     onChange={(e) => setYearsExp(Number(e.target.value))}
+                    className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
                   />
                 </div>
               </div>
@@ -770,7 +801,7 @@ export const CandidateSkillsPage: React.FC = () => {
                   type="submit"
                   variant="gradient"
                   disabled={isAdding || !selectedSkillId}
-                  className="gap-2"
+                  className="gap-2 font-bold shadow-xs"
                 >
                   {isAdding ? (
                     <>
@@ -787,14 +818,14 @@ export const CandidateSkillsPage: React.FC = () => {
           </Card>
 
           {/* Current Declared Skills Portfolio */}
-          <Card className="border-border/80 bg-card/70 backdrop-blur-xl p-6 space-y-4">
+          <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-6 space-y-4">
             <h3 className="text-base font-bold font-outfit text-foreground flex items-center gap-2">
-              <Layers className="h-4 w-4 text-purple-400" /> My Declared Skills (
+              <Layers className="h-4 w-4 text-purple-600 dark:text-purple-400" /> My Declared Skills (
               {profile?.skills.length || 0})
             </h3>
 
             {profile?.skills.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground text-sm">
+              <div className="text-center py-8 text-muted-foreground text-sm font-medium">
                 No skills declared yet. Select a skill above to start building your portfolio.
               </div>
             ) : (
@@ -802,12 +833,12 @@ export const CandidateSkillsPage: React.FC = () => {
                 {profile?.skills.map((cs) => (
                   <div
                     key={cs.id}
-                    className="p-4 rounded-xl border border-border/70 bg-card/60 flex items-center justify-between group hover:border-primary/40 transition-all"
+                    className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 flex items-center justify-between group hover:border-primary/50 transition-all shadow-2xs"
                   >
                     <div>
-                      <h4 className="text-sm font-bold text-foreground">{cs.skill.name}</h4>
-                      <p className="text-xs text-muted-foreground">{cs.skill.category}</p>
-                      <span className="text-[11px] text-slate-400 mt-1 block">
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">{cs.skill.name}</h4>
+                      <p className="text-xs font-medium text-slate-600 dark:text-slate-400">{cs.skill.category}</p>
+                      <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1 block">
                         {cs.years_experience} Years Experience
                       </span>
                     </div>
@@ -823,7 +854,7 @@ export const CandidateSkillsPage: React.FC = () => {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                        className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
                         onClick={() => handleOpenEdit(cs)}
                       >
                         <Pencil className="h-4 w-4" />
@@ -831,7 +862,7 @@ export const CandidateSkillsPage: React.FC = () => {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-400"
+                        className="h-8 w-8 p-0 text-slate-500 hover:text-rose-500"
                         onClick={() => handleDeleteSkill(cs.skill.id, cs.skill.name)}
                       >
                         <Trash2 className="h-4 w-4" />

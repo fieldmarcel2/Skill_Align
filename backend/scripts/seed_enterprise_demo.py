@@ -188,17 +188,6 @@ def seed_enterprise_demo():
                 "skills": [("Python", 5.0), ("Machine Learning", 4.0), ("PyTorch", 4.0), ("NLP", 3.5)],
             },
             {
-                "email": "rahul@candidate.dev",
-                "name": "Rahul Sharma",
-                "phone": "+919876543240",
-                "exp": 3.5,
-                "city": "Bangalore",
-                "target_job": "Senior Full-Stack Engineer",
-                "score": 88.0,
-                "state": "OFFER_SENT",
-                "skills": [("Python", 4.0), ("React", 3.0), ("PostgreSQL", 3.0)],
-            },
-            {
                 "email": "shiva@candidate.dev",
                 "name": "Shivanshu Tripathi",
                 "phone": "+918840226477",

@@ -26,6 +26,7 @@ Any state can transition to REJECTED via explicit reject actions.
 import json
 import logging
 import secrets
+import hashlib
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 
@@ -356,10 +357,13 @@ def request_interview(
     slots: List[dict],  # [{"slot_datetime": datetime, "slot_end_datetime": datetime|None}]
     interview_type: str = "technical",
     meeting_link: Optional[str] = None,
+    interview_structure: str = "single_round",
+    round_name: Optional[str] = None,
 ) -> tuple[MatchResult, Interview]:
     """
     HM requests an interview and proposes time slots.
     Minimum 2 slots required.
+    Supports single_round (1 comprehensive interview) or multi_round assessment pipelines.
     """
     bl = is_candidate_blacklisted(db, match_result.candidate_id)
     if bl:
@@ -390,6 +394,63 @@ def request_interview(
                 detail=f"Slot datetime {slot_dt} is in the past. All slots must be future dates.",
             )
 
+    # ── Cross-job slot conflict check ────────────────────────────────────────
+    # A candidate cannot have two interviews at the same/overlapping time
+    # across different job match results.
+    from datetime import timedelta
+    from app.models.interview import Interview as InterviewModel
+
+    # Gather all proposed/selected slots for this candidate across OTHER match results
+    candidate_existing_slots = (
+        db.query(InterviewSlot)
+        .join(InterviewModel, InterviewSlot.interview_id == InterviewModel.id)
+        .join(MatchResult, InterviewModel.match_result_id == MatchResult.id)
+        .filter(
+            MatchResult.candidate_id == match_result.candidate_id,
+            MatchResult.id != match_result.id,  # exclude current match
+            InterviewSlot.status.in_(["proposed", "selected"]),
+        )
+        .all()
+    )
+
+    BUFFER_HOURS = 1.5  # minimum gap required between interviews
+    buffer = timedelta(hours=BUFFER_HOURS)
+
+    for new_slot in slots:
+        new_dt = new_slot.get("slot_datetime")
+        if isinstance(new_dt, str):
+            new_dt = datetime.fromisoformat(new_dt)
+        if new_dt and new_dt.tzinfo is None:
+            new_dt = new_dt.replace(tzinfo=timezone.utc)
+        if not new_dt:
+            continue
+
+        for existing in candidate_existing_slots:
+            ex_dt = existing.slot_datetime
+            if ex_dt.tzinfo is None:
+                ex_dt = ex_dt.replace(tzinfo=timezone.utc)
+
+            # Check if slots are within buffer of each other
+            if abs((new_dt - ex_dt).total_seconds()) < buffer.total_seconds():
+                # Get the conflicting job title
+                conflict_mr = (
+                    db.query(MatchResult)
+                    .filter(MatchResult.id == existing.match_result_id)
+                    .first()
+                )
+                conflict_job = conflict_mr.job.title if conflict_mr and conflict_mr.job else "another job"
+                formatted_dt = new_dt.strftime("%d %b %Y at %I:%M %p UTC")
+                formatted_ex = ex_dt.strftime("%d %b %Y at %I:%M %p UTC")
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"Slot conflict detected: Proposed slot at {formatted_dt} overlaps with an existing "
+                        f"interview slot at {formatted_ex} for this candidate for '{conflict_job}'. "
+                        f"Please choose a time at least {int(BUFFER_HOURS * 60)} minutes apart from all other scheduled interviews."
+                    ),
+                )
+    # ── End conflict check ────────────────────────────────────────────────────
+
     current_pstate = match_result.pipeline_state or "CANDIDATE_MATCHED"
     old_state = current_pstate
 
@@ -401,11 +462,18 @@ def request_interview(
         .first()
     )
 
+    calculated_round_name = round_name or (
+        "Comprehensive Assessment (Single Round)"
+        if interview_structure == "single_round"
+        else "Technical Screening (Round 1)"
+    )
+
     if existing_interview and current_pstate in ("INTERVIEW_SLOTS_PROPOSED", "WAITING_FOR_CANDIDATE_SLOT", "INTERVIEW_REQUESTED", "CANDIDATE_SLOT_SELECTED"):
         interview = existing_interview
         interview.interview_type = interview_type
         if meeting_link:
             interview.meeting_link = meeting_link
+        interview.round_name = calculated_round_name
         interview.status = "pending_slot"
 
         # Cancel previous proposed slots
@@ -426,6 +494,10 @@ def request_interview(
             meeting_link=meeting_link,
             interview_mode="online",
             status="pending_slot",
+            round_number=1,
+            round_name=calculated_round_name,
+            round_type="TECHNICAL",
+            round_status="PENDING_SCHEDULING",
         )
         db.add(interview)
         db.flush()  # get interview.id
@@ -637,6 +709,38 @@ def candidate_select_slot(
             status_code=status.HTTP_409_CONFLICT,
             detail="Selected slot is no longer available or does not belong to this interview.",
         )
+
+    # Prevent candidate from selecting a slot that collides with another job's selected interview
+    from datetime import timedelta
+    candidate_other_selected_slots = (
+        db.query(InterviewSlot)
+        .join(Interview, InterviewSlot.interview_id == Interview.id)
+        .join(MatchResult, Interview.match_result_id == MatchResult.id)
+        .filter(
+            MatchResult.candidate_id == match_result.candidate_id,
+            Interview.id != interview.id,
+            InterviewSlot.status == "selected",
+        )
+        .all()
+    )
+    buffer = timedelta(hours=1.5)
+    candidate_slot_dt = slot.slot_datetime
+    if candidate_slot_dt.tzinfo is None:
+        candidate_slot_dt = candidate_slot_dt.replace(tzinfo=timezone.utc)
+    for other_s in candidate_other_selected_slots:
+        oth_dt = other_s.slot_datetime
+        if oth_dt.tzinfo is None:
+            oth_dt = oth_dt.replace(tzinfo=timezone.utc)
+        if abs((candidate_slot_dt - oth_dt).total_seconds()) < buffer.total_seconds():
+            other_mr = db.query(MatchResult).filter(MatchResult.id == other_s.match_result_id).first()
+            other_job_name = other_mr.job.title if other_mr and other_mr.job else "another position"
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Schedule conflict: You already have a confirmed interview for '{other_job_name}' at "
+                    f"{oth_dt.strftime('%d %b %Y at %I:%M %p UTC')}. Please select a different time slot."
+                ),
+            )
 
     now = datetime.now(timezone.utc)
 
@@ -1112,6 +1216,14 @@ def create_offer(
     salary_min: Optional[float] = None,
     salary_max: Optional[float] = None,
     salary_currency: str = "INR",
+    fixed_compensation: Optional[float] = None,
+    variable_compensation: Optional[float] = None,
+    total_compensation: Optional[float] = None,
+    bonus: Optional[float] = None,
+    joining_bonus: Optional[float] = None,
+    other_benefits: Optional[str] = None,
+    notice_period: Optional[str] = None,
+    expected_joining_date: Optional[datetime] = None,
     role_scope: Optional[str] = None,
     employment_type: str = "Full-time",
     joining_date: Optional[datetime] = None,
@@ -1120,38 +1232,116 @@ def create_offer(
     location: Optional[str] = None,
     work_mode: Optional[str] = None,
     additional_terms: Optional[str] = None,
+    override_reason: Optional[str] = None,
 ) -> tuple[MatchResult, Offer]:
-    """Recruiter creates a draft offer."""
-    # Allow creating offer in COMPENSATION_DISCUSSION state
-    if match_result.pipeline_state not in ("COMPENSATION_DISCUSSION",):
+    """Recruiter creates or updates a draft offer with compensation validation."""
+    # Allow creating/updating offer across all valid pipeline stages
+    disallowed_states = ("REJECTED", "BLACKLISTED")
+    if match_result.pipeline_state in disallowed_states:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Offer can only be created in COMPENSATION_DISCUSSION state. Current: {match_result.pipeline_state}",
+            detail=f"Offer cannot be created for application in '{match_result.pipeline_state}' state.",
         )
 
+    # Complete any pending/open interview rounds since candidate is advancing to offer
+    try:
+        from app.models.interview import Interview
+        db.query(Interview).filter(
+            Interview.match_result_id == match_result.id,
+            Interview.status.in_(("pending_slot", "scheduled", "in_progress", "pending_scheduling")),
+        ).update({"status": "completed", "round_status": "COMPLETED"}, synchronize_session=False)
+    except Exception as e:
+        logger.warning(f"Could not auto-complete pending interviews: {e}")
+
+    # Validate salary band: salary_min <= proposed_salary <= salary_max
+    if salary_min is not None and salary_max is not None and proposed_salary is not None:
+        if proposed_salary < salary_min or proposed_salary > salary_max:
+            if not override_reason or not override_reason.strip():
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        f"Proposed salary ({proposed_salary:,.0f} {salary_currency}) is outside the configured "
+                        f"salary band ({salary_min:,.0f} – {salary_max:,.0f}). An explicit override reason is required."
+                    ),
+                )
+
     old_state = match_result.pipeline_state
+    now = datetime.now(timezone.utc)
+
+    # Compute total compensation if not provided
+    calculated_total = total_compensation
+    if calculated_total is None:
+        comp_parts = [c for c in [fixed_compensation, variable_compensation, bonus, joining_bonus] if c is not None]
+        if comp_parts:
+            calculated_total = sum(comp_parts)
+        else:
+            calculated_total = proposed_salary
 
     # Check if offer already exists for this application
     offer = db.query(Offer).filter(Offer.match_result_id == match_result.id).first()
     if offer:
+        # Check if proposed salary changed -> audit COMPENSATION_UPDATED
+        if offer.proposed_salary is not None and proposed_salary is not None and float(offer.proposed_salary) != float(proposed_salary):
+            _create_audit_log(
+                db, recruiter.id, "COMPENSATION_UPDATED", match_result,
+                from_state=match_result.pipeline_state, to_state=match_result.pipeline_state,
+                details=json.dumps({
+                    "old_value": float(offer.proposed_salary),
+                    "new_value": float(proposed_salary),
+                    "currency": salary_currency,
+                    "actor": recruiter.name,
+                    "reason": override_reason or "Compensation adjusted by recruiter",
+                    "timestamp": now.isoformat(),
+                }),
+            )
+
+        # If previously approved by HM and recruiter changes terms, reset approval
+        if offer.workflow_state in ("HM_APPROVED", "OFFER_READY"):
+            offer.workflow_state = "PENDING_HM_REVIEW"
+            offer.status = "PENDING_HM_REVIEW"
+            offer.approved_by = None
+            offer.approved_at = None
+            offer.hm_approved_at = None
+            offer.pdf_version = (offer.pdf_version or 1) + 1
+            offer.pdf_storage_key = None
+            offer.pdf_file_name = None
+
+            if match_result.hiring_manager_id:
+                _create_notification(
+                    db, match_result.hiring_manager_id,
+                    subject="⚠️ Offer Modified by Recruiter — Re-approval Required",
+                    body=f"Recruiter {recruiter.name} modified the approved terms for {match_result.candidate.full_name if match_result.candidate else 'the candidate'}. Re-review is required.",
+                    notification_type="OFFER_REVIEW_REQUIRED",
+                    match_result_id=match_result.id,
+                )
+
         offer.created_by = recruiter.id
         offer.salary_currency = salary_currency
         offer.salary_min = salary_min
         offer.salary_max = salary_max
         offer.proposed_salary = proposed_salary
+        offer.fixed_compensation = fixed_compensation
+        offer.variable_compensation = variable_compensation
+        offer.total_compensation = calculated_total
+        offer.bonus = bonus
+        offer.joining_bonus = joining_bonus
+        offer.other_benefits = other_benefits
+        offer.notice_period = notice_period
+        offer.expected_joining_date = expected_joining_date
+        offer.override_reason = override_reason
+        if override_reason:
+            offer.override_approved_by = recruiter.id
         offer.role_scope = role_scope
         offer.employment_type = employment_type
-        offer.joining_date = joining_date
-        offer.joining_timeline = joining_timeline
+        offer.joining_date = joining_date or expected_joining_date
+        offer.joining_timeline = joining_timeline or notice_period
         offer.offer_expiry_date = offer_expiry_date
         offer.location = location
         offer.work_mode = work_mode
         offer.additional_terms = additional_terms
-        offer.status = "DRAFT"
-        offer.offer_token = None
-        offer.sent_at = None
-        offer.responded_at = None
-        offer.candidate_response_note = None
+        if offer.workflow_state not in ("PENDING_HM_REVIEW", "HM_APPROVED"):
+            offer.status = "DRAFT"
+            offer.workflow_state = "DRAFT"
     else:
         offer = Offer(
             match_result_id=match_result.id,
@@ -1162,21 +1352,35 @@ def create_offer(
             salary_min=salary_min,
             salary_max=salary_max,
             proposed_salary=proposed_salary,
+            fixed_compensation=fixed_compensation,
+            variable_compensation=variable_compensation,
+            total_compensation=calculated_total,
+            bonus=bonus,
+            joining_bonus=joining_bonus,
+            other_benefits=other_benefits,
+            notice_period=notice_period,
+            expected_joining_date=expected_joining_date,
+            override_reason=override_reason,
+            override_approved_by=recruiter.id if override_reason else None,
             role_scope=role_scope,
             employment_type=employment_type,
-            joining_date=joining_date,
-            joining_timeline=joining_timeline,
+            joining_date=joining_date or expected_joining_date,
+            joining_timeline=joining_timeline or notice_period,
             offer_expiry_date=offer_expiry_date,
             location=location,
             work_mode=work_mode,
             additional_terms=additional_terms,
             status="DRAFT",
+            workflow_state="DRAFT",
+            pdf_version=1,
         )
         db.add(offer)
+
     db.flush()
 
-    match_result.pipeline_state = "OFFER_CREATED"
-    match_result.status = "offer"
+    if match_result.pipeline_state != "OFFER_CREATED":
+        match_result.pipeline_state = "OFFER_CREATED"
+        match_result.status = "offer"
 
     _create_audit_log(
         db, recruiter.id, "OFFER_CREATED", match_result,
@@ -1184,6 +1388,7 @@ def create_offer(
         details=json.dumps({
             "offer_id": offer.id,
             "proposed_salary": proposed_salary,
+            "total_compensation": calculated_total,
             "currency": salary_currency,
         }),
     )
@@ -1201,30 +1406,43 @@ def send_offer(
     offer: Offer,
     recruiter: User,
 ) -> tuple[MatchResult, Offer, str]:
-    """Recruiter sends the offer to the candidate."""
-    if offer.status not in ("DRAFT", "OFFER_READY", "HM_APPROVED"):
+    """Recruiter sends the verified, approved offer to the candidate."""
+    if offer.status in ("ACCEPTED", "REJECTED", "EXPIRED"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Only DRAFT, HM_APPROVED, or OFFER_READY offers can be sent. Current status: {offer.status}",
+            detail=f"Cannot dispatch offer. Already finalized as {offer.status}.",
+        )
+
+    # Validate HM approved and PDF generated
+    if offer.workflow_state not in ("OFFER_READY", "HM_APPROVED") and not offer.pdf_storage_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot dispatch offer until Hiring Manager approves and official PDF letter is generated.",
         )
 
     _validate_transition(match_result.pipeline_state, "OFFER_SENT")
     old_state = match_result.pipeline_state
 
-    token = secrets.token_hex(32)
+    # Generate secure random token
+    raw_token = secrets.token_hex(32)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
     now = datetime.now(timezone.utc)
 
-    offer.offer_token = token
+    offer.offer_token = raw_token
+    offer.secure_access_token_hash = token_hash
     offer.status = "SENT"
     offer.workflow_state = "SENT"
     offer.sent_at = now
+    offer.token_expires_at = now + timedelta(days=14)
+    offer.expires_at = offer.offer_expiry_date or (now + timedelta(days=14))
+
     match_result.pipeline_state = "OFFER_SENT"
     match_result.status = "offer"
 
     _create_audit_log(
         db, recruiter.id, "OFFER_SENT", match_result,
         from_state=old_state, to_state="OFFER_SENT",
-        details=json.dumps({"offer_id": offer.id, "recruiter": recruiter.name}),
+        details=json.dumps({"offer_id": offer.id, "recruiter": recruiter.name, "version": offer.pdf_version}),
     )
 
     # Notify candidate
@@ -1232,22 +1450,22 @@ def send_offer(
         job_title = match_result.job.title if match_result.job else "Job"
         _create_notification(
             db, match_result.candidate.user_id,
-            subject=f"You Have a Job Offer: {job_title}",
+            subject=f"You Have Received an Official Job Offer: {job_title}",
             body=(
-                f"Congratulations! You have received a job offer for the {job_title} position. "
-                f"Proposed salary: {offer.salary_currency} {offer.proposed_salary:,.0f}. "
-                f"Please review and respond."
+                f"Congratulations! We are delighted to extend a formal offer of employment for the {job_title} position. "
+                f"Proposed Annual CTC: {offer.salary_currency} {offer.proposed_salary:,.0f}. "
+                f"Please review the offer letter and make your decision."
             ),
             notification_type="OFFER_READY",
             match_result_id=match_result.id,
-            action_url=f"/candidate/offers/{offer.id}?token={token}",
+            action_url=f"/candidate/offers/{offer.id}?token={raw_token}",
         )
 
     db.commit()
     db.refresh(match_result)
     db.refresh(offer)
     logger.info(f"[Workflow] MatchResult {match_result.id}: {old_state} → OFFER_SENT")
-    return match_result, offer, token
+    return match_result, offer, raw_token
 
 
 def candidate_respond_to_offer(
@@ -1257,21 +1475,34 @@ def candidate_respond_to_offer(
     accept: bool,
     note: Optional[str] = None,
 ) -> tuple[MatchResult, Offer]:
-    """Candidate accepts or rejects an offer."""
+    """Candidate accepts or rejects an offer with strict transactional safety & row locking."""
+    # Transactional row lock on Offer table to prevent race conditions
+    locked_offer = db.query(Offer).filter(Offer.id == offer.id).with_for_update(of=Offer).first()
+    if not locked_offer:
+        raise HTTPException(status_code=404, detail="Offer not found.")
+    offer = locked_offer
+
     if not offer.offer_token or offer.offer_token != token:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid or expired offer token.",
+            detail="Invalid or expired offer authorization token.",
         )
+
+    if offer.status in ("ACCEPTED", "REJECTED"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"This offer has already been finalized ({offer.status}). No further actions permitted.",
+        )
+
     if offer.status != "SENT":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Offer is not in SENT status. Current: {offer.status}",
+            detail=f"Offer is not open for decision. Current status: {offer.status}",
         )
 
     match_result = db.query(MatchResult).filter(MatchResult.id == offer.match_result_id).first()
     if not match_result:
-        raise HTTPException(status_code=404, detail="Application not found.")
+        raise HTTPException(status_code=404, detail="Application record not found.")
 
     now = datetime.now(timezone.utc)
     offer.responded_at = now
@@ -1282,42 +1513,99 @@ def candidate_respond_to_offer(
 
     if accept:
         offer.status = "ACCEPTED"
+        offer.workflow_state = "ACCEPTED"
+        offer.accepted_at = now
+
         _validate_transition(match_result.pipeline_state, "OFFER_ACCEPTED")
         old_state = match_result.pipeline_state
         match_result.pipeline_state = "HIRED"
         match_result.status = "hired"
 
+        # Update candidate overall status to HIRED
+        if match_result.candidate:
+            match_result.candidate.hiring_status = "HIRED"
+
+        # Business rule: Keep other applications but mark them as ON_HOLD_DUE_TO_HIRING
+        try:
+            db.query(MatchResult).filter(
+                MatchResult.candidate_id == match_result.candidate_id,
+                MatchResult.id != match_result.id,
+                MatchResult.status.notin_(("hired", "rejected", "withdrawn")),
+                MatchResult.pipeline_state.notin_(("HIRED", "REJECTED", "BLACKLISTED")),
+            ).update(
+                {"pipeline_state": "ON_HOLD_DUE_TO_HIRING", "status": "on_hold"},
+                synchronize_session=False,
+            )
+        except Exception as e:
+            logger.warning(f"Could not update other candidate applications to on-hold: {e}")
+
+        # Complete any open interviews since candidate is hired
+        try:
+            from app.models.interview import Interview
+            db.query(Interview).filter(
+                Interview.match_result_id == match_result.id,
+            ).update({"status": "completed", "round_status": "COMPLETED"}, synchronize_session=False)
+        except Exception as e:
+            logger.warning(f"Could not update interview status on hire: {e}")
+
+        # Auto-complete open tasks for this match/candidate since workflow is successfully closed
+        try:
+            from app.models.recruitment_task import RecruitmentTask
+            db.query(RecruitmentTask).filter(
+                or_(
+                    RecruitmentTask.match_result_id == match_result.id,
+                    RecruitmentTask.candidate_id == match_result.candidate_id,
+                ),
+                RecruitmentTask.status == "OPEN",
+            ).update({"status": "COMPLETED", "completed_at": now}, synchronize_session=False)
+        except Exception as e:
+            logger.warning(f"Could not auto-complete open tasks on hire: {e}")
+
         _create_audit_log(
             db, None, "OFFER_ACCEPTED", match_result,
             from_state=old_state, to_state="HIRED",
-            details=json.dumps({"candidate": candidate_name, "note": note}),
+            details=json.dumps({"candidate": candidate_name, "note": note, "accepted_at": now.isoformat()}),
         )
 
-        # Notify recruiter + HM
+        # Notify recruiter & HM
         for uid in filter(None, [match_result.recruiter_id, match_result.hiring_manager_id]):
             _create_notification(
                 db, uid,
-                subject=f"Offer Accepted: {candidate_name} — HIRED",
-                body=f"{candidate_name} has accepted the offer for {job_title}. Recruitment complete!",
+                subject=f"🎉 Offer Accepted: {candidate_name} is HIRED!",
+                body=f"{candidate_name} has accepted the offer for {job_title}. Candidate workflow is successfully closed as HIRED.",
                 notification_type="OFFER_ACCEPTED",
                 match_result_id=match_result.id,
             )
+
+        if match_result.candidate and match_result.candidate.user_id:
+            _create_notification(
+                db, match_result.candidate.user_id,
+                subject=f"Welcome aboard! Offer Accepted for {job_title}",
+                body="Your acceptance has been confirmed. Our Talent Acquisition team will reach out with onboarding details.",
+                notification_type="OFFER_ACCEPTED",
+                match_result_id=match_result.id,
+            )
+
         logger.info(f"[Workflow] MatchResult {match_result.id}: OFFER_ACCEPTED → HIRED")
 
     else:
         offer.status = "REJECTED"
+        offer.workflow_state = "REJECTED"
+        offer.rejected_at = now
+        offer.rejection_reason = note
+
         _validate_transition(match_result.pipeline_state, "OFFER_REJECTED")
         old_state = match_result.pipeline_state
         match_result.pipeline_state = "BLACKLISTED"
         match_result.status = "rejected"
 
-        # Create 6-month blacklist
-        blacklist_until = now + timedelta(days=183)  # ~6 months
+        # Create 6-month blacklist record (183 days)
+        blacklist_until = now + timedelta(days=183)
         blacklist = CandidateBlacklist(
             candidate_id=match_result.candidate_id,
             match_result_id=match_result.id,
             blacklisted_by=match_result.recruiter_id,
-            reason=f"Offer rejected by candidate for {job_title}. Note: {note or 'None'}",
+            reason=f"Candidate declined offer for {job_title}. Candidate reason: {note or 'None provided'}",
             blacklisted_at=now,
             blacklisted_until=blacklist_until,
             is_active=True,
@@ -1325,26 +1613,27 @@ def candidate_respond_to_offer(
         db.add(blacklist)
 
         _create_audit_log(
-            db, None, "OFFER_REJECTED_CANDIDATE_BLACKLISTED", match_result,
+            db, None, "OFFER_REJECTED", match_result,
             from_state=old_state, to_state="BLACKLISTED",
             details=json.dumps({
                 "candidate": candidate_name,
                 "blacklisted_until": str(blacklist_until),
-                "note": note,
+                "reason": note,
             }),
         )
 
         for uid in filter(None, [match_result.recruiter_id, match_result.hiring_manager_id]):
             _create_notification(
                 db, uid,
-                subject=f"Offer Rejected: {candidate_name} — Blacklisted 6 Months",
+                subject=f"⚠️ Offer Rejected: {candidate_name} — 6-Month Cooldown Applied",
                 body=(
-                    f"{candidate_name} has rejected the offer for {job_title}. "
-                    f"Candidate has been blacklisted until {blacklist_until.strftime('%d %b %Y')}."
+                    f"{candidate_name} has declined the offer for {job_title}. "
+                    f"Candidate has been placed on recruitment cooldown until {blacklist_until.strftime('%d %b %Y')}."
                 ),
                 notification_type="OFFER_REJECTED",
                 match_result_id=match_result.id,
             )
+
         logger.info(
             f"[Workflow] MatchResult {match_result.id}: OFFER_REJECTED → BLACKLISTED until {blacklist_until}"
         )
@@ -1682,6 +1971,7 @@ def submit_offer_for_hm_review(
     """
     Recruiter submits the draft offer to HM for review.
     Transitions offer workflow_state: DRAFT / HM_CHANGES_REQUESTED → PENDING_HM_REVIEW.
+    Validates completeness of compensation and role scope.
     """
     allowed = ("DRAFT", "HM_CHANGES_REQUESTED")
     if offer.workflow_state not in allowed:
@@ -1690,23 +1980,40 @@ def submit_offer_for_hm_review(
             detail=f"Cannot submit offer for review in state '{offer.workflow_state}'.",
         )
 
+    # Mandatory field validation
+    if not offer.proposed_salary:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Proposed salary is required before submitting the offer for review.",
+        )
+    if not offer.role_scope:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Role scope and responsibilities must be specified before submitting.",
+        )
+
+    now = datetime.now(timezone.utc)
     offer.workflow_state = "PENDING_HM_REVIEW"
     offer.status = "PENDING_HM_REVIEW"
+    offer.submitted_to_hm_at = now
     if recruiter_notes:
         offer.recruiter_comments = recruiter_notes
 
+    cand_name = match_result.candidate.full_name if match_result.candidate else "Candidate"
+    job_title = match_result.job.title if match_result.job else "Job"
+
     _create_audit_log(
-        db, recruiter.id, "OFFER_SUBMITTED_FOR_HM_REVIEW", match_result,
+        db, recruiter.id, "OFFER_SUBMITTED_FOR_REVIEW", match_result,
         from_state=match_result.pipeline_state, to_state=match_result.pipeline_state,
-        details=json.dumps({"recruiter_notes": recruiter_notes}),
+        details=json.dumps({"recruiter_notes": recruiter_notes, "submitted_at": now.isoformat()}),
     )
 
     # Notify HM
     if match_result.hiring_manager_id:
         _create_notification(
             db, match_result.hiring_manager_id,
-            subject="Offer Ready for Your Review",
-            body=f"Recruiter {recruiter.name} has submitted an offer for your review. Please approve or request changes.",
+            subject=f"Action Required: Review Offer for {cand_name}",
+            body=f"Recruiter {recruiter.name} has submitted a draft offer for {cand_name} ({job_title}). Please review and approve or request changes.",
             notification_type="OFFER_REVIEW_REQUIRED",
             match_result_id=match_result.id,
         )
@@ -1718,8 +2025,8 @@ def submit_offer_for_hm_review(
             candidate_id=match_result.candidate_id,
             assigned_to=match_result.hiring_manager_id,
             created_by=recruiter.id,
-            title="Review Offer — Action Required",
-            description="A draft offer has been submitted for your review. Please approve or request changes.",
+            title=f"Review Offer for {cand_name}",
+            description=f"Draft offer submitted by {recruiter.name} for {job_title}. Review compensation & terms.",
             action_type="REVIEW_OFFER",
             match_result_id=match_result.id,
             priority="HIGH",
@@ -1728,6 +2035,99 @@ def submit_offer_for_hm_review(
     db.commit()
     db.refresh(offer)
     logger.info(f"[Workflow] Offer {offer.id}: Submitted for HM review by recruiter {recruiter.id}")
+    return offer
+
+
+def hm_update_offer(
+    db: Session,
+    offer: Offer,
+    match_result: MatchResult,
+    hm_user: User,
+    data: dict,
+) -> Offer:
+    """
+    Hiring Manager edits permitted offer parameters during review.
+    Allowed: proposed_salary, fixed_compensation, variable_compensation,
+    total_compensation, bonus, joining_bonus, other_benefits, role_scope,
+    employment_type, joining_timeline, joining_date, expected_joining_date,
+    location, work_mode, additional_terms, override_reason.
+    Disallows changing candidate identity, job requisition, or recruiter ownership.
+    """
+    allowed_states = ("PENDING_HM_REVIEW", "HM_CHANGES_REQUESTED", "DRAFT")
+    if offer.workflow_state not in allowed_states:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Offer cannot be modified by HM in state '{offer.workflow_state}'.",
+        )
+
+    if hasattr(data, "model_dump"):
+        data_dict = data.model_dump(exclude_unset=True)
+    elif hasattr(data, "dict"):
+        data_dict = data.dict(exclude_unset=True)
+    elif isinstance(data, dict):
+        data_dict = data
+    else:
+        data_dict = dict(data)
+
+    new_salary = data_dict.get("proposed_salary")
+    override_reason = data_dict.get("override_reason") or offer.override_reason
+    s_min = float(offer.salary_min) if offer.salary_min else None
+    s_max = float(offer.salary_max) if offer.salary_max else None
+
+    # Validate band
+    if new_salary is not None and s_min is not None and s_max is not None:
+        if new_salary < s_min or new_salary > s_max:
+            if not override_reason or not override_reason.strip():
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Proposed salary ({new_salary:,.0f}) is outside configured band ({s_min:,.0f} – {s_max:,.0f}). An explicit override reason is required.",
+                )
+
+    old_salary = float(offer.proposed_salary) if offer.proposed_salary else None
+    now = datetime.now(timezone.utc)
+
+    permitted_keys = {
+        "proposed_salary", "fixed_compensation", "variable_compensation",
+        "total_compensation", "bonus", "joining_bonus", "other_benefits",
+        "role_scope", "employment_type", "joining_timeline", "joining_date",
+        "expected_joining_date", "location", "work_mode", "additional_terms",
+        "override_reason",
+    }
+
+    for k, v in data_dict.items():
+        if k in permitted_keys and v is not None:
+            setattr(offer, k, v)
+
+    if override_reason:
+        offer.override_reason = override_reason
+        offer.override_approved_by = hm_user.id
+
+    # Compute total compensation
+    if not offer.total_compensation:
+        comp_parts = [c for c in [offer.fixed_compensation, offer.variable_compensation, offer.bonus, offer.joining_bonus] if c is not None]
+        if comp_parts:
+            offer.total_compensation = sum(comp_parts)
+        else:
+            offer.total_compensation = offer.proposed_salary
+
+    # Audit compensation update if salary modified
+    if new_salary is not None and old_salary is not None and new_salary != old_salary:
+        _create_audit_log(
+            db, hm_user.id, "COMPENSATION_UPDATED", match_result,
+            from_state=match_result.pipeline_state, to_state=match_result.pipeline_state,
+            details=json.dumps({
+                "old_value": old_salary,
+                "new_value": new_salary,
+                "currency": offer.salary_currency,
+                "actor": hm_user.name,
+                "reason": override_reason or "Adjusted by Hiring Manager during review",
+                "timestamp": now.isoformat(),
+            }),
+        )
+
+    db.commit()
+    db.refresh(offer)
+    logger.info(f"[Workflow] Offer {offer.id}: Updated by HM {hm_user.id}")
     return offer
 
 
@@ -1741,11 +2141,10 @@ def hm_review_offer(
 ) -> Offer:
     """
     HM reviews a submitted offer.
-
     action="APPROVE" → workflow_state = HM_APPROVED
-    action="REQUEST_CHANGES" → workflow_state = HM_CHANGES_REQUESTED
+    action="REQUEST_CHANGES" → workflow_state = HM_CHANGES_REQUESTED (requires comment)
     """
-    if offer.workflow_state != "PENDING_HM_REVIEW":
+    if offer.workflow_state not in ("PENDING_HM_REVIEW", "HM_CHANGES_REQUESTED"):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Offer is not pending HM review (current state: '{offer.workflow_state}').",
@@ -1755,48 +2154,96 @@ def hm_review_offer(
     if hm_notes:
         offer.hm_comments = hm_notes
 
+    cand_name = match_result.candidate.full_name if match_result.candidate else "Candidate"
+    job_title = match_result.job.title if match_result.job else "Job"
+
     if action == "APPROVE":
+        # Validate mandatory fields
+        if not offer.proposed_salary:
+            raise HTTPException(status_code=422, detail="Proposed salary must be defined before approval.")
+        if not offer.role_scope:
+            raise HTTPException(status_code=422, detail="Role scope must be defined before approval.")
+
         offer.workflow_state = "HM_APPROVED"
         offer.status = "HM_APPROVED"
         offer.approved_by = hm_user.id
         offer.approved_at = now
+        offer.hm_approved_at = now
+        if offer.override_reason:
+            offer.override_approved_by = hm_user.id
 
         _create_audit_log(
-            db, hm_user.id, "OFFER_APPROVED_BY_HM", match_result,
+            db, hm_user.id, "OFFER_APPROVED", match_result,
             from_state=match_result.pipeline_state, to_state=match_result.pipeline_state,
-            details=json.dumps({"hm_notes": hm_notes}),
+            details=json.dumps({"hm_notes": hm_notes, "approved_by": hm_user.name, "approved_at": now.isoformat()}),
         )
 
         # Notify recruiter
-        if match_result.recruiter_id:
+        recruiter_id = match_result.recruiter_id or offer.created_by
+        if recruiter_id:
             _create_notification(
-                db, match_result.recruiter_id,
-                subject="✅ Offer Approved by Hiring Manager",
-                body="The offer has been approved by the Hiring Manager. You can now generate the official PDF offer letter.",
+                db, recruiter_id,
+                subject=f"✅ Offer Approved for {cand_name}",
+                body=f"Hiring Manager {hm_user.name} has approved the offer for {cand_name} ({job_title}). You can now generate the official offer letter PDF.",
                 notification_type="OFFER_APPROVED",
                 match_result_id=match_result.id,
+            )
+
+            # Create recruiter action item
+            _create_recruiter_task(
+                db,
+                job_id=match_result.job_id,
+                candidate_id=match_result.candidate_id,
+                assigned_to=recruiter_id,
+                created_by=hm_user.id,
+                title=f"Generate Offer Letter for {cand_name}",
+                description=f"Offer approved for {job_title}. Generate official PDF and dispatch to candidate.",
+                action_type="GENERATE_OFFER_LETTER",
+                match_result_id=match_result.id,
+                priority="HIGH",
             )
 
         logger.info(f"[Workflow] Offer {offer.id}: APPROVED by HM {hm_user.id}")
 
     elif action == "REQUEST_CHANGES":
+        if not hm_notes or not hm_notes.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A detailed comment or reason is required when requesting changes to an offer.",
+            )
+
         offer.workflow_state = "HM_CHANGES_REQUESTED"
         offer.status = "HM_CHANGES_REQUESTED"
 
         _create_audit_log(
-            db, hm_user.id, "OFFER_CHANGES_REQUESTED_BY_HM", match_result,
+            db, hm_user.id, "OFFER_CHANGES_REQUESTED", match_result,
             from_state=match_result.pipeline_state, to_state=match_result.pipeline_state,
-            details=json.dumps({"hm_notes": hm_notes}),
+            details=json.dumps({"hm_notes": hm_notes, "requested_by": hm_user.name, "timestamp": now.isoformat()}),
         )
 
         # Notify recruiter
-        if match_result.recruiter_id:
+        recruiter_id = match_result.recruiter_id or offer.created_by
+        if recruiter_id:
             _create_notification(
-                db, match_result.recruiter_id,
-                subject="⚠️ Offer Changes Requested by Hiring Manager",
-                body=f"Hiring Manager has requested changes to the offer. Notes: {hm_notes or 'See portal for details.'}",
+                db, recruiter_id,
+                subject=f"⚠️ Changes Requested for Offer: {cand_name}",
+                body=f"Hiring Manager {hm_user.name} requested changes: '{hm_notes}'. Please update and re-submit.",
                 notification_type="OFFER_CHANGES_REQUESTED",
                 match_result_id=match_result.id,
+            )
+
+            # Create recruiter update task
+            _create_recruiter_task(
+                db,
+                job_id=match_result.job_id,
+                candidate_id=match_result.candidate_id,
+                assigned_to=recruiter_id,
+                created_by=hm_user.id,
+                title=f"Update Offer for {cand_name}",
+                description=f"Changes requested by {hm_user.name}: {hm_notes}",
+                action_type="UPDATE_OFFER",
+                match_result_id=match_result.id,
+                priority="HIGH",
             )
 
         logger.info(f"[Workflow] Offer {offer.id}: CHANGES_REQUESTED by HM {hm_user.id}")
@@ -1817,24 +2264,28 @@ def generate_offer_pdf(
     offer: Offer,
     match_result: MatchResult,
     recruiter: User,
-    candidate,
-    job,
+    candidate=None,
+    job=None,
     hm_user=None,
 ) -> Offer:
     """
-    Generate the official PDF offer letter for an HM-approved offer.
-
+    Generate the official PDF offer letter for an HM-approved offer with versioning.
     Requires offer.workflow_state == 'HM_APPROVED'.
     Transitions: HM_APPROVED → OFFER_READY.
-    Stores PDF bytes in the configured storage provider.
+    Stores PDF bytes in versioned storage.
     """
-    if offer.workflow_state != "HM_APPROVED":
+    if candidate is None:
+        candidate = match_result.candidate
+    if job is None:
+        job = match_result.job
+
+    if offer.workflow_state not in ("HM_APPROVED", "OFFER_READY"):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"PDF can only be generated for HM-approved offers (current state: '{offer.workflow_state}').",
         )
 
-    # Generate PDF
+    # Generate PDF via ReportLab OfferPDFService
     from app.services.offer_pdf_service import OfferPDFService
     pdf_bytes = OfferPDFService.generate(
         offer=offer,
@@ -1844,10 +2295,11 @@ def generate_offer_pdf(
         hm_user=hm_user,
     )
 
-    # Store PDF
+    # Store PDF with version key in S3 offers folder
     from app.services.storage.storage_manager import get_storage
     storage = get_storage()
-    pdf_key = f"offers/{offer.id}/offer_letter.pdf"
+    pdf_ver = offer.pdf_version or 1
+    pdf_key = f"offers/letters/{offer.id}/offer_letter_v{pdf_ver}.pdf"
     storage.save_file(pdf_key, pdf_bytes, content_type="application/pdf")
 
     # Update offer record
@@ -1855,7 +2307,7 @@ def generate_offer_pdf(
     offer.workflow_state = "OFFER_READY"
     offer.status = "OFFER_READY"
     offer.pdf_storage_key = pdf_key
-    offer.pdf_file_name = "offer_letter.pdf"
+    offer.pdf_file_name = f"offer_letter_v{pdf_ver}.pdf"
     offer.pdf_file_size = len(pdf_bytes)
     offer.pdf_mime_type = "application/pdf"
     offer.pdf_generated_at = now
@@ -1866,13 +2318,14 @@ def generate_offer_pdf(
         from_state="HM_APPROVED", to_state="OFFER_READY",
         details=json.dumps({
             "pdf_key": pdf_key,
+            "version": pdf_ver,
             "size_bytes": len(pdf_bytes),
         }),
     )
 
     db.commit()
     db.refresh(offer)
-    logger.info(f"[Workflow] Offer {offer.id}: PDF generated ({len(pdf_bytes)} bytes) → OFFER_READY")
+    logger.info(f"[Workflow] Offer {offer.id}: PDF v{pdf_ver} generated ({len(pdf_bytes)} bytes) → OFFER_READY")
     return offer
 
 

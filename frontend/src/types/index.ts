@@ -67,6 +67,9 @@ export interface Job {
   urgency?: string | null;
   shift_timing?: string | null;
   travel_requirements?: string | null;
+  salary_min?: number | null;
+  salary_max?: number | null;
+  salary_currency?: string | null;
   status: "draft" | "active" | "closed";
   created_at: string;
   updated_at: string;
@@ -78,6 +81,25 @@ export interface Job {
   };
   job_skills: JobSkill[];
 }
+
+export interface JobPipelineSummary {
+  id: number;
+  title: string;
+  department?: string | null;
+  client_name?: string | null;
+  status: string;
+  min_experience_years: number;
+  work_mode?: string | null;
+  required_skills_count: number;
+  total_candidates: number;
+  in_screening_count: number;
+  in_interview_count: number;
+  in_offer_count: number;
+  hired_count: number;
+  has_active_pipeline: boolean;
+  sourcing_needed: boolean;
+}
+
 
 export interface CandidateSkill {
   id: number;
@@ -145,6 +167,7 @@ export interface Candidate {
   id: number;
   user_id?: number;
   full_name: string;
+  email?: string | null;
   phone?: string | null;
   resume_file_path?: string | null;
   resume_s3_key?: string | null;
@@ -166,6 +189,7 @@ export interface Candidate {
   notice_period?: string | null;
   current_ctc?: number | null;
   expected_ctc?: number | null;
+  hiring_status?: string | null;
   skills: CandidateSkill[];
 }
 
@@ -195,7 +219,9 @@ export interface ResumeUploadResponse {
   candidate_id: number;
   filename: string;
   format?: string;
-  original_s3_key: string;
+  original_s3_key?: string;
+  resume_s3_key?: string;
+  resume_file_path?: string;
   extracted_text_s3_key?: string | null;
   uploaded_at: string;
   parsed_at?: string | null;
@@ -207,6 +233,7 @@ export interface Interview {
   id: number;
   match_result_id: number;
   scheduled_by: number;
+  job_id?: number | null;
   interview_date?: string | null;
   interview_type: string;
   meeting_link?: string | null;
@@ -233,6 +260,10 @@ export interface Notification {
   body: string;
   status: string;
   created_at: string;
+  is_read?: boolean;
+  notification_type?: string | null;
+  match_result_id?: number | null;
+  action_url?: string | null;
 }
 
 export interface SkillMatchBreakdown {
@@ -264,6 +295,7 @@ export interface MatchResult {
   processing_status?: "queued" | "processing" | "completed" | "failed" | "stale" | string;
   matched_by_version?: string;
   matched_at: string;
+  created_at?: string;
   updated_at?: string;
   meets_experience: boolean;
   matched_skills?: string[];
@@ -485,6 +517,7 @@ export type PipelineState =
   | "OFFER_REJECTED"
   | "BLACKLISTED"
   | "HIRED"
+  | "ON_HOLD_DUE_TO_HIRING"
   | "REJECTED";
 
 export interface InterviewSlot {
@@ -522,6 +555,16 @@ export interface Offer {
   salary_min?: number | null;
   salary_max?: number | null;
   proposed_salary?: number | null;
+  fixed_compensation?: number | null;
+  variable_compensation?: number | null;
+  total_compensation?: number | null;
+  bonus?: number | null;
+  joining_bonus?: number | null;
+  other_benefits?: string | null;
+  notice_period?: string | null;
+  expected_joining_date?: string | null;
+  override_reason?: string | null;
+  override_approved_by?: number | null;
   role_scope?: string | null;
   employment_type?: string | null;
   joining_date?: string | null;
@@ -534,15 +577,21 @@ export interface Offer {
   sent_at?: string | null;
   responded_at?: string | null;
   candidate_response_note?: string | null;
+  accepted_at?: string | null;
+  rejected_at?: string | null;
+  rejection_reason?: string | null;
   created_at: string;
   updated_at: string;
   // Offer Approval Workflow (v2)
   workflow_state?: string | null;
+  submitted_to_hm_at?: string | null;
   approved_by?: number | null;
   approved_at?: string | null;
+  hm_approved_at?: string | null;
   hm_comments?: string | null;
   recruiter_comments?: string | null;
-  // PDF fields
+  // PDF fields & Versioning
+  pdf_version?: number;
   pdf_file_name?: string | null;
   pdf_file_size?: number | null;
   pdf_generated_at?: string | null;
@@ -551,9 +600,24 @@ export interface Offer {
   has_pdf?: boolean;
   // Derived
   candidate_name?: string | null;
+  candidate_email?: string | null;
   job_title?: string | null;
+  company_name?: string | null;
   recruiter_name?: string | null;
   hiring_manager_name?: string | null;
+}
+
+export interface OfferStats {
+  draft: number;
+  pending_hm_review: number;
+  hm_changes_requested: number;
+  hm_approved: number;
+  offer_ready: number;
+  sent: number;
+  accepted: number;
+  rejected: number;
+  expired: number;
+  total: number;
 }
 
 export interface CandidateBlacklist {
@@ -597,7 +661,9 @@ export interface ActionCenterItem {
   description?: string | null;
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT" | string;
   match_result_id?: number | null;
+  candidate_id?: number | null;
   candidate_name?: string | null;
+  job_id?: number | null;
   job_title?: string | null;
   pipeline_state?: PipelineState | null;
   due_at?: string | null;
@@ -613,6 +679,9 @@ export interface HMDashboardItem {
   submitted_to_hm_at?: string | null;
   hm_reviewed_at?: string | null;
   recruiter_name?: string | null;
+  job_id?: number | null;
+  interview_date?: string | null;
+  note?: string | null;
 }
 
 export interface InterviewWithSlots {
@@ -708,6 +777,7 @@ export const PIPELINE_STATE_CONFIG: Record<
   OFFER_REJECTED: { label: "Offer Declined", stepNumber: 9, color: "text-rose-400", bg: "bg-rose-500/10 border-rose-500/30", badge: "Offer Declined", isTerminal: true },
   BLACKLISTED: { label: "Blacklisted (6 Mo)", stepNumber: 10, color: "text-red-500", bg: "bg-red-600/10 border-red-600/30", badge: "Blacklisted", isTerminal: true },
   HIRED: { label: "Hired 🎉", stepNumber: 10, color: "text-green-400", bg: "bg-green-500/10 border-green-500/30", badge: "Hired", isTerminal: true },
+  ON_HOLD_DUE_TO_HIRING: { label: "On Hold (Hired)", stepNumber: 10, color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/30", badge: "On Hold", isTerminal: true },
   REJECTED: { label: "Rejected", stepNumber: 10, color: "text-gray-400", bg: "bg-gray-500/10 border-gray-500/30", badge: "Rejected", isTerminal: true },
 };
 
@@ -762,4 +832,49 @@ export interface HiringLogsQueryParams {
   search?: string;
 }
 
+export interface HiringJourneyStep {
+  title: string;
+  description: string;
+  status: "COMPLETED" | "CURRENT" | "PENDING";
+  date: string;
+}
 
+export interface PreOnboardingChecklistItem {
+  id: number;
+  title: string;
+  description: string;
+  status: "COMPLETED" | "PENDING" | "IN_REVIEW";
+  category: string;
+}
+
+export interface HiringDetails {
+  candidate_name: string;
+  job_title: string;
+  company_name: string;
+  position: string;
+  employment_type: string;
+  work_mode: string;
+  location: string;
+  joining_date: string;
+  raw_joining_date?: string;
+  joining_status: string;
+  reporting_manager: string;
+  recruiter: string;
+  hiring_status: string;
+  offer_id: number;
+  match_id: number;
+  ctc: number;
+  currency: string;
+  accepted_at: string;
+  role_scope?: string;
+  additional_terms?: string;
+  pdf_version?: number;
+  journey_timeline: HiringJourneyStep[];
+  pre_onboarding_checklist: PreOnboardingChecklistItem[];
+}
+
+export interface CandidateHiringResponse {
+  is_hired: boolean;
+  candidate_hiring_status: string;
+  hiring_details: HiringDetails | null;
+}

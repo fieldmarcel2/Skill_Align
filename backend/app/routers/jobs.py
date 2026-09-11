@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from app.database.session import get_db
 from app.core.dependencies import get_current_user, require_hr_or_admin
 from app.models.user import User
-from app.schemas.job import JobCreate, JobUpdate, JobOut
+from app.schemas.job import JobCreate, JobUpdate, JobOut, JobPipelineSummary
 from app.schemas.recruiter_assignment import (
     JobRecruiterAssignmentIn,
     JobRecruiterUpdateRole,
@@ -78,6 +78,23 @@ def list_jobs(
         creator_id = current_user.id
 
     return job_service.list_jobs(db, creator_id=creator_id, status_filter=status, job_ids=job_ids)
+
+
+@router.get(
+    "/pipeline-summary",
+    response_model=List[JobPipelineSummary],
+    status_code=status.HTTP_200_OK,
+    summary="Get pipeline candidate summaries for all jobs",
+    description="Provides real-time candidate counts and status breakdown per job for HRM and Recruiters.",
+)
+def get_pipeline_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    job_ids = None
+    if current_user.role.name == "Recruiter":
+        job_ids = recruiter_assignment_service.get_recruiter_assigned_job_ids(db, current_user.id)
+    return job_service.get_jobs_pipeline_summary(db, job_ids=job_ids)
 
 
 @router.get(

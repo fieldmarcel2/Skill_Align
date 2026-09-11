@@ -55,6 +55,18 @@ class Offer(Base):
     salary_min: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     salary_max: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     proposed_salary: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    fixed_compensation: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    variable_compensation: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    total_compensation: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    bonus: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    joining_bonus: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    other_benefits: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notice_period: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    expected_joining_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    override_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    override_approved_by: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
 
     # ── Offer Details ─────────────────────────────────────────────────────────
     role_scope: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -76,20 +88,26 @@ class Offer(Base):
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     candidate_response_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ── Approval Workflow (v2) ─────────────────────────────────────────────────
     # workflow_state mirrors status but with finer granularity for the approval flow
     workflow_state: Mapped[str] = mapped_column(
         String(50), nullable=False, default="DRAFT", index=True
     )
+    submitted_to_hm_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     approved_by: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    hm_approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     hm_comments: Mapped[str | None] = mapped_column(Text, nullable=True)
     recruiter_comments: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # ── PDF Document Storage ──────────────────────────────────────────────────
+    # ── PDF Document Storage & Versioning ──────────────────────────────────────
+    pdf_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     pdf_storage_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
     pdf_file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     pdf_file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)

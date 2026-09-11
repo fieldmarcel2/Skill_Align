@@ -19,6 +19,10 @@ class ResumeUploadResponse(BaseModel):
     task_id: Optional[str] = None   # Celery task ID for status polling
     filename: str
     uploaded_at: Optional[str] = None
+    resume_s3_key: Optional[str] = None
+    resume_file_path: Optional[str] = None
+    parsed_data: Optional[Dict[str, Any]] = None
+    auto_added_skills: Optional[List[str]] = None
 
     model_config = {"from_attributes": True}
 

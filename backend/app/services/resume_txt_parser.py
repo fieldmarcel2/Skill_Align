@@ -489,20 +489,24 @@ def _get_evidence_snippet(raw_text: str, skill_name: str) -> Optional[str]:
 def _categorize_skill(skill_name: str) -> str:
     """Categorize standard skill into clean domain bucket."""
     s = skill_name.lower()
-    if s in ["python", "javascript", "typescript", "java", "c++", "c#", "c", "go", "golang", "rust", "ruby", "kotlin", "swift", "php", "bash", "shell", "sql"]:
+    if s in ["python", "javascript", "typescript", "java", "c++", "c#", "c", "go", "golang", "rust", "ruby", "kotlin", "swift", "dart", "php", "bash", "shell", "sql"]:
         return "Programming Languages"
-    elif s in ["fastapi", "django", "flask", "spring boot", "spring", "express.js", "express", "node.js", "asp.net", "nestjs", "rest api", "rest apis", "graphql", "grpc"]:
+    elif s in ["fastapi", "django", "flask", "spring boot", "spring", "express.js", "express", "node.js", "asp.net", "asp.net core", "nestjs", "laravel", "ruby on rails", "rest api", "rest apis", "graphql", "grpc", "microservices", "celery", "rabbitmq", "kafka"]:
         return "Backend Frameworks"
-    elif s in ["react", "react.js", "next.js", "vue", "vue.js", "angular", "html", "html5", "css", "css3", "tailwind css", "bootstrap", "redux", "redux toolkit", "framer motion"]:
+    elif s in ["react", "react.js", "next.js", "vue", "vue.js", "angular", "nuxt.js", "svelte", "vite", "webpack", "html", "html5", "css", "css3", "sass", "sass / scss", "tailwind css", "bootstrap", "redux", "redux toolkit", "zustand", "material-ui (mui)", "chakra ui", "framer motion", "three.js", "websockets", "responsive design"]:
         return "Frontend Frameworks"
-    elif s in ["postgresql", "mysql", "mongodb", "redis", "sqlite", "oracle", "sql server", "dynamodb", "elasticsearch", "cassandra", "amazon rds", "rds", "firebase", "supabase"]:
+    elif s in ["postgresql", "mysql", "mongodb", "redis", "sqlite", "oracle", "sql server", "dynamodb", "elasticsearch", "cassandra", "amazon rds", "rds", "firebase", "supabase", "prisma", "sqlalchemy", "snowflake", "bigquery"]:
         return "Databases & Storage"
-    elif s in ["aws", "amazon web services", "azure", "microsoft azure", "gcp", "google cloud", "docker", "kubernetes", "k8s", "terraform", "ansible", "ci/cd", "github actions", "gitlab ci", "jenkins", "linux", "ec2", "s3", "iam", "lambda", "cloudwatch", "cloud watch"]:
+    elif s in ["aws", "amazon web services", "azure", "microsoft azure", "gcp", "google cloud", "docker", "kubernetes", "k8s", "helm", "terraform", "ansible", "ci/cd", "ci/cd pipelines", "github actions", "gitlab ci", "jenkins", "linux", "nginx", "apache", "prometheus", "grafana", "ec2", "s3", "iam", "lambda", "cloudwatch", "cloud watch", "cloudflare", "serverless"]:
         return "Cloud & DevOps"
-    elif s in ["vpc", "subnets", "security groups", "dns", "http/https", "load balancing", "nginx", "apache"]:
-        return "Networking & Systems"
-    elif s in ["pytest", "jest", "selenium", "cypress", "unit testing", "git", "github", "gitlab", "jira", "postman", "vs code"]:
+    elif s in ["vpc", "subnets", "security groups", "dns", "http/https", "load balancing", "network security", "siem", "oauth 2.0", "jwt", "keycloak", "owasp security", "role-based access control (rbac)"]:
+        return "Security & Systems"
+    elif s in ["pytest", "jest", "vitest", "selenium", "cypress", "playwright", "junit", "unit testing", "integration testing", "git", "github", "gitlab", "bitbucket", "jira", "confluence", "postman", "swagger / openapi", "vs code", "figma"]:
         return "Tools & Testing"
+    elif s in ["machine learning", "deep learning", "large language models (llms)", "prompt engineering", "langchain", "llamaindex", "hugging face", "vector databases", "openai api", "pytorch", "tensorflow", "scikit-learn", "nlp", "pandas", "numpy", "databricks", "dbt", "apache airflow", "apache spark", "power bi", "tableau"]:
+        return "AI & Data Science"
+    elif s in ["react native", "flutter", "ios development", "android development"]:
+        return "Mobile"
     return "Core Technologies"
 
 

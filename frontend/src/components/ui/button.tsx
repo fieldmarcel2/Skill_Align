@@ -4,30 +4,38 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.99]",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-md shadow-indigo-600/20 hover:bg-primary/95 font-semibold",
-        destructive:
-          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 shadow-rose-500/20 font-semibold",
-        outline:
-          "border border-slate-300 bg-white hover:bg-slate-100 hover:text-slate-900 shadow-sm text-slate-700 font-medium",
+          "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 font-semibold",
+        primary:
+          "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 font-semibold",
         secondary:
-          "bg-slate-100 text-slate-900 hover:bg-slate-200 border border-slate-200/60 font-medium",
-        ghost: "hover:bg-slate-100 hover:text-slate-900 text-slate-700 font-medium",
-        link: "text-primary underline-offset-4 hover:underline font-medium",
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border/80 font-medium",
+        outline:
+          "border border-border bg-background hover:bg-muted text-foreground font-medium shadow-sm",
+        ghost:
+          "hover:bg-muted hover:text-foreground text-foreground/80 font-medium",
+        destructive:
+          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 font-semibold",
+        success:
+          "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 font-semibold",
+        warning:
+          "bg-amber-600 text-white shadow-sm hover:bg-amber-700 font-semibold",
+        link:
+          "text-primary underline-offset-4 hover:underline font-medium p-0 h-auto",
         gradient:
-          "bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 text-white shadow-md shadow-indigo-500/20 hover:opacity-95 font-semibold",
+          "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 font-semibold",
         glass:
-          "bg-white/80 hover:bg-white text-slate-800 border border-slate-200 shadow-sm backdrop-blur-md font-medium",
+          "bg-card/90 hover:bg-card text-foreground border border-border shadow-sm font-medium",
       },
       size: {
-        default: "h-10 px-4 py-2",
+        default: "h-9 px-4 py-2",
         sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-12 rounded-xl px-8 text-base",
-        icon: "h-10 w-10",
+        lg: "h-11 rounded-lg px-6 text-sm",
+        icon: "h-9 w-9",
       },
     },
     defaultVariants: {

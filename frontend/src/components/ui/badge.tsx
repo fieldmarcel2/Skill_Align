@@ -8,21 +8,23 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm",
+          "bg-primary/10 text-primary border-primary/25 dark:bg-primary/20 dark:text-indigo-200 font-medium",
         secondary:
-          "bg-slate-100 text-slate-800 border-slate-200 hover:bg-slate-200",
+          "bg-secondary text-secondary-foreground border-border font-medium",
         destructive:
-          "bg-rose-50 text-rose-700 border-rose-200",
-        outline: "text-slate-700 border-slate-300 bg-white/80",
+          "bg-destructive/10 text-destructive border-destructive/25 dark:bg-destructive/20 dark:text-rose-200 font-medium",
+        outline:
+          "text-foreground border-border bg-background/80 font-medium",
         success:
-          "bg-emerald-50 text-emerald-700 border-emerald-200 font-medium",
+          "bg-emerald-500/10 text-emerald-700 border-emerald-500/25 dark:bg-emerald-500/20 dark:text-emerald-200 font-medium",
         warning:
-          "bg-amber-50 text-amber-800 border-amber-200 font-medium",
-        info: "bg-blue-50 text-blue-700 border-blue-200 font-medium",
+          "bg-amber-500/10 text-amber-800 border-amber-500/25 dark:bg-amber-500/20 dark:text-amber-200 font-medium",
+        info:
+          "bg-blue-500/10 text-blue-700 border-blue-500/25 dark:bg-blue-500/20 dark:text-blue-200 font-medium",
         purple:
-          "bg-purple-50 text-purple-700 border-purple-200 font-medium",
+          "bg-purple-500/10 text-purple-700 border-purple-500/25 dark:bg-purple-500/20 dark:text-purple-200 font-medium",
         indigo:
-          "bg-indigo-500/15 text-indigo-400 border-indigo-500/30 font-medium",
+          "bg-indigo-500/10 text-indigo-700 border-indigo-500/25 dark:bg-indigo-500/20 dark:text-indigo-200 font-medium",
       },
     },
     defaultVariants: {

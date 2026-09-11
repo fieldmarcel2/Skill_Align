@@ -19,12 +19,14 @@ import { AdminUserDetailPage } from "../pages/admin/AdminUserDetailPage";
 
 // HR / Hiring Manager pages
 import { HRDashboard } from "../pages/hr/HRDashboard";
+import { HRDecisionDashboard } from "../pages/hr/HRDecisionDashboard";
 import { HRJobMatchesPage } from "../pages/hr/HRJobMatchesPage";
 import { HRShortlistsPage } from "../pages/hr/HRShortlistsPage";
 import { HiringPipelinePage } from "../pages/hr/HiringPipelinePage";
 import { HRCreateJobPage } from "../pages/hr/HRCreateJobPage";
 import { HMCandidateReviewPage } from "../pages/hr/HMCandidateReviewPage";
 import { HMFeedbackPage } from "../pages/hr/HMFeedbackPage";
+import { HMOfferReviewPage } from "../pages/hr/HMOfferReviewPage";
 
 // Recruiter pages
 import { RecruiterDashboard } from "../pages/recruiter/RecruiterDashboard";
@@ -40,6 +42,7 @@ import { RecruiterOfferPage } from "../pages/recruiter/RecruiterOfferPage";
 import { CandidateDashboard } from "../pages/candidate/CandidateDashboard";
 import { CandidateProfilePage } from "../pages/candidate/CandidateProfilePage";
 import { CandidateSkillsPage } from "../pages/candidate/CandidateSkillsPage";
+import { CandidateHiringPage } from "../pages/candidate/CandidateHiringPage";
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -82,6 +85,7 @@ export const AppRoutes: React.FC = () => {
         }
       >
         <Route index element={<HRDashboard />} />
+        <Route path="decisions" element={<HRDecisionDashboard />} />
         <Route path="jobs/create" element={<HRCreateJobPage />} />
         <Route path="jobs/:id/matches" element={<HRJobMatchesPage />} />
         <Route path="candidates/:matchId/review" element={<HMCandidateReviewPage />} />
@@ -89,6 +93,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="applications/:id/timeline" element={<ApplicationTimelinePage />} />
         <Route path="shortlists" element={<HRShortlistsPage />} />
         <Route path="pipeline" element={<HiringPipelinePage />} />
+        <Route path="offers/:offerId" element={<HMOfferReviewPage />} />
       </Route>
 
       {/* Recruiter Protected Routes */}
@@ -123,6 +128,7 @@ export const AppRoutes: React.FC = () => {
         }
       >
         <Route index element={<CandidateDashboard />} />
+        <Route path="hiring" element={<CandidateHiringPage />} />
         <Route path="profile" element={<CandidateProfilePage />} />
         <Route path="skills" element={<CandidateSkillsPage />} />
         <Route path="offers/:id" element={<CandidateOfferPage />} />

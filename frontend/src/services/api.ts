@@ -3,6 +3,7 @@ import {
   User,
   Skill,
   Job,
+  JobPipelineSummary,
   JobSkillIn,
   Candidate,
   ResumeUrlResponse,
@@ -29,6 +30,7 @@ import {
   InterviewSlot,
   InterviewFeedback,
   Offer,
+  OfferStats,
   CandidateBlacklist,
   WorkflowState,
   AuditLogEntry,
@@ -38,6 +40,7 @@ import {
   ShortlistCandidatesResponse,
   HiringLogsQueryParams,
   HiringLogsResponse,
+  CandidateHiringResponse,
 } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -185,6 +188,10 @@ export const jobsApi = {
     const res = await apiClient.get<Job[]>("/api/jobs", { params });
     return res.data;
   },
+  getPipelineSummary: async (): Promise<JobPipelineSummary[]> => {
+    const res = await apiClient.get<JobPipelineSummary[]>("/api/jobs/pipeline-summary");
+    return res.data;
+  },
   getById: async (id: number): Promise<Job> => {
     const res = await apiClient.get<Job>(`/api/jobs/${id}`);
     return res.data;
@@ -243,6 +250,10 @@ export const candidatesApi = {
   },
   getMyPipeline: async (): Promise<MatchResult[]> => {
     const res = await apiClient.get<MatchResult[]>("/api/candidates/me/pipeline");
+    return res.data;
+  },
+  getMyHiringStatus: async (): Promise<CandidateHiringResponse> => {
+    const res = await apiClient.get<CandidateHiringResponse>("/api/candidates/me/hiring");
     return res.data;
   },
   createProfile: async (data: {
@@ -488,6 +499,17 @@ export const notificationsApi = {
     const res = await apiClient.get<Notification[]>("/api/notifications", { params });
     return res.data;
   },
+  markRead: async (id: number): Promise<Notification> => {
+    const res = await apiClient.patch<Notification>(`/api/notifications/${id}/read`);
+    return res.data;
+  },
+  markAllRead: async (): Promise<{ message: string }> => {
+    const res = await apiClient.post<{ message: string }>("/api/notifications/mark-all-read");
+    return res.data;
+  },
+  delete: async (id: number): Promise<void> => {
+    await apiClient.delete(`/api/notifications/${id}`);
+  },
 };
 
 // ── Multi-Recruiter Job Assignments (HR Only) ────────────────────────────────
@@ -660,8 +682,18 @@ export const tasksApi = {
 // ── Enterprise Recruitment Workflow APIs ────────────────────────────────────
 export const workflowApi = {
   // Recruiter actions
+  completeTask: async (taskId: number): Promise<{ status: string; task_id: number }> => {
+    const res = await apiClient.post<{ status: string; task_id: number }>(`/api/workflow/tasks/${taskId}/complete`);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("action-center-updated"));
+    }
+    return res.data;
+  },
   shortlist: async (matchId: number, note?: string): Promise<WorkflowState> => {
     const res = await apiClient.post<WorkflowState>(`/api/workflow/${matchId}/shortlist`, { note });
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("action-center-updated"));
+    }
     return res.data;
   },
   submitToHM: async (matchId: number, hiringManagerId: number, note?: string): Promise<WorkflowState> => {
@@ -669,14 +701,23 @@ export const workflowApi = {
       hiring_manager_id: hiringManagerId,
       note,
     });
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("action-center-updated"));
+    }
     return res.data;
   },
   sendSlotsToCandidate: async (matchId: number): Promise<InterviewWithSlots> => {
     const res = await apiClient.post<InterviewWithSlots>(`/api/workflow/${matchId}/send-slots-to-candidate`);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("action-center-updated"));
+    }
     return res.data;
   },
   confirmInterview: async (matchId: number): Promise<InterviewWithSlots> => {
     const res = await apiClient.post<InterviewWithSlots>(`/api/workflow/${matchId}/confirm-interview`);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("action-center-updated"));
+    }
     return res.data;
   },
   completeInterview: async (
@@ -721,6 +762,14 @@ export const workflowApi = {
       salary_min?: number;
       salary_max?: number;
       salary_currency?: string;
+      fixed_compensation?: number;
+      variable_compensation?: number;
+      total_compensation?: number;
+      bonus?: number;
+      joining_bonus?: number;
+      other_benefits?: string;
+      notice_period?: string;
+      expected_joining_date?: string;
       role_scope?: string;
       employment_type?: string;
       joining_date?: string;
@@ -729,6 +778,7 @@ export const workflowApi = {
       location?: string;
       work_mode?: string;
       additional_terms?: string;
+      override_reason?: string;
     }
   ): Promise<Offer> => {
     const res = await apiClient.post<Offer>(`/api/workflow/${matchId}/create-offer`, data);
@@ -750,6 +800,8 @@ export const workflowApi = {
       slots: Array<{ slot_datetime: string; slot_end_datetime?: string | null }>;
       interview_type?: string;
       meeting_link?: string;
+      interview_structure?: "single_round" | "multi_round" | string;
+      round_name?: string;
     }
   ): Promise<InterviewWithSlots> => {
     const res = await apiClient.post<InterviewWithSlots>(`/api/workflow/${matchId}/request-interview`, data);
@@ -814,8 +866,20 @@ export const workflowApi = {
     const res = await apiClient.get<InterviewWithSlots>(`/api/workflow/${matchId}/interview`);
     return res.data;
   },
-  getActionCenter: async (): Promise<ActionCenterItem[]> => {
-    const res = await apiClient.get<ActionCenterItem[]>("/api/workflow/action-center");
+  getActionCenter: async (jobId?: number): Promise<ActionCenterItem[]> => {
+    const params = jobId ? { job_id: jobId } : {};
+    const res = await apiClient.get<ActionCenterItem[]>("/api/workflow/action-center", { params });
+    return res.data;
+  },
+  getActionCenterCount: async (jobId?: number): Promise<{ count: number; urgent_count: number; high_count: number; standard_count: number }> => {
+    const params = jobId ? { job_id: jobId } : {};
+    const res = await apiClient.get<{ count: number; urgent_count: number; high_count: number; standard_count: number }>("/api/workflow/action-center/count", { params });
+    return res.data;
+  },
+  getRecentActivity: async (jobId?: number, limit = 20): Promise<AuditLogEntry[]> => {
+    const params: Record<string, number> = { limit };
+    if (jobId) params.job_id = jobId;
+    const res = await apiClient.get<AuditLogEntry[]>("/api/workflow/recent-activity", { params });
     return res.data;
   },
   getHMDashboard: async (): Promise<{
@@ -899,6 +963,10 @@ export const offerApi = {
     const res = await apiClient.get<Offer>(`/api/offers/by-match/${matchId}`);
     return res.data;
   },
+  getOfferStats: async (): Promise<OfferStats> => {
+    const res = await apiClient.get<OfferStats>("/api/offers/stats");
+    return res.data;
+  },
   updateOffer: async (
     offerId: number,
     data: {
@@ -906,6 +974,14 @@ export const offerApi = {
       salary_min?: number;
       salary_max?: number;
       salary_currency?: string;
+      fixed_compensation?: number;
+      variable_compensation?: number;
+      total_compensation?: number;
+      bonus?: number;
+      joining_bonus?: number;
+      other_benefits?: string;
+      notice_period?: string;
+      expected_joining_date?: string;
       role_scope?: string;
       employment_type?: string;
       joining_date?: string;
@@ -914,9 +990,34 @@ export const offerApi = {
       location?: string;
       work_mode?: string;
       additional_terms?: string;
+      override_reason?: string;
     }
   ): Promise<Offer> => {
     const res = await apiClient.patch<Offer>(`/api/offers/${offerId}`, data);
+    return res.data;
+  },
+  hmEditOffer: async (
+    offerId: number,
+    data: {
+      proposed_salary?: number;
+      fixed_compensation?: number;
+      variable_compensation?: number;
+      total_compensation?: number;
+      bonus?: number;
+      joining_bonus?: number;
+      other_benefits?: string;
+      role_scope?: string;
+      employment_type?: string;
+      joining_timeline?: string;
+      joining_date?: string;
+      expected_joining_date?: string;
+      location?: string;
+      work_mode?: string;
+      additional_terms?: string;
+      override_reason?: string;
+    }
+  ): Promise<Offer> => {
+    const res = await apiClient.patch<Offer>(`/api/offers/${offerId}/hm-edit`, data);
     return res.data;
   },
   sendOffer: async (offerId: number): Promise<Offer> => {
@@ -953,8 +1054,17 @@ export const offerApi = {
     const res = await apiClient.post<Offer>(`/api/offers/${offerId}/generate-pdf`);
     return res.data;
   },
+  listOffers: async (status?: string, jobId?: number): Promise<Offer[]> => {
+    const params: Record<string, any> = {};
+    if (status) params.status = status;
+    if (jobId) params.job_id = jobId;
+    const res = await apiClient.get<Offer[]>("/api/offers", { params });
+    return res.data;
+  },
   downloadOfferPdf: (offerId: number): string => {
-    return `${apiClient.defaults.baseURL}/api/offers/${offerId}/pdf`;
+    const token = localStorage.getItem("token") || localStorage.getItem("access_token") || "";
+    const query = token ? `?access_token=${encodeURIComponent(token)}` : "";
+    return `${apiClient.defaults.baseURL}/api/offers/${offerId}/pdf${query}`;
   },
   downloadOfferPdfForCandidate: (token: string): string => {
     return `${apiClient.defaults.baseURL}/api/offers/candidate/${token}/pdf`;

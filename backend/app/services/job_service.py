@@ -16,6 +16,7 @@ Matching-relevant fields (trigger re-matching on change):
 
 from typing import Optional, List
 from sqlalchemy.orm import Session
+from sqlalchemy import func, case
 from fastapi import HTTPException, status
 
 from app.models.job import Job
@@ -23,7 +24,8 @@ from app.models.job_skill import JobSkill
 from app.models.skill import Skill
 from app.models.user import User
 from app.models.audit_log import AuditLog
-from app.schemas.job import JobCreate, JobUpdate, JobOut
+from app.models.match_result import MatchResult
+from app.schemas.job import JobCreate, JobUpdate, JobOut, JobPipelineSummary
 
 
 def _validate_skills(db: Session, skill_inputs: list) -> None:
@@ -239,3 +241,63 @@ def delete_job(db: Session, job_id: int, requester: User) -> None:
 
     db.delete(job)
     db.commit()
+
+
+def get_jobs_pipeline_summary(
+    db: Session, job_ids: Optional[List[int]] = None
+) -> List[JobPipelineSummary]:
+    """
+    Computes aggregate candidate counts and pipeline status for each job in 2 queries.
+    Allows HR and Recruiters to immediately identify which requisitions have active candidates
+    versus those where sourcing/matching is needed.
+    """
+    query = db.query(Job)
+    if job_ids is not None:
+        query = query.filter(Job.id.in_(job_ids))
+    jobs = query.order_by(Job.created_at.desc()).all()
+
+    match_query = db.query(
+        MatchResult.job_id,
+        func.count(MatchResult.id).label("total_candidates"),
+        func.sum(case((MatchResult.status.in_(["matched", "screened", "screening", "shortlisted"]), 1), else_=0)).label("in_screening"),
+        func.sum(case((MatchResult.status.in_(["approved_by_hr", "interview_scheduled", "technical_interview", "hr_interview"]), 1), else_=0)).label("in_interview"),
+        func.sum(case((MatchResult.status.in_(["offer"]), 1), else_=0)).label("in_offer"),
+        func.sum(case((MatchResult.status.in_(["hired"]), 1), else_=0)).label("hired"),
+    ).filter(MatchResult.status != "rejected")
+
+    if job_ids is not None:
+        match_query = match_query.filter(MatchResult.job_id.in_(job_ids))
+
+    match_stats = match_query.group_by(MatchResult.job_id).all()
+    stats_by_job = {row.job_id: row for row in match_stats}
+
+    result = []
+    for j in jobs:
+        st = stats_by_job.get(j.id)
+        total = int(st.total_candidates) if st and st.total_candidates else 0
+        in_screening = int(st.in_screening) if st and st.in_screening else 0
+        in_interview = int(st.in_interview) if st and st.in_interview else 0
+        in_offer = int(st.in_offer) if st and st.in_offer else 0
+        hired = int(st.hired) if st and st.hired else 0
+
+        result.append(
+            JobPipelineSummary(
+                id=j.id,
+                title=j.title,
+                department=j.department,
+                client_name=j.client_name,
+                status=j.status,
+                min_experience_years=float(j.min_experience_years or 0),
+                work_mode=j.work_mode or "Hybrid",
+                required_skills_count=len(j.job_skills) if j.job_skills else 0,
+                total_candidates=total,
+                in_screening_count=in_screening,
+                in_interview_count=in_interview,
+                in_offer_count=in_offer,
+                hired_count=hired,
+                has_active_pipeline=total > 0,
+                sourcing_needed=total == 0,
+            )
+        )
+    return result
+

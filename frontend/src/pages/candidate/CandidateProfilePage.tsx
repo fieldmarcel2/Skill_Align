@@ -151,25 +151,19 @@ export const CandidateProfilePage: React.FC = () => {
 
     setIsUploading(true);
     try {
-      const res = await resumeApi.upload(profile.id, selectedFile);
-      const originalKey = res.original_s3_key || (res as any).resume_s3_key;
-      const filename = res.filename || (res as any).resume_filename;
-      const uploadedAt = res.uploaded_at || (res as any).resume_uploaded_at;
-      setProfile((prev) =>
-        prev
-          ? {
-              ...prev,
-              resume_file_path: originalKey,
-              resume_s3_key: originalKey,
-              resume_filename: filename,
-              resume_uploaded_at: uploadedAt,
-            }
-          : null
-      );
+      await resumeApi.upload(profile.id, selectedFile);
+      // Immediately retrieve fresh candidate profile with S3 key and parsed attributes
+      const freshProfile = await candidatesApi.getMyProfile();
+      setProfile(freshProfile);
+      if (freshProfile.full_name) setFullName(freshProfile.full_name);
+      if (freshProfile.total_experience_years !== undefined) {
+        setTotalExperienceYears(freshProfile.total_experience_years);
+      }
+      await refreshUser().catch(() => null);
       setSelectedFile(null);
       toast.success("Resume uploaded and parsed successfully!", "Upload Complete");
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || "Failed to upload resume to S3.");
+      toast.error(err.response?.data?.detail || "Failed to upload resume document.");
     } finally {
       setIsUploading(false);
     }
@@ -194,7 +188,7 @@ export const CandidateProfilePage: React.FC = () => {
 
   const handleDeleteResume = async () => {
     if (!profile) return;
-    if (!window.confirm("Are you sure you want to delete your uploaded resume from AWS S3?")) {
+    if (!window.confirm("Are you sure you want to delete your uploaded resume?")) {
       return;
     }
     setIsDeletingResume(true);
@@ -211,7 +205,7 @@ export const CandidateProfilePage: React.FC = () => {
             }
           : null
       );
-      toast.success("Resume deleted from AWS S3.");
+      toast.success("Resume deleted successfully.");
     } catch (err: any) {
       toast.error(err.response?.data?.detail || "Failed to delete resume.");
     } finally {
@@ -492,7 +486,7 @@ export const CandidateProfilePage: React.FC = () => {
               </h3>
               {hasResume && (
                 <Badge variant="success" className="text-[10px]">
-                  AWS S3 Verified
+                  Verified Document
                 </Badge>
               )}
             </div>
@@ -513,7 +507,7 @@ export const CandidateProfilePage: React.FC = () => {
                   )}
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Processed on AWS S3 with deterministic taxonomy matching.
+                  Securely verified and matched with active job requisitions.
                 </p>
                 <div className="flex items-center gap-2 pt-1">
                   <Button
@@ -581,7 +575,7 @@ export const CandidateProfilePage: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <Upload className="h-3.5 w-3.5" /> Upload to AWS S3
+                    <Upload className="h-3.5 w-3.5" /> Upload Resume
                   </>
                 )}
               </Button>
