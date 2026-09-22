@@ -10,7 +10,7 @@ Provides operational endpoints for recruiters:
 """
 
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status as http_status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status as http_status
 from sqlalchemy import or_, and_
 from sqlalchemy.orm import Session
 
@@ -271,6 +271,7 @@ def get_all_assigned_candidates(
     assignment_status: Optional[str] = Query(None, description="'unassigned' or 'claimed'"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    response: Response = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_recruiter),
 ):
@@ -283,6 +284,9 @@ def get_all_assigned_candidates(
         target_job_ids = [j.id for j in db.query(Job.id).filter(Job.status == "ACTIVE").all()]
     
     if not target_job_ids:
+        if response:
+            response.headers["X-Total-Count"] = "0"
+            response.headers["Access-Control-Expose-Headers"] = "X-Total-Count"
         return []
 
     query = db.query(MatchResult).filter(MatchResult.job_id.in_(target_job_ids))
@@ -329,6 +333,11 @@ def get_all_assigned_candidates(
                 CandidateRecruiterAssignment.status == "active",
             ),
         )
+
+    total_count = query.count()
+    if response:
+        response.headers["X-Total-Count"] = str(total_count)
+        response.headers["Access-Control-Expose-Headers"] = "X-Total-Count"
 
     matches = (
         query.order_by(MatchResult.overall_score.desc())

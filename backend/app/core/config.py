@@ -67,10 +67,14 @@ class Settings(BaseSettings):
     S3_PRESIGNED_URL_EXPIRES_SECONDS: int = 300  # 5 minutes
 
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-3.5-flash"
+    GEMINI_MODEL: str = "gemini-2.0-flash"  # Valid: gemini-1.5-flash, gemini-2.0-flash
 
     SENDGRID_API_KEY: str = ""
     SENDGRID_FROM_EMAIL: str = "noreply@skilalign.com"
+
+    # ── Google Calendar Integration ──────────────────────────────────────────
+    GOOGLE_CALENDAR_CLIENT_ID: str = ""
+    GOOGLE_CALENDAR_API_KEY: str = ""
 
     # ── Redis / Celery ──────────────────────────────────────────────────────
     REDIS_URL: str = "redis://localhost:6379/0"

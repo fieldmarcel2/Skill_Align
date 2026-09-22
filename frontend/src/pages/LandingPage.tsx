@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { motion, useInView, AnimatePresence } from "framer-motion";
 import { HeroBackground } from "../components/effects/HeroBackground";
+import { useTheme } from "../context/ThemeContext";
+
 import { AnimatedCard } from "../components/effects/AnimatedCard";
 import { SkillAlignLogo } from "../components/common/SkillAlignLogo";
 import { Footer } from "../components/layout/Footer";
@@ -41,6 +44,8 @@ import {
   Video,
   ChevronRight,
   ExternalLink,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 const OPEN_TECH_JOBS = [
@@ -173,6 +178,7 @@ const OpenJobsShowcase: React.FC = () => {
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
+  const { toggleTheme, isDark } = useTheme();
   const [activeTab, setActiveTab] = useState<string>("matching");
 
   const scrollToSection = (id: string) => {
@@ -191,6 +197,41 @@ export const LandingPage: React.FC = () => {
 
           {/* Secure Public Authentication Navigation */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Dark / Light Mode Toggle */}
+            <motion.button
+              type="button"
+              onClick={toggleTheme}
+              whileTap={{ scale: 0.85, rotate: 15 }}
+              whileHover={{ scale: 1.05 }}
+              className="theme-toggle"
+              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                {isDark ? (
+                  <motion.div
+                    key="sun"
+                    initial={{ rotate: -90, opacity: 0, scale: 0.5 }}
+                    animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                    exit={{ rotate: 90, opacity: 0, scale: 0.5 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Sun className="h-4 w-4 text-amber-400" />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="moon"
+                    initial={{ rotate: 90, opacity: 0, scale: 0.5 }}
+                    animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                    exit={{ rotate: -90, opacity: 0, scale: 0.5 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Moon className="h-4 w-4 text-slate-700" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.button>
+
             <Link to="/login">
               <Button variant="ghost" size="sm" className="text-xs sm:text-sm font-medium px-2.5 sm:px-3">
                 Sign In
@@ -213,44 +254,65 @@ export const LandingPage: React.FC = () => {
       {/* ── Hero Section ───────────────────────────────────────────────────────── */}
       <section className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 sm:pt-16 pb-14 sm:pb-20 text-center">
         {/* Status Pill Announcement */}
-        <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-indigo-400 text-[11px] sm:text-xs font-semibold mb-6 sm:mb-8 shadow-xs max-w-full">
+        <motion.div
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-indigo-400 text-[11px] sm:text-xs font-semibold mb-6 sm:mb-8 shadow-xs max-w-full"
+        >
           <span className="flex h-2 w-2 rounded-full bg-indigo-400 animate-ping shrink-0" />
           <Zap className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
           <span className="truncate">SkillAlign v2.4 Talent Intelligence · 98.4% Match Accuracy Guaranteed</span>
-        </div>
+        </motion.div>
 
         {/* Master Title */}
-        <h1 className="font-outfit text-3xl sm:text-5xl lg:text-7xl font-black tracking-tight text-foreground leading-[1.08] max-w-5xl mx-auto mb-4 sm:mb-6">
+        <motion.h1
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.1 }}
+          className="font-outfit text-3xl sm:text-5xl lg:text-7xl font-black tracking-tight text-foreground leading-[1.08] max-w-5xl mx-auto mb-4 sm:mb-6"
+        >
           Where High-Caliber Talent Meets{" "}
           <span className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
             Precision Hiring
           </span>
-        </h1>
+        </motion.h1>
 
         {/* Subtitle */}
-        <p className="text-sm sm:text-lg lg:text-xl text-muted-foreground max-w-3xl mx-auto mb-8 sm:mb-10 leading-relaxed font-normal px-2">
+        <motion.p
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="text-sm sm:text-lg lg:text-xl text-muted-foreground max-w-3xl mx-auto mb-8 sm:mb-10 leading-relaxed font-normal px-2"
+        >
           The deterministic, multi-factor recruitment platform that eliminates resume screening fatigue.
           Align weighted skill criteria, experience vectors, and work preferences with mathematical confidence.
-        </p>
+        </motion.p>
 
         {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 max-w-xs sm:max-w-none mx-auto mb-12 sm:mb-16">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 max-w-xs sm:max-w-none mx-auto mb-12 sm:mb-16"
+        >
           <Link to="/register" className="w-full sm:w-auto">
             <Button
               size="lg"
               variant="gradient"
               className="w-full sm:w-auto gap-2 text-sm sm:text-base px-6 sm:px-8 h-11 sm:h-12 rounded-xl shadow-xl shadow-indigo-500/25 font-bold"
             >
-              Create Free Account <ArrowRight className="h-4 w-4" />
+              Request Access <ArrowRight className="h-4 w-4" />
             </Button>
           </Link>
           <button
             onClick={() => scrollToSection("roles")}
             className="inline-flex items-center justify-center gap-2 h-11 sm:h-12 px-5 sm:px-6 rounded-xl border border-border/80 bg-secondary/40 hover:bg-secondary/70 text-foreground font-semibold text-xs sm:text-sm transition-colors cursor-pointer w-full sm:w-auto"
           >
-            Role Governance & Access <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            Explore Platform <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </button>
-        </div>
+        </motion.div>
+
 
         {/* Floating Live Match Engine Simulation Card */}
         <div className="max-w-3xl mx-auto rounded-3xl border border-border/80 bg-card/75 backdrop-blur-2xl p-6 sm:p-8 shadow-2xl relative overflow-hidden text-left">

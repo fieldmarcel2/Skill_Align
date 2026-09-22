@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { User, RoleName } from "../types";
-import { authApi } from "../services/api";
+import { authApi, apiClient } from "../services/api";
 
 interface AuthContextType {
   user: User | null;
@@ -48,7 +48,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [token]);
 
   const login = async (newToken: string): Promise<User> => {
+    // CRITICAL: Set token synchronously in localStorage BEFORE any API call
+    // so that the request interceptor picks up the Bearer token correctly.
     localStorage.setItem("skillalign_token", newToken);
+    // Also update axios default header immediately for the pending getMe call
+    apiClient.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
     setToken(newToken);
     const userData = await authApi.getMe();
     setUser(userData);
@@ -56,6 +60,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = () => {
+    authApi.logout().catch(() => {});
     localStorage.removeItem("skillalign_token");
     setToken(null);
     setUser(null);

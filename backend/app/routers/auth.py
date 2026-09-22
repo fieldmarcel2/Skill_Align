@@ -11,15 +11,18 @@ Endpoints:
 """
 
 from fastapi import APIRouter, Depends, Request, status
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, _bearer_scheme
+from app.core.security import blacklist_token, create_access_token
 from app.core.rate_limit import limiter
 from app.models.user import User
 from app.schemas.auth import (
     RegisterRequest, LoginRequest, TokenResponse, UserResponse, UserUpdateMeRequest,
     SendOTPRequest, VerifyOTPRequest, OTPResponse, OTPLoginResponse,
+    ForgotPasswordRequest, ForgotPasswordResponse, ResetPasswordRequest, ResetPasswordResponse,
 )
 from app.services import auth_service
 
@@ -124,4 +127,83 @@ def resend_otp(
     db: Session = Depends(get_db),
 ):
     return auth_service.send_otp(db, data)
+
+
+# ── Password Reset Endpoints ──────────────────────────────────────────────────
+
+@router.post(
+    "/forgot-password",
+    response_model=ForgotPasswordResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Request password reset",
+    description="Generates a cryptographically secure reset token, saves its SHA-256 hash in DB, and dispatches a reset email."
+)
+@limiter.limit("5/minute")
+def forgot_password(
+    request: Request,
+    data: ForgotPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    return auth_service.request_password_reset(db, data)
+
+
+@router.post(
+    "/reset-password",
+    response_model=ResetPasswordResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Reset password with token",
+    description="Verifies the token hash, enforces token expiration, and updates the user's password."
+)
+@limiter.limit("5/minute")
+def reset_password(
+    request: Request,
+    data: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    return auth_service.reset_password(db, data)
+
+
+# ── Session Management (Logout & Refresh) ───────────────────────────────────
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_200_OK,
+    summary="User logout",
+    description="Revokes and blacklists current JWT access token."
+)
+def logout(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
+    current_user: User = Depends(get_current_user),
+):
+    if credentials:
+        blacklist_token(credentials.credentials)
+    return {"message": "Logged out successfully. Token revoked."}
+
+
+@router.post(
+    "/refresh",
+    response_model=TokenResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Refresh access token",
+    description="Issues a fresh JWT access token and revokes the existing one."
+)
+def refresh_token(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
+    current_user: User = Depends(get_current_user),
+):
+    if credentials:
+        blacklist_token(credentials.credentials)
+    role_str = current_user.role.name if current_user.role else "Candidate"
+    new_token = create_access_token({
+        "sub": str(current_user.id),
+        "email": current_user.email,
+        "role": role_str,
+    })
+    return TokenResponse(
+        access_token=new_token,
+        token_type="bearer",
+        user=UserResponse.model_validate(current_user),
+    )
+
+
 

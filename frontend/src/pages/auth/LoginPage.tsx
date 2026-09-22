@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { useTheme } from "../../context/ThemeContext";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -26,6 +28,8 @@ import {
   RotateCcw,
   MessageSquare,
   CheckCircle2,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 // ── Email Login Schema ───────────────────────────────────────────────────────
@@ -45,8 +49,9 @@ const phoneSchema = z.object({
 type PhoneFormData = z.infer<typeof phoneSchema>;
 
 export const LoginPage: React.FC = () => {
-  const { login } = useAuth();
   const navigate = useNavigate();
+  const { login, user } = useAuth();
+  const { toggleTheme, isDark } = useTheme();
   const toast = useToast();
 
   // Mode & Loading States
@@ -231,16 +236,63 @@ export const LoginPage: React.FC = () => {
 
   return (
     <HeroBackground>
-      <div className="min-h-screen flex flex-col justify-center items-center px-4 py-12">
-        <div className="mb-8">
-          <SkillAlignLogo size="lg" showBadge badgeText="Portal" />
-        </div>
+      <div className="absolute top-4 right-4 z-50">
+        <motion.button
+          type="button"
+          onClick={toggleTheme}
+          whileTap={{ scale: 0.85, rotate: 15 }}
+          whileHover={{ scale: 1.05 }}
+          className="theme-toggle"
+          title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          <AnimatePresence mode="wait" initial={false}>
+            {isDark ? (
+              <motion.div
+                key="sun"
+                initial={{ rotate: -90, opacity: 0, scale: 0.5 }}
+                animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                exit={{ rotate: 90, opacity: 0, scale: 0.5 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Sun className="h-4 w-4 text-amber-400" />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="moon"
+                initial={{ rotate: 90, opacity: 0, scale: 0.5 }}
+                animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                exit={{ rotate: 90, opacity: 0, scale: 0.5 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Moon className="h-4 w-4 text-slate-700" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.button>
+      </div>
 
-        <Card className="w-full max-w-md border-border/80 bg-card/80 backdrop-blur-xl shadow-2xl">
+      <div className="min-h-screen flex flex-col justify-center items-center px-4 py-12">
+        <motion.div
+          initial={{ opacity: 0, y: -16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="mb-8"
+        >
+          <SkillAlignLogo size="lg" showBadge badgeText="Enterprise" />
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 24, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.45, ease: "easeOut", delay: 0.1 }}
+          className="w-full max-w-md"
+        >
+        <Card className="w-full border-border/80 bg-card/90 backdrop-blur-xl shadow-2xl">
           <CardHeader className="text-center pb-3">
-            <CardTitle className="text-2xl font-bold">Sign In to Your Account</CardTitle>
-            <CardDescription>
-              Choose your preferred sign in method below.
+            <CardTitle className="text-2xl font-bold font-outfit">Access Your Platform</CardTitle>
+            <CardDescription className="text-sm">
+              Authenticate to your SkillAlign talent intelligence workspace.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -280,6 +332,12 @@ export const LoginPage: React.FC = () => {
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-semibold text-foreground">Password</label>
+                      <Link
+                        to="/forgot-password"
+                        className="text-xs text-primary hover:text-primary/80 hover:underline font-semibold transition-colors"
+                      >
+                        Forgot password?
+                      </Link>
                     </div>
                     <Input
                       type="password"
@@ -463,13 +521,13 @@ export const LoginPage: React.FC = () => {
               </TabsContent>
             </Tabs>
 
-            {/* ── Quick Role Login for Admin / HR / Recruiter ───────────── */}
+            {/* ── Quick Role Access ─────────────────────────────────────── */}
             <div className="pt-4 border-t border-border/60">
               <div className="flex items-center justify-between mb-2.5">
                 <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5 text-primary" /> Instant Role Access
+                  <Sparkles className="h-3.5 w-3.5 text-primary" /> Role-Based Access
                 </span>
-                <span className="text-[10px] text-muted-foreground font-mono">1-Click Dev Fill</span>
+                <span className="text-[10px] text-muted-foreground">Select your role</span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <Button
@@ -527,13 +585,14 @@ export const LoginPage: React.FC = () => {
             </div>
 
             <div className="text-center text-xs text-muted-foreground pt-4 border-t border-border/40">
-              Are you a new candidate?{" "}
+              New to SkillAlign?{" "}
               <Link to="/register" className="text-primary hover:underline font-semibold">
-                Register as Candidate
+                Create Candidate Account
               </Link>
             </div>
           </CardContent>
         </Card>
+        </motion.div>
       </div>
     </HeroBackground>
   );

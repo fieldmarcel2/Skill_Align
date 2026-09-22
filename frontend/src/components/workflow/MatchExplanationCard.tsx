@@ -35,16 +35,16 @@ export const MatchExplanationCard: React.FC<MatchExplanationCardProps> = ({
   };
 
   return (
-    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5 space-y-4">
+    <div className="bg-card border border-border/80 rounded-2xl p-5 sm:p-6 space-y-5 shadow-sm">
       {/* Blacklist Warning */}
       {isBlacklisted && (
-        <div className="flex items-start gap-3 p-3.5 rounded-lg bg-red-600/15 border border-red-600/40 text-red-400">
-          <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5 text-red-400" />
+        <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-400">
+          <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5 text-red-500" />
           <div className="text-xs">
-            <h5 className="font-bold text-red-300">Candidate Currently Blacklisted (6-Month Cooldown)</h5>
-            <p className="mt-0.5 text-red-400/90">
+            <h5 className="font-bold text-red-800 dark:text-red-300">Candidate Currently Blacklisted (6-Month Cooldown)</h5>
+            <p className="mt-0.5 text-red-700/90 dark:text-red-400/90">
               This candidate rejected a formal job offer. Active blacklist restriction applies until{" "}
-              <span className="font-mono font-semibold text-red-200">
+              <span className="font-mono font-semibold">
                 {blacklistUntil ? new Date(blacklistUntil).toLocaleDateString() : "the cooldown period ends"}
               </span>.
             </p>
@@ -53,42 +53,45 @@ export const MatchExplanationCard: React.FC<MatchExplanationCardProps> = ({
       )}
 
       {/* Header Match Score */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <span className="text-xs font-medium text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-primary" />
             AI Match Scorecard
           </span>
-          <h4 className="text-base font-bold text-white mt-0.5">Role Fit Evaluation</h4>
+          <h4 className="text-base font-bold font-outfit text-foreground mt-0.5">Role Fit Evaluation</h4>
         </div>
-        <div className={`px-3.5 py-1.5 rounded-lg border font-bold text-lg ${getScoreColor(score)}`}>
+        <div className={`px-4 py-1.5 rounded-full border font-bold text-base shadow-xs ${getScoreColor(score)}`}>
           {Math.round(score)}% Match
         </div>
       </div>
 
       {/* Explanation Summary */}
       {explanation && (
-        <p className="text-xs text-slate-300 bg-slate-950/60 p-3 rounded-lg border border-slate-800/80 leading-relaxed">
-          {explanation}
-        </p>
+        <div className="text-xs text-foreground/90 bg-muted/40 p-4 rounded-xl border border-border/60 leading-relaxed space-y-1">
+          <div className="font-bold text-primary flex items-center gap-1.5 text-[11px] uppercase tracking-wide">
+            <Sparkles className="w-3 h-3" /> AI Match Narrative
+          </div>
+          <p>{explanation}</p>
+        </div>
       )}
 
       {/* Experience Check */}
-      <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950/40 border border-slate-800/60 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2 p-3.5 rounded-xl bg-muted/30 border border-border/60 text-xs">
         <div className="flex items-center gap-2">
-          <Briefcase className="w-4 h-4 text-slate-400" />
-          <span className="text-slate-300">Experience Requirement:</span>
+          <Briefcase className="w-4 h-4 text-primary" />
+          <span className="text-foreground font-semibold">Experience Requirement:</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="font-mono text-slate-200">
+          <span className="font-mono text-muted-foreground font-medium">
             {candidateExperience.toFixed(1)} yrs candidate / {requiredExperience.toFixed(1)} yrs required
           </span>
           {meetsExperience ? (
-            <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[11px] font-semibold flex items-center gap-1">
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3" /> Meets
             </span>
           ) : (
-            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[11px] font-semibold flex items-center gap-1">
+            <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 text-[11px] font-bold flex items-center gap-1">
               <XCircle className="w-3 h-3" /> Below Target
             </span>
           )}
@@ -96,25 +99,25 @@ export const MatchExplanationCard: React.FC<MatchExplanationCardProps> = ({
       </div>
 
       {/* Skills Grid */}
-      <div className="space-y-3 pt-1">
+      <div className="space-y-4 pt-1">
         {/* Matched Skills */}
         <div>
-          <span className="text-xs font-medium text-slate-400 mb-1.5 flex items-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="text-xs font-bold text-foreground mb-2 flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
             Matched Skills ({matchedSkills.length})
           </span>
-          <div className="flex flex-wrap gap-1.5 mt-1">
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
             {matchedSkills.length > 0 ? (
               matchedSkills.map((s, idx) => (
-                  <span
-                    key={idx}
-                    className="px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-950 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-800/80"
-                  >
-                    ✓ {s}
-                  </span>
+                <span
+                  key={idx}
+                  className="px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
+                >
+                  ✓ {s}
+                </span>
               ))
             ) : (
-              <span className="text-xs text-slate-500 italic">No direct required skills matched</span>
+              <span className="text-xs text-muted-foreground italic">No direct required skills matched</span>
             )}
           </div>
         </div>
@@ -122,15 +125,15 @@ export const MatchExplanationCard: React.FC<MatchExplanationCardProps> = ({
         {/* Missing Skills */}
         {missingSkills.length > 0 && (
           <div>
-            <span className="text-xs font-medium text-slate-400 mb-1.5 flex items-center gap-1.5">
-              <XCircle className="w-3.5 h-3.5 text-rose-400" />
+            <span className="text-xs font-bold text-foreground mb-2 flex items-center gap-1.5">
+              <XCircle className="w-3.5 h-3.5 text-rose-500" />
               Skill Gaps ({missingSkills.length})
             </span>
-            <div className="flex flex-wrap gap-1.5 mt-1">
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
               {missingSkills.map((s, idx) => (
                 <span
                   key={idx}
-                  className="px-2.5 py-1 rounded-md text-xs font-medium bg-rose-500/10 text-rose-300 border border-rose-500/25"
+                  className="px-3 py-1 rounded-lg text-xs font-medium bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/25"
                 >
                   ✗ {s}
                 </span>

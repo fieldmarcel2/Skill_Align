@@ -1,16 +1,37 @@
 import React, { useState, useEffect } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { Navbar } from "./Navbar";
 import { Sidebar } from "./Sidebar";
 import { useAuth } from "../../context/AuthContext";
 import { workflowApi } from "../../services/api";
+import { cn } from "../../lib/utils";
+
+const pageVariants = {
+  initial: { opacity: 0, y: 12 },
+  in: { opacity: 1, y: 0 },
+  out: { opacity: 0, y: -8 },
+};
+
+const pageTransition = {
+  type: "tween" as const,
+  ease: "easeOut",
+  duration: 0.25,
+};
 
 export const DashboardLayout: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [actionCenterCount, setActionCenterCount] = useState(0);
   const { user } = useAuth();
+  const location = useLocation();
 
-  // Poll and listen for action center count for Recruiter role
+  // Close mobile menu on route change
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  // Poll for action center count (Recruiter role only)
   useEffect(() => {
     if (!user || user.role.name !== "Recruiter") return;
 
@@ -25,13 +46,9 @@ export const DashboardLayout: React.FC = () => {
 
     fetchCount();
 
-    // Listen for custom real-time events triggered on action completions
-    const handleUpdated = () => {
-      fetchCount();
-    };
+    const handleUpdated = () => { fetchCount(); };
     window.addEventListener("action-center-updated", handleUpdated);
 
-    // Refresh every 25 seconds
     const interval = setInterval(fetchCount, 25_000);
     return () => {
       window.removeEventListener("action-center-updated", handleUpdated);
@@ -45,14 +62,37 @@ export const DashboardLayout: React.FC = () => {
         isMobileMenuOpen={isMobileMenuOpen}
         onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
       />
+
       <div className="flex-1 flex relative">
         <Sidebar
           isOpen={isMobileMenuOpen}
           onClose={() => setIsMobileMenuOpen(false)}
           actionCenterCount={actionCenterCount}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
         />
-        <main className="flex-1 p-3 sm:p-5 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full min-w-0">
-          <Outlet />
+
+        <main
+          className={cn(
+            "flex-1 min-w-0 transition-[padding-left] duration-300 ease-in-out will-change-[padding]",
+            "p-3 sm:p-5 md:p-7",
+            sidebarCollapsed ? "md:pl-[calc(4rem+1.75rem)]" : "md:pl-[calc(16rem+1.75rem)]"
+          )}
+        >
+          <div className="max-w-7xl mx-auto w-full">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={location.pathname}
+                variants={pageVariants}
+                initial="initial"
+                animate="in"
+                exit="out"
+                transition={pageTransition}
+              >
+                <Outlet />
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </main>
       </div>
     </div>

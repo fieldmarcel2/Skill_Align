@@ -90,15 +90,68 @@ export const InlineSlotChooser: React.FC<InlineSlotChooserProps> = ({
       toast.success("Interview slot confirmed successfully!");
       onSlotConfirmed();
     } catch (err: any) {
-      setError(
-        err.response?.data?.detail ||
-          "Failed to confirm slot. The slot may no longer be available."
-      );
-      toast.error("Failed to confirm time slot.");
+      let rawErr = err.response?.data?.detail || "";
+      let friendlyMsg = "Unable to confirm time slot. Please refresh your dashboard.";
+
+      if (rawErr.includes("ON_HOLD_DUE_TO_HIRING") || rawErr.includes("hired for another") || rawErr.includes("placed in another")) {
+        friendlyMsg = "This interview invitation is no longer active because your profile has already been successfully hired for another position.";
+      } else if (rawErr.includes("HIRED") || rawErr.includes("OFFER_ACCEPTED") || rawErr.includes("already accepted")) {
+        friendlyMsg = "This interview invitation is no longer active because you have already accepted an employment offer.";
+      } else if (rawErr.includes("Invalid workflow transition") || rawErr.includes("is no longer active")) {
+        friendlyMsg = "This interview stage is no longer active as the recruitment process for this role has moved forward.";
+      } else if (rawErr.includes("Schedule conflict")) {
+        friendlyMsg = rawErr;
+      } else if (rawErr.includes("no longer available") || rawErr.includes("does not belong")) {
+        friendlyMsg = "The selected time slot is no longer available. Please select another slot or refresh.";
+      } else if (rawErr) {
+        friendlyMsg = rawErr;
+      }
+
+      setError(friendlyMsg);
+      toast.error(friendlyMsg);
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const isConcluded = [
+    "HIRED",
+    "OFFER_ACCEPTED",
+    "OFFER_SENT",
+    "OFFER_CREATED",
+    "OFFER_READY",
+    "HM_APPROVED",
+    "SHORTLISTED",
+    "INTERVIEW_COMPLETED",
+    "ON_HOLD_DUE_TO_HIRING",
+    "ON_HOLD",
+    "WITHDRAWN",
+    "REJECTED",
+    "DECLINED",
+    "BLACKLISTED",
+    "HIRING_MANAGER_REJECTED",
+    "OFFER_REJECTED",
+  ].includes(interview.pipeline_state || "");
+
+  if (isConcluded) {
+    const isHold = interview.pipeline_state === "ON_HOLD_DUE_TO_HIRING";
+    return (
+      <div
+        className="p-4 rounded-xl border border-border bg-card/60 space-y-1 text-xs"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2 text-foreground font-semibold">
+          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+          <span>{isHold ? "Application On Hold" : "Interview Stage Concluded"}</span>
+        </div>
+        <p className="text-muted-foreground">
+          {isHold
+            ? "This application is on hold because you have been successfully hired for another role."
+            : `This position has advanced to the ${interview.pipeline_state?.replace(/_/g, " ") || "finalized"} stage. No further slot action is required.`}
+        </p>
+      </div>
+    );
+  }
 
   if (isConfirmed && confirmedSlot) {
     const { datePart, timeSpan } = formatSlotDateTime(

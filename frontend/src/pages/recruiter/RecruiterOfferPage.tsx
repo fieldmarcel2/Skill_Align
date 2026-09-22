@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useSearchParams, useNavigate, Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
   DollarSign,
   FileCheck,
@@ -377,7 +378,12 @@ export const RecruiterOfferPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50/70 dark:bg-slate-950 p-4 sm:p-6 lg:p-8 -m-4 sm:-m-6">
-      <div className="max-w-6xl mx-auto space-y-6 pb-20">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: "easeOut" }}
+        className="max-w-6xl mx-auto space-y-6 pb-20"
+      >
         
         {/* ── Enterprise Hero Header with Rich Palette ─────────────────── */}
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 sm:p-8 shadow-xl border border-indigo-500/20">
@@ -1035,7 +1041,7 @@ export const RecruiterOfferPage: React.FC = () => {
             </div>
           </div>
         </form>
-      </div>
+      </motion.div>
     </div>
   );
 };

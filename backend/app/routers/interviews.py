@@ -209,8 +209,11 @@ def list_my_interviews(
         .filter(
             MatchResult.candidate_id == candidate.id,
             Interview.status != "cancelled",
-            MatchResult.status != "rejected",
-            ~MatchResult.pipeline_state.in_(["REJECTED", "DECLINED", "BLACKLISTED", "HIRING_MANAGER_REJECTED", "OFFER_REJECTED"]),
+            MatchResult.status.notin_(("rejected", "withdrawn")),
+            ~MatchResult.pipeline_state.in_([
+                "REJECTED", "DECLINED", "BLACKLISTED", "HIRING_MANAGER_REJECTED",
+                "OFFER_REJECTED", "WITHDRAWN"
+            ]),
         )
         .order_by(Interview.created_at.desc())
         .all()

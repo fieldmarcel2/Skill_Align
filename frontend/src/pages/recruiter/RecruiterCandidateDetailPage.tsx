@@ -163,11 +163,14 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
       }
 
       // Attempt to load resume download url if available
+      // FIXED: Use matchRes.candidate_id (candidates table ID) not numCandidateId from URL
+      // which may be a match result id in some routing scenarios
+      const actualCandidateTableId = matchRes?.candidate_id || actualCandidateId;
       try {
-        const rUrl = await resumeApi.getUrl(numCandidateId);
+        const rUrl = await resumeApi.getUrl(actualCandidateTableId);
         if (rUrl?.resume_url) setResumeUrl(rUrl.resume_url);
       } catch (err) {
-        // Resume download might not be generated yet, silent fallback
+        // Resume may not be uploaded yet — silent fallback is expected
       }
     } catch (err: any) {
       console.error("Failed to load candidate details:", err);
@@ -176,6 +179,7 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
       setLoading(false);
     }
   };
+
 
   const loadAiAnalysis = async (matchId: number) => {
     try {

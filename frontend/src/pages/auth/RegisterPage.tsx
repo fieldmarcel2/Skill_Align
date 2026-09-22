@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { useTheme } from "../../context/ThemeContext";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -25,6 +27,8 @@ import {
   Briefcase,
   Building,
   Shield,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 // ── Email Registration Schema (Email & Phone BOTH strictly REQUIRED) ────────
@@ -67,8 +71,9 @@ const phoneOtpSchema = z.object({
 type PhoneOtpFormData = z.infer<typeof phoneOtpSchema>;
 
 export const RegisterPage: React.FC = () => {
-  const { login } = useAuth();
   const navigate = useNavigate();
+  const { login } = useAuth();
+  const { toggleTheme, isDark } = useTheme();
   const toast = useToast();
 
   const [activeTab, setActiveTab] = useState<"email" | "phone">("email");
@@ -232,19 +237,67 @@ export const RegisterPage: React.FC = () => {
 
   return (
     <HeroBackground>
-      <div className="min-h-screen flex flex-col justify-center items-center px-4 py-12">
-        <div className="mb-8">
-          <SkillAlignLogo size="lg" showBadge badgeText="Signup" />
-        </div>
+      <div className="absolute top-4 right-4 z-50">
+        <motion.button
+          type="button"
+          onClick={toggleTheme}
+          whileTap={{ scale: 0.85, rotate: 15 }}
+          whileHover={{ scale: 1.05 }}
+          className="theme-toggle"
+          title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          <AnimatePresence mode="wait" initial={false}>
+            {isDark ? (
+              <motion.div
+                key="sun"
+                initial={{ rotate: -90, opacity: 0, scale: 0.5 }}
+                animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                exit={{ rotate: 90, opacity: 0, scale: 0.5 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Sun className="h-4 w-4 text-amber-400" />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="moon"
+                initial={{ rotate: 90, opacity: 0, scale: 0.5 }}
+                animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                exit={{ rotate: 90, opacity: 0, scale: 0.5 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Moon className="h-4 w-4 text-slate-700" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.button>
+      </div>
 
-        <Card className="w-full max-w-lg border-border/80 bg-card/80 backdrop-blur-xl shadow-2xl">
+      <div className="min-h-screen flex flex-col justify-center items-center px-4 py-12">
+        <motion.div
+          initial={{ opacity: 0, y: -16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="mb-8"
+        >
+          <SkillAlignLogo size="lg" showBadge badgeText="Candidate Portal" />
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 24, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.45, ease: "easeOut", delay: 0.1 }}
+          className="w-full max-w-lg"
+        >
+        <Card className="w-full border-border/80 bg-card/90 backdrop-blur-xl shadow-2xl">
           <CardHeader className="text-center pb-3">
-            <CardTitle className="text-2xl font-bold font-outfit">Candidate Registration</CardTitle>
+            <CardTitle className="text-2xl font-bold font-outfit">Create Candidate Profile</CardTitle>
             <CardDescription>
-              Create your candidate talent profile. Email and mobile phone number are both required.
+              Register to access talent matching and application tracking. Both email and mobile number are required for secure authentication.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+
             {/* Enterprise Access Guardrail Notice */}
             <div className="p-3.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-xs text-muted-foreground flex items-start gap-2.5">
               <Shield className="h-4 w-4 text-indigo-400 shrink-0 mt-0.5" />
@@ -513,6 +566,7 @@ export const RegisterPage: React.FC = () => {
             </div>
           </CardContent>
         </Card>
+        </motion.div>
       </div>
     </HeroBackground>
   );

@@ -24,6 +24,8 @@ import { Input } from "../ui/input";
 import { useToast } from "../ui/toast";
 import { InterviewWithSlots } from "../../types";
 import { workflowApi } from "../../services/api";
+import { GoogleCalendarButton } from "../calendar/GoogleCalendarButton";
+import { buildInterviewCalendarEvent } from "../../lib/googleCalendar";
 
 interface MultiRoundInterviewSectionProps {
   matchId: number;
@@ -329,6 +331,23 @@ export const MultiRoundInterviewSection: React.FC<MultiRoundInterviewSectionProp
                           <a href={round.meeting_link} target="_blank" rel="noopener noreferrer" className="underline truncate max-w-[200px]">
                             {round.meeting_link}
                           </a>
+                        </div>
+                      )}
+                      {round.interview_date && (
+                        <div className="pt-1.5">
+                          <GoogleCalendarButton
+                            size="sm"
+                            variant="outline"
+                            label="Add to Calendar"
+                            {...buildInterviewCalendarEvent({
+                              candidateName: candidateName,
+                              jobTitle: round.round_name || round.round_type || "Interview",
+                              scheduledDate: round.interview_date,
+                              scheduledEnd: round.scheduled_end || undefined,
+                              meetingLink: round.meeting_link || undefined,
+                              interviewType: round.round_type || round.interview_type || "Interview",
+                            })}
+                          />
                         </div>
                       )}
                       {round.slots && round.slots.length > 0 && (

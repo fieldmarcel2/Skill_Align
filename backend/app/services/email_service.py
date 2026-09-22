@@ -386,3 +386,89 @@ Please respond using this link: {accept_url}
 Best regards, {recruiter_name}"""
 
     return send_email(candidate_email, subject, html_content, plain)
+
+
+def send_password_reset_email(
+    to_email: str,
+    recipient_name: str,
+    reset_url: str,
+    expires_in_minutes: int = 60,
+) -> bool:
+    """
+    Send a secure password reset link to user.
+    """
+    subject = "Reset Your SkillAlign Password"
+
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Reset Your Password</title>
+  <style>
+    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; }}
+    .container {{ max-width: 560px; margin: 32px auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }}
+    .header {{ background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: #ffffff; padding: 36px 32px; text-align: center; }}
+    .header h1 {{ margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em; }}
+    .header p {{ margin: 8px 0 0; opacity: 0.9; font-size: 14px; }}
+    .content {{ padding: 36px 32px; }}
+    .btn {{ display: block; width: fit-content; margin: 28px auto; background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); color: #ffffff !important; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }}
+    .notice {{ background: #f1f5f9; border-left: 4px solid #6366f1; border-radius: 8px; padding: 14px 18px; margin: 24px 0; font-size: 13px; color: #475569; }}
+    .footer {{ padding: 20px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #f1f5f9; background: #fafafa; }}
+    .break-link {{ word-break: break-all; color: #6366f1; font-size: 12px; }}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>SkillAlign Security</h1>
+      <p>Password Reset Request</p>
+    </div>
+    <div class="content">
+      <p style="font-size: 15px; margin-top: 0;">Hello <strong>{recipient_name}</strong>,</p>
+      <p style="font-size: 14px; line-height: 1.6; color: #475569;">
+        We received a request to reset the password associated with your SkillAlign account. Click the button below to choose a new, secure password:
+      </p>
+
+      <a href="{reset_url}" class="btn" target="_blank">Reset My Password</a>
+
+      <div class="notice">
+        <strong>Security Notice:</strong>
+        <ul style="margin: 6px 0 0 0; padding-left: 18px;">
+          <li>This link is valid for <strong>{expires_in_minutes} minutes</strong> only.</li>
+          <li>If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.</li>
+        </ul>
+      </div>
+
+      <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">
+        If the button above does not work, copy and paste this URL into your browser:
+      </p>
+      <p class="break-link">{reset_url}</p>
+
+      <p style="font-size: 14px; margin-top: 28px; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+        Best regards,<br>
+        <strong>The SkillAlign Security Team</strong>
+      </p>
+    </div>
+    <div class="footer">
+      <p style="margin: 0;">&copy; 2026 SkillAlign Inc. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>
+"""
+
+    plain_text = f"""Hello {recipient_name},
+
+We received a request to reset the password for your SkillAlign account.
+
+Please visit the following link to choose a new password (valid for {expires_in_minutes} minutes):
+{reset_url}
+
+If you did not request this, you can safely ignore this email.
+
+Best regards,
+The SkillAlign Security Team
+"""
+
+    return send_email(to_email, subject, html_content, plain_text)
+

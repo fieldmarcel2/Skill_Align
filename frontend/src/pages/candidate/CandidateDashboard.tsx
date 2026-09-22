@@ -724,7 +724,9 @@ export const CandidateDashboard: React.FC = () => {
         iv.pipeline_state !== "REJECTED" &&
         iv.pipeline_state !== "HIRING_MANAGER_REJECTED" &&
         iv.pipeline_state !== "OFFER_REJECTED" &&
-        iv.pipeline_state !== "BLACKLISTED"
+        iv.pipeline_state !== "BLACKLISTED" &&
+        iv.pipeline_state !== "ON_HOLD_DUE_TO_HIRING" &&
+        iv.pipeline_state !== "WITHDRAWN"
     )
     .reduce<Interview[]>((acc, current) => {
       const exists = acc.find(
@@ -738,21 +740,55 @@ export const CandidateDashboard: React.FC = () => {
       return acc;
     }, []);
 
-  const pendingSlotInterviews = uniqueInterviews.filter(
-    (iv) =>
-      iv.status !== "cancelled" &&
-      (
-        iv.status === "pending_slot" ||
-        iv.pipeline_state === "WAITING_FOR_CANDIDATE_SLOT" ||
-        (iv.slots && iv.slots.some((s) => s.status === "proposed") && !iv.interview_date)
-      )
+  const terminalOrOfferStates = [
+    "HIRED",
+    "OFFER_ACCEPTED",
+    "OFFER_SENT",
+    "OFFER_CREATED",
+    "OFFER_READY",
+    "HM_APPROVED",
+    "SHORTLISTED",
+    "INTERVIEW_COMPLETED",
+    "WAITING_FOR_HM_FEEDBACK",
+    "INTERVIEW_GO",
+    "INTERVIEW_NO_GO",
+    "REJECTED",
+    "DECLINED",
+    "BLACKLISTED",
+    "HIRING_MANAGER_REJECTED",
+    "OFFER_REJECTED",
+    "ON_HOLD_DUE_TO_HIRING",
+    "ON_HOLD",
+    "WITHDRAWN",
+  ];
+
+  const isCandidateHired = Boolean(
+    hiringStatusData?.is_hired ||
+    profile?.hiring_status === "HIRED" ||
+    visibleMatches.some((m) => m.pipeline_state === "HIRED" || m.status === "hired")
   );
+
+  const pendingSlotInterviews = isCandidateHired
+    ? []
+    : uniqueInterviews.filter(
+        (iv) =>
+          iv.status !== "cancelled" &&
+          iv.status !== "completed" &&
+          !terminalOrOfferStates.includes(iv.pipeline_state || "") &&
+          (
+            iv.status === "pending_slot" ||
+            iv.pipeline_state === "WAITING_FOR_CANDIDATE_SLOT" ||
+            iv.pipeline_state === "INTERVIEW_SLOTS_PROPOSED" ||
+            (iv.slots && iv.slots.some((s) => s.status === "proposed") && !iv.interview_date)
+          )
+      );
 
   const awaitingConfirmationInterviews = uniqueInterviews.filter(
     (iv) =>
       iv.status !== "cancelled" &&
       iv.pipeline_state === "CANDIDATE_SLOT_SELECTED" &&
       iv.status !== "completed" &&
+      !terminalOrOfferStates.includes(iv.pipeline_state || "") &&
       Boolean(iv.interview_date)
   );
 
@@ -764,6 +800,7 @@ export const CandidateDashboard: React.FC = () => {
       iv.pipeline_state !== "WAITING_FOR_CANDIDATE_SLOT" &&
       iv.status !== "pending_slot" &&
       iv.status !== "completed" &&
+      !terminalOrOfferStates.includes(iv.pipeline_state || "") &&
       Boolean(iv.interview_date)
   );
 
@@ -773,7 +810,11 @@ export const CandidateDashboard: React.FC = () => {
       iv.pipeline_state === "INTERVIEW_COMPLETED" ||
       iv.pipeline_state === "WAITING_FOR_HM_FEEDBACK" ||
       iv.pipeline_state === "INTERVIEW_GO" ||
-      iv.pipeline_state === "INTERVIEW_NO_GO"
+      iv.pipeline_state === "INTERVIEW_NO_GO" ||
+      iv.pipeline_state === "HIRED" ||
+      iv.pipeline_state === "OFFER_ACCEPTED" ||
+      iv.pipeline_state === "OFFER_SENT" ||
+      iv.pipeline_state === "OFFER_CREATED"
   );
 
   const upcomingInterviews = [...awaitingConfirmationInterviews, ...confirmedInterviews];
@@ -1298,27 +1339,43 @@ export const CandidateDashboard: React.FC = () => {
                     ? uniqueInterviews.find((i) => i.match_result_id === match.id && i.status !== "cancelled")
                     : undefined;
 
+                  const isHired = match.status === "hired" || match.pipeline_state === "HIRED";
+                  const isOfferStage = [
+                    "OFFER_ACCEPTED",
+                    "OFFER_SENT",
+                    "OFFER_CREATED",
+                    "OFFER_READY",
+                    "HM_APPROVED",
+                    "SHORTLISTED",
+                  ].includes(match.pipeline_state || "");
+
                   const isAwaitingSlot =
                     !isRejected &&
+                    !isHired &&
+                    !isOfferStage &&
                     (match.pipeline_state === "WAITING_FOR_CANDIDATE_SLOT" ||
-                      (matchInterview && (
-                        matchInterview.status === "pending_slot" ||
-                        (matchInterview.slots && matchInterview.slots.some((s) => s.status === "proposed") && !matchInterview.interview_date)
-                      )));
+                      match.pipeline_state === "INTERVIEW_SLOTS_PROPOSED" ||
+                      (matchInterview &&
+                        matchInterview.status !== "completed" &&
+                        !terminalOrOfferStates.includes(matchInterview.pipeline_state || "") &&
+                        (matchInterview.status === "pending_slot" ||
+                          (matchInterview.slots && matchInterview.slots.some((s) => s.status === "proposed") && !matchInterview.interview_date))));
 
                   const isSlotSelected =
                     !isRejected &&
+                    !isHired &&
+                    !isOfferStage &&
                     (match.pipeline_state === "CANDIDATE_SLOT_SELECTED" ||
                       (matchInterview && matchInterview.pipeline_state === "CANDIDATE_SLOT_SELECTED"));
 
                   const isInterviewConfirmed =
                     !isRejected &&
+                    !isHired &&
+                    !isOfferStage &&
                     Boolean(matchInterview?.interview_date) &&
                     (match.pipeline_state === "INTERVIEW_CONFIRMED" || matchInterview?.status === "scheduled") &&
                     !isAwaitingSlot &&
                     !isSlotSelected;
-
-                  const isHired = match.status === "hired" || match.pipeline_state === "HIRED";
                   const isOnHoldDueToHiring = match.pipeline_state === "ON_HOLD_DUE_TO_HIRING";
 
                   if (isHired) {

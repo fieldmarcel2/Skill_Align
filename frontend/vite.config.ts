@@ -13,5 +13,20 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    // ── API Proxy ─────────────────────────────────────────────────────────────
+    // All /api/* requests are proxied to the backend. The real backend URL is
+    // NEVER exposed to the browser — only the Vite dev server URL is visible.
+    proxy: {
+      "/api": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+        secure: false,
+      },
+      "/health": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
 });

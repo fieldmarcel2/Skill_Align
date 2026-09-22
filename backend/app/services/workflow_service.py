@@ -684,14 +684,27 @@ def candidate_select_slot(
             detail="Invalid or expired selection token, or unauthorized candidate.",
         )
 
+    terminal_or_inactive_states = (
+        "REJECTED", "DECLINED", "BLACKLISTED", "HIRING_MANAGER_REJECTED",
+        "OFFER_REJECTED", "HIRED", "OFFER_ACCEPTED", "OFFER_SENT",
+        "OFFER_CREATED", "OFFER_READY", "HM_APPROVED", "SHORTLISTED",
+        "INTERVIEW_COMPLETED", "WAITING_FOR_HM_FEEDBACK", "INTERVIEW_GO", "INTERVIEW_NO_GO",
+        "ON_HOLD_DUE_TO_HIRING", "WITHDRAWN"
+    )
     if (
-        interview.status == "cancelled"
-        or match_result.status == "rejected"
-        or match_result.pipeline_state in ("REJECTED", "DECLINED", "BLACKLISTED", "HIRING_MANAGER_REJECTED", "OFFER_REJECTED")
+        interview.status in ("cancelled", "completed", "on_hold")
+        or match_result.status in ("rejected", "hired", "on_hold", "withdrawn")
+        or match_result.pipeline_state in terminal_or_inactive_states
     ):
+        if match_result.pipeline_state == "ON_HOLD_DUE_TO_HIRING":
+            detail_msg = "This interview invitation is no longer active because your profile has already been successfully hired for another position."
+        elif match_result.pipeline_state in ("HIRED", "OFFER_ACCEPTED"):
+            detail_msg = "This interview invitation is no longer active because you have already accepted an employment offer."
+        else:
+            detail_msg = f"This interview invitation is no longer active as the candidate application is already at stage '{match_result.pipeline_state or match_result.status}'."
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This interview invitation is no longer active as the candidate application has been rejected or cancelled.",
+            detail=detail_msg,
         )
 
     _validate_transition(match_result.pipeline_state, "CANDIDATE_SLOT_SELECTED")
@@ -1539,14 +1552,28 @@ def candidate_respond_to_offer(
         except Exception as e:
             logger.warning(f"Could not update other candidate applications to on-hold: {e}")
 
-        # Complete any open interviews since candidate is hired
+        # Complete all open interviews and cancel all proposed slots across ALL candidate applications upon hire
         try:
             from app.models.interview import Interview
-            db.query(Interview).filter(
-                Interview.match_result_id == match_result.id,
-            ).update({"status": "completed", "round_status": "COMPLETED"}, synchronize_session=False)
+            from app.models.interview_slot import InterviewSlot
+            all_cand_match_ids = [
+                row[0] for row in db.query(MatchResult.id).filter(MatchResult.candidate_id == match_result.candidate_id).all()
+            ]
+            if all_cand_match_ids:
+                all_interview_ids = [
+                    row[0] for row in db.query(Interview.id).filter(Interview.match_result_id.in_(all_cand_match_ids)).all()
+                ]
+                if all_interview_ids:
+                    db.query(InterviewSlot).filter(
+                        InterviewSlot.interview_id.in_(all_interview_ids),
+                        InterviewSlot.status == "proposed",
+                    ).update({"status": "cancelled"}, synchronize_session=False)
+                    db.query(Interview).filter(
+                        Interview.id.in_(all_interview_ids),
+                        Interview.status.in_(("pending_slot", "scheduled")),
+                    ).update({"status": "completed", "round_status": "COMPLETED"}, synchronize_session=False)
         except Exception as e:
-            logger.warning(f"Could not update interview status on hire: {e}")
+            logger.warning(f"Could not update interview status across candidate matches on hire: {e}")
 
         # Auto-complete open tasks for this match/candidate since workflow is successfully closed
         try:

@@ -33,10 +33,10 @@ export const CandidateTimeline: React.FC<CandidateTimelineProps> = ({
 
   if (!timeline || timeline.length === 0) {
     return (
-      <div className="p-8 text-center bg-slate-900/50 rounded-xl border border-slate-800 text-slate-400">
-        <Clock className="w-8 h-8 mx-auto mb-2 text-slate-600" />
-        <p className="text-sm font-medium">No audit events recorded yet.</p>
-        <p className="text-xs text-slate-500 mt-1">
+      <div className="p-8 text-center bg-card/50 rounded-xl border border-border text-muted-foreground">
+        <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
+        <p className="text-sm font-semibold text-foreground">No audit events recorded yet.</p>
+        <p className="text-xs text-muted-foreground mt-1">
           State changes and workflow activities will appear here in chronological order.
         </p>
       </div>
@@ -46,24 +46,24 @@ export const CandidateTimeline: React.FC<CandidateTimelineProps> = ({
   const getActionIcon = (action: string) => {
     const act = action.toLowerCase();
     if (act.includes("hired") || act.includes("accept")) {
-      return <Award className="w-4 h-4 text-emerald-400" />;
+      return <Award className="w-4 h-4 text-emerald-500" />;
     }
     if (act.includes("reject") || act.includes("no_go") || act.includes("blacklist")) {
-      return <ShieldAlert className="w-4 h-4 text-rose-400" />;
+      return <ShieldAlert className="w-4 h-4 text-rose-500" />;
     }
     if (act.includes("interview") || act.includes("slot")) {
-      return <Calendar className="w-4 h-4 text-purple-400" />;
+      return <Calendar className="w-4 h-4 text-purple-500" />;
     }
     if (act.includes("offer")) {
-      return <FileCheck className="w-4 h-4 text-amber-400" />;
+      return <FileCheck className="w-4 h-4 text-amber-500" />;
     }
     if (act.includes("email") || act.includes("sent")) {
-      return <Mail className="w-4 h-4 text-cyan-400" />;
+      return <Mail className="w-4 h-4 text-blue-500" />;
     }
     if (act.includes("shortlist") || act.includes("review")) {
-      return <CheckCircle2 className="w-4 h-4 text-indigo-400" />;
+      return <CheckCircle2 className="w-4 h-4 text-indigo-500" />;
     }
-    return <Clock className="w-4 h-4 text-slate-400" />;
+    return <Clock className="w-4 h-4 text-muted-foreground" />;
   };
 
   const formatDateTime = (dateStr: string) => {
@@ -79,7 +79,7 @@ export const CandidateTimeline: React.FC<CandidateTimelineProps> = ({
   };
 
   return (
-    <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-800">
+    <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-border">
       {timeline.map((entry, index) => {
         const { date, time } = formatDateTime(entry.created_at);
         const fromConfig = entry.from_state
@@ -92,22 +92,22 @@ export const CandidateTimeline: React.FC<CandidateTimelineProps> = ({
         return (
           <div key={entry.id || index} className="relative group">
             {/* Timeline node icon */}
-            <div className="absolute -left-6 top-1 w-5 h-5 rounded-full bg-slate-900 border border-slate-700 flex items-center justify-center shadow-md group-hover:border-cyan-500 transition-colors">
+            <div className="absolute -left-6 top-1 w-5 h-5 rounded-full bg-card border border-border flex items-center justify-center shadow-sm group-hover:border-primary transition-colors">
               {getActionIcon(entry.action)}
             </div>
 
             {/* Content card */}
-            <div className="bg-slate-900/60 border border-slate-800/80 rounded-lg p-3.5 hover:border-slate-700 transition-all">
+            <div className="bg-card/70 border border-border/80 rounded-xl p-3.5 hover:border-primary/40 transition-all shadow-xs">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-white">
+                  <span className="text-sm font-bold text-foreground">
                     {entry.action.replace(/_/g, " ")}
                   </span>
-                  <span className="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                  <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-secondary text-secondary-foreground border border-border">
                     {entry.entity_type}
                   </span>
                 </div>
-                <div className="text-[11px] text-slate-400 flex items-center gap-1.5 font-mono">
+                <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 font-mono">
                   <span>{date}</span>
                   <span>{time}</span>
                 </div>
@@ -118,17 +118,17 @@ export const CandidateTimeline: React.FC<CandidateTimelineProps> = ({
                 <div className="flex flex-wrap items-center gap-1.5 my-2">
                   {fromConfig && (
                     <span
-                      className={`text-[11px] px-2 py-0.5 rounded border ${fromConfig.bg} ${fromConfig.color}`}
+                      className={`text-[11px] px-2 py-0.5 rounded-full border ${fromConfig.bg} ${fromConfig.color} font-medium`}
                     >
                       {fromConfig.badge}
                     </span>
                   )}
                   {entry.from_state && entry.to_state && (
-                    <ArrowRight className="w-3 h-3 text-slate-500" />
+                    <ArrowRight className="w-3 h-3 text-muted-foreground" />
                   )}
                   {toConfig && (
                     <span
-                      className={`text-[11px] px-2 py-0.5 rounded border ${toConfig.bg} ${toConfig.color} font-medium`}
+                      className={`text-[11px] px-2 py-0.5 rounded-full border ${toConfig.bg} ${toConfig.color} font-medium`}
                     >
                       {toConfig.badge}
                     </span>
@@ -138,16 +138,16 @@ export const CandidateTimeline: React.FC<CandidateTimelineProps> = ({
 
               {/* Details / Notes */}
               {entry.details && (
-                <p className="text-xs text-slate-300 mt-1 bg-slate-950/40 p-2 rounded border border-slate-800/60 break-words">
+                <p className="text-xs text-foreground/90 mt-1 bg-muted/40 p-2.5 rounded-lg border border-border/60 break-words">
                   {entry.details}
                 </p>
               )}
 
               {/* Actor Info */}
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-2">
-                <User className="w-3 h-3 text-slate-400" />
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-2">
+                <User className="w-3 h-3 opacity-60" />
                 <span>Triggered by: </span>
-                <span className="text-slate-300 font-medium">
+                <span className="text-foreground font-semibold">
                   {entry.actor_name || "System"}
                 </span>
               </div>

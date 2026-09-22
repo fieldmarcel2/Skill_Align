@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../context/AuthContext";
 import { cn } from "../../lib/utils";
 import {
@@ -22,6 +23,7 @@ import {
   BarChart3,
   Bell,
   Settings,
+  ShieldCheck,
 } from "lucide-react";
 
 interface NavItem {
@@ -36,6 +38,8 @@ interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
   actionCenterCount?: number;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 const roleConfig: Record<string, { solid: string; accent: string; bg: string; border: string }> = {
@@ -69,10 +73,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpen = false,
   onClose,
   actionCenterCount = 0,
+  collapsed: controlledCollapsed,
+  onToggleCollapse,
 }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [collapsed, setCollapsed] = useState(false);
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
+
+  const collapsed = controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed;
+  const toggleCollapse = onToggleCollapse || (() => setInternalCollapsed((c) => !c));
 
   if (!user) return null;
 
@@ -136,7 +145,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ],
         },
         {
-          section: "Talent",
+          section: "Talent Management",
           items: [
             { title: "Candidate Pool", to: "/recruiter/candidates", icon: Users },
             { title: "Shortlisted Talents", to: "/recruiter/shortlists", icon: UserCheck },
@@ -147,7 +156,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     case "Candidate":
       navSections = [
         {
-          section: "My Space",
+          section: "Candidate Workspace",
           items: [
             { title: "My Dashboard", to: "/candidate", icon: LayoutDashboard },
             { title: "My Hiring / Onboarding", to: "/candidate/hiring", icon: UserCheck },
@@ -166,12 +175,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const sidebarContent = (
-    <div className="flex flex-col h-full">
-      {/* ── Top Brand Header ──────────────────────────────────────────────── */}
-      <div className={`flex items-center justify-between px-4 py-4 border-b border-border/70 ${collapsed ? "px-2" : ""}`}>
+    <div className="flex flex-col h-full overflow-hidden select-none">
+      {/* ── Top Brand / Collapse Header ───────────────────────────────────── */}
+      <div className={cn(
+        "flex items-center justify-between px-4 py-3.5 border-b border-border/70 shrink-0 bg-card/40",
+        collapsed ? "px-2 justify-center" : ""
+      )}>
         {!collapsed && (
-          <div className="flex items-center gap-2">
-            <div className={`w-7 h-7 rounded-lg ${rc.solid} flex items-center justify-center shadow-sm`}>
+          <div className="flex items-center gap-2.5">
+            <div className={`w-7 h-7 rounded-xl ${rc.solid} flex items-center justify-center shadow-xs`}>
               <Briefcase className="h-3.5 w-3.5 text-white" />
             </div>
             <span className="font-outfit font-black text-sm text-foreground tracking-tight">SkillAlign</span>
@@ -183,32 +195,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="md:hidden p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors"
+            className="md:hidden p-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors cursor-pointer"
+            aria-label="Close navigation"
           >
             <X className="h-4 w-4" />
           </button>
           {/* Desktop collapse */}
           <button
             type="button"
-            onClick={() => setCollapsed((c) => !c)}
-            className="hidden md:flex p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors"
+            onClick={toggleCollapse}
+            className="hidden md:flex p-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors cursor-pointer"
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
           </button>
         </div>
       </div>
 
-      {/* ── Navigation ────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-none">
+      {/* ── Scrollable Navigation Section ────────────────────────────────── */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-5 scrollbar-thin scrollbar-thumb-border hover:scrollbar-thumb-muted-foreground/20">
         {navSections.map((section) => (
           <div key={section.section}>
             {!collapsed && (
-              <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2 mb-2">
+              <h4 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80 px-2.5 mb-2">
                 {section.section}
               </h4>
             )}
-            <nav className="space-y-0.5">
+            <nav className="space-y-1">
               {section.items.map((item) => (
                 <NavLink
                   key={item.to}
@@ -223,17 +237,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   title={collapsed ? item.title : undefined}
                   className={({ isActive }) =>
                     cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative",
+                      "flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 group relative",
                       collapsed ? "justify-center px-2" : "",
                       isActive
-                        ? "bg-primary text-primary-foreground font-semibold shadow-sm"
+                        ? "bg-primary text-primary-foreground font-bold shadow-xs"
                         : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
                     )
                   }
                 >
                   <item.icon
                     className={cn(
-                      "shrink-0 transition-transform group-hover:scale-110",
+                      "shrink-0 transition-transform group-hover:scale-105",
                       collapsed ? "h-5 w-5" : "h-4 w-4"
                     )}
                   />
@@ -241,7 +255,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <>
                       <span className="flex-1 truncate">{item.title}</span>
                       {item.badge !== undefined && (
-                        <span className="flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-rose-500 text-white text-[9px] font-extrabold px-1 shadow-sm animate-pulse">
+                        <span className="flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-rose-500 text-white text-[9px] font-black px-1 shadow-xs animate-pulse">
                           {Number(item.badge) > 99 ? "99+" : item.badge}
                         </span>
                       )}
@@ -249,7 +263,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   )}
                   {/* Collapsed badge dot */}
                   {collapsed && item.badge !== undefined && (
-                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-rose-500 shadow-sm animate-pulse" />
+                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-rose-500 shadow-xs animate-pulse" />
                   )}
                 </NavLink>
               ))}
@@ -258,21 +272,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ))}
       </div>
 
-      {/* ── User Info Card + Logout ────────────────────────────────────────── */}
-      <div className={`px-3 pb-4 space-y-2 border-t border-border/70 pt-3`}>
+      {/* ── Bottom Fixed User Area + Logout ──────────────────────────────── */}
+      <div className={cn(
+        "px-3 py-3 space-y-2.5 border-t border-border/70 mt-auto shrink-0 bg-card/85 backdrop-blur-xs",
+        collapsed ? "px-2" : ""
+      )}>
         {!collapsed ? (
           <>
             {/* User card */}
-            <div className={`flex items-center gap-3 p-3 rounded-xl border ${rc.border} ${rc.bg}`}>
-              <div className={`w-8 h-8 rounded-full ${rc.solid} flex items-center justify-center text-white font-bold text-xs font-outfit shrink-0 shadow-sm`}>
+            <div className={`flex items-center gap-2.5 p-2.5 rounded-2xl border ${rc.border} ${rc.bg}`}>
+              <div className={`w-8 h-8 rounded-xl ${rc.solid} flex items-center justify-center text-white font-black text-xs font-outfit shrink-0 shadow-xs`}>
                 {getInitials(user.name || "U")}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                   <p className="text-xs font-bold text-foreground truncate">{user.name}</p>
                 </div>
-                <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded-md ${rc.bg} ${rc.accent} border ${rc.border}`}>
+                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ${rc.bg} ${rc.accent} border ${rc.border}`}>
                   {user.role.name}
                 </span>
               </div>
@@ -281,7 +298,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* Logout */}
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-all group"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-all group cursor-pointer"
             >
               <LogOut className="h-4 w-4 group-hover:scale-110 transition-transform" />
               Sign Out
@@ -291,14 +308,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <>
             {/* Collapsed avatar */}
             <div
-              className={`w-9 h-9 mx-auto rounded-full ${rc.solid} flex items-center justify-center text-white font-bold text-xs font-outfit shadow-sm cursor-default`}
-              title={user.name}
+              className={`w-9 h-9 mx-auto rounded-xl ${rc.solid} flex items-center justify-center text-white font-black text-xs font-outfit shadow-xs cursor-default`}
+              title={`${user.name} (${user.role.name})`}
             >
               {getInitials(user.name || "U")}
             </div>
             <button
               onClick={handleLogout}
-              className="w-full flex items-center justify-center p-2 rounded-xl text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+              className="w-full flex items-center justify-center p-2 rounded-xl text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-all cursor-pointer"
               title="Sign Out"
             >
               <LogOut className="h-4 w-4" />
@@ -311,30 +328,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Desktop Sidebar */}
+      {/* ── Fixed Desktop Sidebar Shell ────────────────────────────────────── */}
       <aside
         className={cn(
-          "hidden md:flex shrink-0 border-r border-border/80 bg-card/50 backdrop-blur-md flex-col justify-between min-h-[calc(100vh-4rem)] transition-all duration-300",
-          collapsed ? "w-[60px]" : "w-64"
+          "hidden md:flex fixed top-14 left-0 bottom-0 z-30 flex-col justify-between border-r border-border/80 bg-card/80 backdrop-blur-xl sidebar-transition h-[calc(100vh-3.5rem)]",
+          collapsed ? "w-16" : "w-64"
         )}
       >
         {sidebarContent}
       </aside>
 
-      {/* Mobile Slide-Over Drawer with Overlay */}
-      {isOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex">
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-background/80 backdrop-blur-sm transition-opacity animate-in fade-in"
-            onClick={onClose}
-          />
-          {/* Drawer content */}
-          <aside className="relative w-72 max-w-[80vw] bg-card border-r border-border shadow-2xl z-10 flex flex-col h-full animate-in slide-in-from-left duration-200">
-            {sidebarContent}
-          </aside>
-        </div>
-      )}
+      {/* ── Mobile Slide-Over Drawer with Framer Motion ──────────────────── */}
+      <AnimatePresence>
+        {isOpen && (
+          <div className="fixed inset-0 z-50 md:hidden flex">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-background/80 backdrop-blur-sm"
+              onClick={onClose}
+            />
+            {/* Drawer */}
+            <motion.aside
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="relative w-72 max-w-[82vw] bg-card border-r border-border shadow-2xl z-10 flex flex-col h-full"
+            >
+              {sidebarContent}
+            </motion.aside>
+          </div>
+        )}
+      </AnimatePresence>
     </>
   );
 };

@@ -168,3 +168,41 @@ class OTPLoginResponse(BaseModel):
     user: UserResponse
     is_new_user: bool
 
+
+# ── Password Reset Schemas ────────────────────────────────────────────────────
+
+class ForgotPasswordRequest(BaseModel):
+    """Request body for requesting a password reset email."""
+    email: EmailStr
+
+
+class ForgotPasswordResponse(BaseModel):
+    """Response returned after requesting password reset."""
+    message: str
+    dev_reset_url: Optional[str] = None
+
+
+class ResetPasswordRequest(BaseModel):
+    """Request body for submitting a new password with reset token."""
+    token: str
+    new_password: str
+
+    @field_validator("token")
+    @classmethod
+    def non_empty_token(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Reset token cannot be blank.")
+        return v
+
+    @field_validator("new_password")
+    @classmethod
+    def strong_password(cls, v: str) -> str:
+        return _validate_password(v)
+
+
+class ResetPasswordResponse(BaseModel):
+    """Response returned after successfully updating password."""
+    message: str
+
+

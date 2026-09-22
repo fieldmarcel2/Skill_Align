@@ -9,6 +9,8 @@ import { Badge } from "../../components/ui/badge";
 import { Input } from "../../components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../../components/ui/dialog";
 import { StatCard } from "../../components/common/StatCard";
+import { GoogleCalendarButton } from "../../components/calendar/GoogleCalendarButton";
+import { buildInterviewCalendarEvent } from "../../lib/googleCalendar";
 import {
   Briefcase,
   Sparkles,
@@ -1500,9 +1502,25 @@ export const HRDashboard: React.FC = () => {
                     </div>
 
                     <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40">
-                      <span className="text-[11px] text-muted-foreground">
-                        Dispatched to candidate
-                      </span>
+                      {iv.interview_date ? (
+                        <GoogleCalendarButton
+                          {...buildInterviewCalendarEvent({
+                            candidateName: iv.candidate_name || "Candidate",
+                            jobTitle: iv.job_title || "Position",
+                            interviewType: iv.interview_type || "Interview",
+                            scheduledDate: iv.interview_date,
+                            meetingLink: iv.meeting_link || undefined,
+                            recruiterName: iv.scheduler_name || undefined,
+                          })}
+                          size="sm"
+                          variant="outline"
+                          label="Add to Calendar"
+                        />
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground">
+                          Dispatched to candidate
+                        </span>
+                      )}
                       <Badge variant="success" className="text-[10px]">
                         Confirmed
                       </Badge>

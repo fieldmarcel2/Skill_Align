@@ -793,7 +793,11 @@ def list_offers(
             from app.core.security import decode_access_token
             payload = decode_access_token(access_token)
             if payload and "sub" in payload:
-                current_user = db.query(User).filter(User.email == payload["sub"]).first()
+                sub_val = str(payload["sub"]).strip()
+                if sub_val.isdigit():
+                    current_user = db.query(User).filter(User.id == int(sub_val)).first()
+                else:
+                    current_user = db.query(User).filter(User.email.ilike(sub_val)).first()
         except Exception:
             pass
 
@@ -828,7 +832,11 @@ def get_offer(
             from app.core.security import decode_access_token
             payload = decode_access_token(access_token)
             if payload and "sub" in payload:
-                current_user = db.query(User).filter(User.email == payload["sub"]).first()
+                sub_val = str(payload["sub"]).strip()
+                if sub_val.isdigit():
+                    current_user = db.query(User).filter(User.id == int(sub_val)).first()
+                else:
+                    current_user = db.query(User).filter(User.email.ilike(sub_val)).first()
         except Exception:
             pass
 
@@ -1746,7 +1754,11 @@ def download_offer_pdf(
             from app.core.security import decode_access_token
             payload = decode_access_token(access_token)
             if payload and "sub" in payload:
-                current_user = db.query(User).filter(User.email == payload["sub"]).first()
+                sub_val = str(payload["sub"]).strip()
+                if sub_val.isdigit():
+                    current_user = db.query(User).filter(User.id == int(sub_val)).first()
+                else:
+                    current_user = db.query(User).filter(User.email.ilike(sub_val)).first()
         except Exception:
             pass
 

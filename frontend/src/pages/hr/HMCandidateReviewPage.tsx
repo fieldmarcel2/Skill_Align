@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   User,
   Mail,
@@ -14,13 +15,18 @@ import {
   Clock,
   Sparkles,
   MessageSquare,
+  MapPin,
+  Laptop,
 } from "lucide-react";
-import { workflowApi, matchingApi, resumeApi, usersApi } from "../../services/api";
+import { workflowApi, matchingApi } from "../../services/api";
 import { MatchResult, PipelineState } from "../../types";
 import PipelineStateBar from "../../components/workflow/PipelineStateBar";
 import MatchExplanationCard from "../../components/workflow/MatchExplanationCard";
 import CandidateTimeline from "../../components/workflow/CandidateTimeline";
 import SlotPicker, { SlotItem } from "../../components/workflow/SlotPicker";
+import { Button } from "../../components/ui/button";
+import { Badge } from "../../components/ui/badge";
+import { Card, CardContent } from "../../components/ui/card";
 
 export const HMCandidateReviewPage: React.FC = () => {
   const { matchId } = useParams<{ matchId: string }>();
@@ -105,28 +111,23 @@ export const HMCandidateReviewPage: React.FC = () => {
     }
   };
 
-  // Handle HM Request Interview with >= 2 slots
+  // Handle HM Request Interview & propose slots
   const handleRequestInterview = async () => {
-    const validSlots = proposedSlots.filter((s) => s.slot_datetime);
+    const validSlots = proposedSlots.filter((s) => s.slot_datetime && s.slot_datetime.trim() !== "");
     if (validSlots.length < 2) {
-      setError("You must propose at least 2 interview time slots.");
+      setError("Please specify at least 2 distinct interview time slots for candidate selection.");
       return;
     }
 
     setActionLoading(true);
-    setError(null);
     try {
-      const payloadSlots = validSlots.map((s) => {
-        const start = new Date(s.slot_datetime);
-        const end = new Date(start.getTime() + s.duration_minutes * 60000);
-        return {
-          slot_datetime: start.toISOString(),
-          slot_end_datetime: end.toISOString(),
-        };
-      });
-
       await workflowApi.requestInterview(mid, {
-        slots: payloadSlots,
+        slots: validSlots.map((s) => ({
+          slot_datetime: new Date(s.slot_datetime).toISOString(),
+          slot_end_datetime: new Date(
+            new Date(s.slot_datetime).getTime() + (s.duration_minutes || 45) * 60000
+          ).toISOString(),
+        })),
         interview_type: interviewType,
         meeting_link: meetingLink || undefined,
       });
@@ -144,22 +145,25 @@ export const HMCandidateReviewPage: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-9 h-9 border-3 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   if (!match) {
     return (
-      <div className="p-8 text-center text-slate-400">
-        <AlertCircle className="w-8 h-8 mx-auto text-rose-500 mb-2" />
-        <p>Application not found.</p>
-        <button
+      <div className="p-12 text-center text-muted-foreground bg-card border border-border/80 rounded-2xl shadow-sm max-w-lg mx-auto my-12">
+        <AlertCircle className="w-10 h-10 mx-auto text-rose-500 mb-3" />
+        <h3 className="text-lg font-bold font-outfit text-foreground">Application Not Found</h3>
+        <p className="text-xs text-muted-foreground mt-1">The requested candidate requisition record does not exist or has been archived.</p>
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => navigate("/hr/dashboard")}
-          className="mt-4 px-4 py-2 bg-slate-800 rounded-lg text-xs text-white"
+          className="mt-5 text-xs font-semibold"
         >
-          Back to Dashboard
-        </button>
+          Return to Dashboard
+        </Button>
       </div>
     );
   }
@@ -172,62 +176,81 @@ export const HMCandidateReviewPage: React.FC = () => {
   const canDecide = ["SENT_TO_HIRING_MANAGER", "HIRING_MANAGER_REVIEW"].includes(pipelineState);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12">
+    <motion.div
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="max-w-6xl mx-auto space-y-6 pb-16"
+    >
       {/* Top Breadcrumb & Actions */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <Link
           to="/hr/dashboard"
-          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+          className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to HM Dashboard
+          <span>Hiring Manager Requisitions</span>
+          <span className="opacity-40">/</span>
+          <span className="text-foreground font-bold">{candidate.full_name}</span>
         </Link>
 
         {/* Quick Action Buttons */}
         {canDecide && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 flex-wrap">
             {canReview && (
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={handleMarkInReview}
                 disabled={actionLoading}
-                className="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
+                className="text-xs font-semibold"
               >
                 Mark as In Review
-              </button>
+              </Button>
             )}
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => setShowRejectModal(true)}
               disabled={actionLoading}
-              className="px-3.5 py-2 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 text-xs font-semibold border border-rose-500/30 transition-colors"
+              className="text-xs font-semibold text-rose-600 dark:text-rose-400 border-rose-500/30 hover:bg-rose-500/10"
             >
               Reject Candidate
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="gradient"
+              size="sm"
               onClick={() => setShowInterviewModal(true)}
               disabled={actionLoading}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-lg shadow-cyan-600/25 transition-all"
+              className="gap-1.5 text-xs font-bold shadow-md shadow-indigo-500/20"
             >
               <Calendar className="w-3.5 h-3.5" />
               Request Interview & Propose Slots
-            </button>
+            </Button>
           </div>
         )}
       </div>
 
       {/* Notifications */}
       {error && (
-        <div className="p-3.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-rose-400 hover:text-white">✕</button>
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs flex items-center justify-between shadow-xs">
+          <span className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+            {error}
+          </span>
+          <button onClick={() => setError(null)} className="text-rose-700 dark:text-rose-400 hover:opacity-75 cursor-pointer font-bold ml-2">✕</button>
         </div>
       )}
       {successMsg && (
-        <div className="p-3.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center justify-between">
-          <span>{successMsg}</span>
-          <button onClick={() => setSuccessMsg(null)} className="text-emerald-400 hover:text-white">✕</button>
+        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs flex items-center justify-between shadow-xs">
+          <span className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
+            {successMsg}
+          </span>
+          <button onClick={() => setSuccessMsg(null)} className="text-emerald-700 dark:text-emerald-400 hover:opacity-75 cursor-pointer font-bold ml-2">✕</button>
         </div>
       )}
 
@@ -238,74 +261,82 @@ export const HMCandidateReviewPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column (2 Cols): Candidate Profile & Match Scorecard */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Candidate Profile Summary Header */}
-          <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5 sm:p-6 space-y-4 shadow-lg shadow-black/20">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white font-bold text-xl shadow-md">
-                  {candidate.full_name?.charAt(0) || "C"}
+          {/* Candidate Profile Summary Header Card */}
+          <Card className="border-border/80 bg-card/80 backdrop-blur-xl shadow-sm rounded-2xl overflow-hidden">
+            <CardContent className="p-5 sm:p-6 space-y-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-primary to-violet-600 text-primary-foreground font-bold text-xl flex items-center justify-center shadow-md">
+                    {candidate.full_name?.charAt(0) || "C"}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xl font-bold font-outfit text-foreground">{candidate.full_name}</h2>
+                      <Badge variant="secondary" className="text-[10px] font-mono">
+                        ID #{candidate.id}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
+                      <Briefcase className="w-3.5 h-3.5 text-primary" />
+                      Applied Position: <span className="text-foreground font-semibold">{job?.title}</span>
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white">{candidate.full_name}</h2>
-                  <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
-                    <Briefcase className="w-3.5 h-3.5 text-cyan-400" />
-                    Applying for: <span className="text-cyan-300 font-semibold">{job?.title}</span>
-                  </p>
+
+                {candidate.resume_file_path && (
+                  <a
+                    href={`/api/candidates/${candidate.id}/resume`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <Button variant="outline" size="sm" className="gap-1.5 text-xs font-semibold">
+                      <FileText className="w-3.5 h-3.5 text-primary" />
+                      Download Resume
+                    </Button>
+                  </a>
+                )}
+              </div>
+
+              {/* Quick Stats Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-border/60 text-xs">
+                <div className="p-3 rounded-xl bg-muted/30 border border-border/50">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Total Experience</span>
+                  <span className="text-sm font-bold font-outfit text-foreground mt-0.5 block">
+                    {candidate.total_experience_years || 0} Years
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-muted/30 border border-border/50">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Location</span>
+                  <span className="text-sm font-bold font-outfit text-foreground mt-0.5 block truncate" title={candidate.city || candidate.address || "Not specified"}>
+                    {candidate.city || candidate.address || "Not specified"}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-muted/30 border border-border/50">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Work Preference</span>
+                  <span className="text-sm font-bold font-outfit text-foreground mt-0.5 block">
+                    {candidate.preferred_work_mode || "Flexible"}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-muted/30 border border-border/50">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Notice Period</span>
+                  <span className="text-sm font-bold font-outfit text-foreground mt-0.5 block">
+                    {candidate.notice_period || "Immediate"}
+                  </span>
                 </div>
               </div>
 
-              {candidate.resume_file_path && (
-                <a
-                  href={`/api/candidates/${candidate.id}/resume`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
-                >
-                  <FileText className="w-3.5 h-3.5 text-cyan-400" />
-                  View Resume
-                </a>
+              {/* Recruiter Shortlist Note */}
+              {match.shortlist_note && (
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                  <span className="font-bold flex items-center gap-1.5 text-amber-700 dark:text-amber-400 text-xs uppercase tracking-wide">
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    Recruiter Shortlist Note:
+                  </span>
+                  <p className="whitespace-pre-line text-foreground/90">{match.shortlist_note}</p>
+                </div>
               )}
-            </div>
-
-            {/* Quick Stats Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-800 text-xs">
-              <div>
-                <span className="text-slate-500 block">Experience</span>
-                <span className="text-slate-200 font-semibold">
-                  {candidate.total_experience_years || 0} Years
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-500 block">Location</span>
-                <span className="text-slate-200 font-semibold">
-                  {candidate.city || candidate.address || "Not specified"}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-500 block">Work Mode Pref</span>
-                <span className="text-slate-200 font-semibold">
-                  {candidate.preferred_work_mode || "Any"}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-500 block">Notice Period</span>
-                <span className="text-slate-200 font-semibold">
-                  {candidate.notice_period || "Immediate"}
-                </span>
-              </div>
-            </div>
-
-            {/* Recruiter Shortlist Note */}
-            {match.shortlist_note && (
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-xs text-amber-200">
-                <span className="font-bold flex items-center gap-1.5 text-amber-400 mb-1">
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  Recruiter Shortlist Notes:
-                </span>
-                <p className="whitespace-pre-line">{match.shortlist_note}</p>
-              </div>
-            )}
-          </div>
+            </CardContent>
+          </Card>
 
           {/* AI Match Explanation Card */}
           <MatchExplanationCard
@@ -323,115 +354,135 @@ export const HMCandidateReviewPage: React.FC = () => {
         {/* Right Column (1 Col): Application Timeline & Actions */}
         <div className="space-y-6">
           {/* Review Actions Card */}
-          <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5 space-y-4">
-            <h4 className="text-sm font-bold text-white flex items-center gap-2">
-              <Clock className="w-4 h-4 text-cyan-400" />
-              Hiring Manager Action
-            </h4>
+          <Card className="border-border/80 bg-card/80 backdrop-blur-xl shadow-sm rounded-2xl">
+            <CardContent className="p-5 space-y-4">
+              <h4 className="text-sm font-bold font-outfit text-foreground flex items-center gap-2">
+                <Clock className="w-4 h-4 text-primary" />
+                Hiring Manager Review Decisions
+              </h4>
 
-            {canDecide ? (
-              <div className="space-y-2.5">
-                <p className="text-xs text-slate-400">
-                  Evaluate this candidate and proceed to propose interview time slots or reject.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShowInterviewModal(true)}
-                  disabled={actionLoading}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-lg shadow-cyan-600/20 transition-all"
-                >
-                  <Calendar className="w-4 h-4" />
-                  Request Interview (Propose Slots)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowRejectModal(true)}
-                  disabled={actionLoading}
-                  className="w-full py-2 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 text-xs font-semibold transition-colors"
-                >
-                  Reject Candidate
-                </button>
-              </div>
-            ) : (
-              <div className="text-xs text-slate-400 p-3 rounded-lg bg-slate-950/40 border border-slate-800">
-                Current State: <span className="text-white font-semibold">{pipelineState}</span>.
-                {pipelineState === "WAITING_FOR_HM_FEEDBACK" && (
-                  <div className="mt-2">
+              {canDecide ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Evaluate this profile against role expectations. You can request multi-slot interview schedules or release the candidate.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="gradient"
+                    onClick={() => setShowInterviewModal(true)}
+                    disabled={actionLoading}
+                    className="w-full gap-2 text-xs font-bold shadow-md shadow-indigo-500/20"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Request Interview (Propose Slots)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowRejectModal(true)}
+                    disabled={actionLoading}
+                    className="w-full text-xs font-semibold text-rose-600 dark:text-rose-400 border-rose-500/30 hover:bg-rose-500/10"
+                  >
+                    Reject Candidate
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground p-3.5 rounded-xl bg-muted/40 border border-border/60 space-y-2">
+                  <div>
+                    Current State: <span className="text-foreground font-bold">{pipelineState.replace(/_/g, " ")}</span>
+                  </div>
+                  {pipelineState === "WAITING_FOR_HM_FEEDBACK" && (
                     <Link
                       to={`/hr/interviews/${mid}/feedback`}
-                      className="inline-block w-full text-center py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold"
+                      className="block w-full"
                     >
-                      Submit GO / NO-GO Feedback
+                      <Button variant="gradient" size="sm" className="w-full text-xs font-bold mt-1">
+                        Submit GO / NO-GO Feedback
+                      </Button>
                     </Link>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Chronological Audit Timeline */}
-          <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5 space-y-4">
-            <h4 className="text-sm font-bold text-white flex items-center gap-2">
-              <Clock className="w-4 h-4 text-purple-400" />
-              Lifecycle Audit Trail
-            </h4>
-            <CandidateTimeline timeline={timeline} />
-          </div>
+          <Card className="border-border/80 bg-card/80 backdrop-blur-xl shadow-sm rounded-2xl">
+            <CardContent className="p-5 space-y-4">
+              <h4 className="text-sm font-bold font-outfit text-foreground flex items-center gap-2">
+                <Clock className="w-4 h-4 text-primary" />
+                Requisition Audit Trail
+              </h4>
+              <CandidateTimeline timeline={timeline} />
+            </CardContent>
+          </Card>
         </div>
       </div>
 
       {/* Reject Modal */}
       {showRejectModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-md w-full space-y-4 shadow-2xl">
-            <div className="flex items-center gap-2 text-rose-400 font-bold">
-              <XCircle className="w-5 h-5" />
-              <h3>Reject Candidate</h3>
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-card border border-border/80 rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl"
+          >
+            <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold">
+              <XCircle className="w-5 h-5 text-rose-500" />
+              <h3 className="font-outfit text-base">Reject Candidate Application</h3>
             </div>
-            <p className="text-xs text-slate-400">
-              Provide a clear reason for rejecting <strong className="text-white">{candidate.full_name}</strong>.
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Please specify the decision rationale for declining <strong className="text-foreground">{candidate.full_name}</strong>. This note will be recorded in the audit history.
             </p>
             <textarea
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="E.g., Missing essential backend concurrency experience..."
+              placeholder="E.g., Insufficient cloud microservices architecture experience for senior level..."
               rows={3}
-              className="w-full p-3 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-rose-500"
+              className="w-full p-3 bg-muted/30 border border-border rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               required
             />
-            <div className="flex justify-end gap-3 pt-2">
-              <button
+            <div className="flex justify-end gap-2.5 pt-2">
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => setShowRejectModal(false)}
-                className="px-3.5 py-1.5 text-xs text-slate-400 hover:text-white"
+                className="text-xs"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="destructive"
+                size="sm"
                 onClick={handleReject}
                 disabled={actionLoading}
-                className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold"
+                className="text-xs font-bold"
               >
                 {actionLoading ? "Rejecting..." : "Confirm Rejection"}
-              </button>
+              </Button>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
 
       {/* Request Interview & Propose Slots Modal */}
       {showInterviewModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-2xl w-full space-y-5 my-8 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2 text-white font-bold">
-                <Calendar className="w-5 h-5 text-cyan-400" />
-                <h3>Request Interview for {candidate.full_name}</h3>
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-card border border-border/80 rounded-2xl p-6 max-w-2xl w-full space-y-5 my-8 shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-border/60 pb-3">
+              <div className="flex items-center gap-2 text-foreground font-bold">
+                <Calendar className="w-5 h-5 text-primary" />
+                <h3 className="font-outfit text-base">Request Interview · {candidate.full_name}</h3>
               </div>
               <button
                 onClick={() => setShowInterviewModal(false)}
-                className="text-slate-400 hover:text-white text-sm"
+                className="text-muted-foreground hover:text-foreground text-sm cursor-pointer"
               >
                 ✕
               </button>
@@ -439,27 +490,27 @@ export const HMCandidateReviewPage: React.FC = () => {
 
             {/* Type & Meeting Link */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div>
-                <label className="block text-slate-400 mb-1 font-medium">Interview Type</label>
+              <div className="space-y-1.5">
+                <label className="block text-foreground font-semibold">Interview Format / Type</label>
                 <select
                   value={interviewType}
                   onChange={(e) => setInterviewType(e.target.value)}
-                  className="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-lg text-white focus:border-cyan-500"
+                  className="w-full p-2.5 bg-muted/30 border border-border rounded-xl text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-ring"
                 >
-                  <option value="technical">Technical Round</option>
-                  <option value="managerial">Hiring Manager Round</option>
-                  <option value="system_design">System Design Round</option>
-                  <option value="screening">Initial Screening</option>
+                  <option value="technical">Technical Assessment Round</option>
+                  <option value="managerial">Hiring Manager Deep Dive</option>
+                  <option value="system_design">System Architecture Round</option>
+                  <option value="cultural">Culture & Values Fit</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-slate-400 mb-1 font-medium">Meeting Link (Google Meet / Teams / Zoom)</label>
+              <div className="space-y-1.5">
+                <label className="block text-foreground font-semibold">Meeting URL (Google Meet / Teams)</label>
                 <input
                   type="url"
                   value={meetingLink}
                   onChange={(e) => setMeetingLink(e.target.value)}
                   placeholder="https://meet.google.com/xyz-abc"
-                  className="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-lg text-white focus:border-cyan-500 font-mono text-xs"
+                  className="w-full p-2.5 bg-muted/30 border border-border rounded-xl text-foreground text-xs font-mono focus:outline-none focus:ring-1 focus:ring-ring"
                 />
               </div>
             </div>
@@ -472,28 +523,32 @@ export const HMCandidateReviewPage: React.FC = () => {
             />
 
             {/* Actions */}
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
-              <button
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-border/60">
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => setShowInterviewModal(false)}
-                className="px-4 py-2 text-xs text-slate-400 hover:text-white"
+                className="text-xs"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="gradient"
+                size="sm"
                 onClick={handleRequestInterview}
                 disabled={actionLoading || proposedSlots.filter((s) => s.slot_datetime).length < 2}
-                className="flex items-center gap-2 px-6 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-lg shadow-cyan-600/20 disabled:opacity-50"
+                className="gap-2 text-xs font-bold shadow-md shadow-indigo-500/20"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 {actionLoading ? "Submitting..." : "Submit Slots to Recruiter"}
-              </button>
+              </Button>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };
 export default HMCandidateReviewPage;

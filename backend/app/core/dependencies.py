@@ -19,7 +19,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
 
-from app.core.security import decode_access_token
+from app.core.security import decode_access_token, is_token_blacklisted
 from app.database.session import get_db
 from app.models.user import User
 
@@ -44,6 +44,14 @@ def get_current_user(
 
     if not credentials:
         raise credentials_exception
+
+    # Check token revocation
+    if is_token_blacklisted(credentials.credentials):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has expired or token was revoked. Please log in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     try:
         payload = decode_access_token(credentials.credentials)

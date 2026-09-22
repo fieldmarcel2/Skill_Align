@@ -43,7 +43,10 @@ import {
   CandidateHiringResponse,
 } from "../types";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+// ── Security: Use relative base URL so the Vite proxy handles routing.
+// The real backend URL (http://localhost:8000) is NEVER exposed to the browser.
+// In production, configure your reverse proxy (nginx/Caddy) to proxy /api/* similarly.
+const API_BASE_URL = "";
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -107,6 +110,25 @@ export const authApi = {
   },
   updateMe: async (data: { name?: string; phone_number?: string; email?: string }): Promise<User> => {
     const res = await apiClient.put<User>("/api/auth/me", data);
+    return res.data;
+  },
+  forgotPassword: async (data: { email: string }): Promise<{ message: string; dev_reset_url?: string }> => {
+    const res = await apiClient.post<{ message: string; dev_reset_url?: string }>("/api/auth/forgot-password", data);
+    return res.data;
+  },
+  resetPassword: async (data: { token: string; new_password: string }): Promise<{ message: string }> => {
+    const res = await apiClient.post<{ message: string }>("/api/auth/reset-password", data);
+    return res.data;
+  },
+  logout: async (): Promise<void> => {
+    try {
+      await apiClient.post("/api/auth/logout");
+    } catch {
+      // Best-effort logout notification
+    }
+  },
+  refreshToken: async (): Promise<{ access_token: string; user: User }> => {
+    const res = await apiClient.post<{ access_token: string; user: User }>("/api/auth/refresh");
     return res.data;
   },
 };
@@ -581,9 +603,12 @@ export const recruiterApi = {
       page?: number;
       page_size?: number;
     }
-  ): Promise<MatchResult[]> => {
+  ): Promise<MatchResult[] & { total?: number }> => {
     const res = await apiClient.get<MatchResult[]>("/api/recruiter/candidates", { params });
-    return res.data;
+    const headerCount = res.headers["x-total-count"];
+    const arr = (res.data || []) as any;
+    arr.total = headerCount !== undefined && headerCount !== null ? parseInt(headerCount, 10) : arr.length;
+    return arr;
   },
   getCandidateDetail: async (jobId: number, candidateId: number): Promise<MatchResult> => {
     const res = await apiClient.get<MatchResult>(`/api/recruiter/jobs/${jobId}/candidates/${candidateId}`);
@@ -1062,7 +1087,11 @@ export const offerApi = {
     return res.data;
   },
   downloadOfferPdf: (offerId: number): string => {
-    const token = localStorage.getItem("token") || localStorage.getItem("access_token") || "";
+    const token =
+      localStorage.getItem("skillalign_token") ||
+      localStorage.getItem("token") ||
+      localStorage.getItem("access_token") ||
+      "";
     const query = token ? `?access_token=${encodeURIComponent(token)}` : "";
     return `${apiClient.defaults.baseURL}/api/offers/${offerId}/pdf${query}`;
   },

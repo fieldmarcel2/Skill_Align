@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
   CheckCircle2,
   AlertTriangle,
@@ -7,9 +8,11 @@ import {
   ArrowLeft,
   Building2,
   XCircle,
-  Download,
   UserCheck,
   FileText,
+  ShieldCheck,
+  ChevronRight,
+  Sparkles,
 } from "lucide-react";
 import { offerApi } from "../../services/api";
 import { Offer } from "../../types";
@@ -74,7 +77,7 @@ export const CandidateOfferPage: React.FC = () => {
     try {
       const updated = await offerApi.respondOffer(offer.id, token, true);
       setOffer(updated);
-      setSuccessMsg("Offer acceptance confirmed. Your hiring record has been finalized and onboarding initiated.");
+      setSuccessMsg("Congratulations! Your offer acceptance is confirmed and corporate onboarding has been initiated.");
     } catch (err: any) {
       setError(err.response?.data?.detail || "Failed to accept offer. Please try again.");
     } finally {
@@ -98,18 +101,12 @@ export const CandidateOfferPage: React.FC = () => {
     }
   };
 
-  const getBlacklistUntilDate = (respondedAt?: string | null) => {
-    const base = respondedAt ? new Date(respondedAt) : new Date();
-    const until = new Date(base.getTime() + 183 * 24 * 60 * 60 * 1000);
-    return until.toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-muted-foreground font-medium">Loading employment offer...</p>
+          <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs text-muted-foreground font-semibold">Loading official employment letter...</p>
         </div>
       </div>
     );
@@ -117,19 +114,26 @@ export const CandidateOfferPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-start py-8 px-4 sm:px-6">
-      <div className="max-w-3xl w-full space-y-6">
-        {/* Navigation & Header */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: "easeOut" }}
+        className="max-w-4xl w-full space-y-6"
+      >
+        {/* Navigation & Header Breadcrumb */}
         <div className="flex items-center justify-between">
           <Link
             to="/candidate"
             className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            Candidate Dashboard
+            <span>Candidate Portal</span>
+            <ChevronRight className="w-3.5 h-3.5 opacity-50" />
+            <span className="text-foreground font-bold">Offer Letter</span>
           </Link>
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted border border-border text-xs font-semibold text-muted-foreground">
-            <Building2 className="w-3.5 h-3.5 text-primary" />
-            Official Candidate Portal
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-card border border-border text-xs font-semibold text-muted-foreground shadow-xs">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Official Candidate Portal</span>
           </div>
         </div>
 
@@ -137,106 +141,44 @@ export const CandidateOfferPage: React.FC = () => {
         {error && (
           <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs flex items-center justify-between">
             <span>{error}</span>
-            <button onClick={() => setError(null)} className="text-rose-700 dark:text-rose-400 hover:opacity-75">✕</button>
+            <button onClick={() => setError(null)} className="text-rose-700 dark:text-rose-400 hover:opacity-75 cursor-pointer">✕</button>
           </div>
         )}
         {successMsg && (
           <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs flex items-center justify-between">
-            <span>{successMsg}</span>
-            <button onClick={() => setSuccessMsg(null)} className="text-emerald-700 dark:text-emerald-400 hover:opacity-75">✕</button>
+            <span className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              {successMsg}
+            </span>
+            <button onClick={() => setSuccessMsg(null)} className="text-emerald-700 dark:text-emerald-400 hover:opacity-75 cursor-pointer">✕</button>
           </div>
         )}
 
-        {/* My Offers Header & Acceptance Summary Card */}
+        {/* Placement Record Banner if ACCEPTED */}
         {offer && offer.status === "ACCEPTED" && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold font-outfit text-foreground">My Offers</h2>
-              <span className="text-xs text-muted-foreground">Official Placement Record</span>
-            </div>
-
-            <div className="bg-card border-2 border-emerald-500/40 rounded-xl p-6 shadow-sm space-y-4">
+          <div className="bg-card border-2 border-emerald-500/40 rounded-2xl p-6 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="space-y-1">
-                <h3 className="text-lg font-bold font-outfit text-foreground">
-                  {offer.job_title || "Junior Python Developer"}
-                </h3>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 font-bold text-xs">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                  OFFER FORMALLY ACCEPTED ✓
+                </div>
+                <h2 className="text-xl font-bold font-outfit text-foreground mt-2">
+                  Placement Finalized • {offer.job_title || "Designated Role"}
+                </h2>
                 <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                   <Building2 className="w-3.5 h-3.5 text-emerald-500" />
-                  {offer.company_name || "SkillAlign Technologies"}
+                  {offer.company_name || "SkillAlign Technologies Pvt. Ltd."}
                 </p>
               </div>
 
-              <div className="pt-2 border-t border-border/70 space-y-2">
-                <div>
-                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                    Offer Status
-                  </span>
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-bold text-xs mt-1">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    ACCEPTED ✓
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs">
-                  <div>
-                    <span className="text-muted-foreground block text-[11px] font-medium">Accepted on:</span>
-                    <strong className="text-foreground text-sm mt-0.5 block">
-                      {offer.responded_at || offer.updated_at
-                        ? new Date(offer.responded_at || offer.updated_at!).toLocaleDateString("en-US", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : "20 Sep 2026"}
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground block text-[11px] font-medium">Joining Date:</span>
-                    <strong className="text-foreground text-sm mt-0.5 block">
-                      {offer.expected_joining_date || offer.joining_date
-                        ? new Date(offer.expected_joining_date || offer.joining_date!).toLocaleDateString("en-US", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : "01 Oct 2026"}
-                    </strong>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-border/70">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const el = document.getElementById("offer-details-document");
-                    el?.scrollIntoView({ behavior: "smooth" });
-                  }}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold border border-border transition-colors cursor-pointer"
-                >
-                  <FileText className="w-3.5 h-3.5 text-primary" />
-                  View Offer Letter
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (token) {
-                      window.open(offerApi.downloadOfferPdfForCandidate(token), "_blank");
-                    } else if (offer.id) {
-                      window.open(`/api/offers/${offer.id}/pdf`, "_blank");
-                    }
-                  }}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold border border-border transition-colors cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5 text-primary" />
-                  Download PDF
-                </button>
+              <div className="flex flex-wrap items-center gap-2.5">
                 <Link
                   to="/candidate/hiring"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors"
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-xs"
                 >
                   <UserCheck className="w-3.5 h-3.5" />
-                  My Hiring / Onboarding
+                  Go to Onboarding & Joining
                 </Link>
               </div>
             </div>
@@ -245,29 +187,23 @@ export const CandidateOfferPage: React.FC = () => {
 
         {/* Status Notice if REJECTED */}
         {offer && offer.status === "REJECTED" && (
-          <div className="bg-card border border-rose-500/30 rounded-xl p-6 space-y-4 shadow-sm">
+          <div className="bg-card border border-rose-500/30 rounded-2xl p-6 space-y-4 shadow-sm">
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+              <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
                 <XCircle className="w-6 h-6" />
               </div>
               <div className="space-y-1.5 flex-1">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 text-[11px] font-semibold uppercase tracking-wider">
-                  Status: REJECTED
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 text-[11px] font-bold uppercase tracking-wider">
+                  Offer Status: Declined
                 </div>
                 <h3 className="text-base font-bold text-foreground">Recruitment Closed</h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Your recruitment process for this position has been closed.
+                  Your formal response has been recorded. As per platform guidelines, a placement cooldown has been registered.
                 </p>
-                <div className="pt-1 text-xs text-muted-foreground">
-                  <span className="font-semibold text-foreground">Application Status: </span>
-                  <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground font-mono text-[11px]">
-                    CLOSED
-                  </span>
-                </div>
                 {offer.rejection_reason && (
                   <p className="text-xs text-muted-foreground pt-1">
-                    <span className="font-medium text-foreground">Note: </span>
-                    {offer.rejection_reason}
+                    <strong className="text-foreground">Feedback provided: </strong>
+                    "{offer.rejection_reason}"
                   </p>
                 )}
               </div>
@@ -275,7 +211,7 @@ export const CandidateOfferPage: React.FC = () => {
           </div>
         )}
 
-        {/* Main Offer Card */}
+        {/* Main Document Paper Sheet */}
         {offer && (
           <div id="offer-details-document">
             <OfferCard
@@ -288,23 +224,23 @@ export const CandidateOfferPage: React.FC = () => {
             />
           </div>
         )}
-      </div>
+      </motion.div>
 
       {/* Decline Confirmation Modal */}
       {showDeclineModal && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full space-y-4 shadow-lg">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full space-y-4 shadow-xl">
             <div className="flex items-center gap-2.5 text-rose-600 dark:text-rose-400 font-bold">
               <AlertTriangle className="w-5 h-5 text-rose-500" />
-              <h3>Confirm Decline Decision</h3>
+              <h3>Confirm Decision to Decline</h3>
             </div>
 
-            <div className="p-3.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-700 dark:text-rose-300 space-y-1.5">
-              <p className="font-semibold text-rose-800 dark:text-rose-200">
+            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-700 dark:text-rose-300 space-y-1.5">
+              <p className="font-bold text-rose-800 dark:text-rose-200">
                 Placement Policy Notice
               </p>
               <p className="text-muted-foreground leading-relaxed">
-                Declining a formal employment offer will place your profile on a{" "}
+                Declining this formal employment offer will place your profile on a{" "}
                 <strong className="text-foreground">6-month cooldown period</strong> during which your profile is removed from active matching.
               </p>
             </div>
@@ -316,9 +252,9 @@ export const CandidateOfferPage: React.FC = () => {
               <textarea
                 value={declineReason}
                 onChange={(e) => setDeclineReason(e.target.value)}
-                placeholder="E.g., Accepted another offer, compensation mismatch, location preference..."
+                placeholder="E.g., Accepted another offer, compensation structure, relocation..."
                 rows={3}
-                className="w-full p-3 bg-muted/20 border border-border rounded-lg text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                className="w-full p-3 bg-muted/20 border border-border rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
 
@@ -326,7 +262,7 @@ export const CandidateOfferPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowDeclineModal(false)}
-                className="px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+                className="px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               >
                 Go Back
               </button>
@@ -334,7 +270,7 @@ export const CandidateOfferPage: React.FC = () => {
                 type="button"
                 onClick={handleDeclineOffer}
                 disabled={actionLoading}
-                className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
               >
                 {actionLoading ? "Processing..." : "Confirm & Decline Offer"}
               </button>

@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Plus, Trash2, Calendar, Clock, AlertCircle, Video } from "lucide-react";
+import React from "react";
+import { Plus, Trash2, Calendar, AlertCircle } from "lucide-react";
 
 export interface SlotItem {
   id: string;
@@ -85,20 +85,21 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h4 className="text-sm font-semibold text-white flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-cyan-400" />
+          <h4 className="text-sm font-bold font-outfit text-foreground flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-primary" />
             Proposed Interview Time Slots
           </h4>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Propose at least <span className="text-amber-400 font-bold">{minSlots} alternative options</span> for the candidate to choose from.
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Propose at least{" "}
+            <span className="text-primary font-semibold">{minSlots} alternative options</span> for the candidate to choose from.
           </p>
         </div>
         <button
           type="button"
           onClick={handleAddSlot}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-md shadow-cyan-600/20 transition-colors"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold shadow-sm transition"
         >
           <Plus className="w-3.5 h-3.5" />
           Add Another Slot
@@ -106,53 +107,53 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
       </div>
 
       {!hasEnoughSlots && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs">
+        <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-700 dark:text-amber-400 text-xs font-medium">
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>
-            Enterprise policy requires proposing at least {minSlots} time slots. Currently {slots.length} proposed.
+            Enterprise workflow policy requires proposing at least {minSlots} time slots. Currently {slots.length} proposed.
           </span>
         </div>
       )}
 
       {/* Slots List */}
-      <div className="space-y-2.5">
+      <div className="space-y-3">
         {slots.map((slot, index) => (
           <div
             key={slot.id || index}
-            className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 p-3 rounded-lg bg-slate-900/80 border border-slate-800"
+            className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 p-3.5 rounded-xl bg-card border border-border/80 shadow-xs hover:border-border transition"
           >
             <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center text-xs font-bold shrink-0">
+              <span className="w-7 h-7 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0 border border-primary/20">
                 {index + 1}
               </span>
-              <span className="text-xs font-medium text-slate-400 sm:hidden">
+              <span className="text-xs font-medium text-muted-foreground sm:hidden">
                 Slot Option #{index + 1}
               </span>
             </div>
 
             {/* DateTime Input */}
             <div className="flex-1 min-w-[220px]">
-              <label className="block text-[11px] text-slate-400 mb-1">
+              <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
                 Date & Start Time
               </label>
               <input
                 type="datetime-local"
                 value={slot.slot_datetime}
                 onChange={(e) => handleUpdateSlotDateTime(index, e.target.value)}
-                className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-md text-xs text-white focus:outline-none focus:border-cyan-500 transition-colors font-mono"
+                className="w-full px-3 py-2 bg-background border border-border/80 rounded-xl text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition font-mono"
                 required
               />
             </div>
 
             {/* Duration Selector */}
-            <div className="w-36">
-              <label className="block text-[11px] text-slate-400 mb-1">
+            <div className="w-full sm:w-36">
+              <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
                 Duration
               </label>
               <select
                 value={slot.duration_minutes}
                 onChange={(e) => handleUpdateDuration(index, parseInt(e.target.value, 10))}
-                className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-md text-xs text-white focus:outline-none focus:border-cyan-500 transition-colors"
+                className="w-full px-3 py-2 bg-background border border-border/80 rounded-xl text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
               >
                 <option value={30}>30 mins</option>
                 <option value={45}>45 mins</option>
@@ -167,7 +168,7 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
                 type="button"
                 onClick={() => handleRemoveSlot(index)}
                 disabled={slots.length <= minSlots && slots.length === 1}
-                className="p-1.5 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                className="p-2 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition disabled:opacity-30 disabled:cursor-not-allowed"
                 title="Remove this slot"
               >
                 <Trash2 className="w-4 h-4" />

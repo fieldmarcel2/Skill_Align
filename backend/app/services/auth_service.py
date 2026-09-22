@@ -5,22 +5,28 @@ All auth logic lives here, NOT in the router.
 The router only handles HTTP request/response concerns.
 """
 
+from datetime import datetime, timedelta, timezone
 import logging
 
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
 from app.core.config import settings
-from app.core.security import hash_password, verify_password, create_access_token, normalize_phone
+from app.core.security import (
+    hash_password, verify_password, create_access_token, normalize_phone,
+    generate_password_reset_token, hash_reset_token
+)
 from app.models.user import User
 from app.models.role import Role
 from app.models.candidate import Candidate
 from app.schemas.auth import (
     RegisterRequest, LoginRequest, TokenResponse, UserResponse, UserUpdateMeRequest,
     SendOTPRequest, VerifyOTPRequest, OTPResponse, OTPLoginResponse,
+    ForgotPasswordRequest, ForgotPasswordResponse, ResetPasswordRequest, ResetPasswordResponse
 )
 from app.services import otp_service
 from app.services.sms_service import get_sms_service
+from app.services.email_service import send_password_reset_email
 
 logger = logging.getLogger(__name__)
 
@@ -330,4 +336,125 @@ def update_me(db: Session, current_user: User, data: UserUpdateMeRequest) -> Use
     db.commit()
     db.refresh(current_user)
     return UserResponse.model_validate(current_user)
+
+
+# ── Password Reset Logic ──────────────────────────────────────────────────────
+
+def request_password_reset(db: Session, data: ForgotPasswordRequest) -> ForgotPasswordResponse:
+    """
+    Generate a cryptographically secure password reset token, store its SHA-256
+    hash with an expiration timestamp in PostgreSQL, and send a branded reset email.
+
+    To protect user privacy and prevent user enumeration, always returns a successful
+    acknowledgment message regardless of whether the email is registered.
+    """
+    clean_email = data.email.strip().lower()
+
+    # 1. Lookup user
+    user = db.query(User).filter(User.email.ilike(clean_email)).first()
+
+    # Domain aliasing fallback (@skillalign.dev <-> @skillaign.dev)
+    if user is None and "@skillalign.dev" in clean_email:
+        alt_email = clean_email.replace("@skillalign.dev", "@skillaign.dev")
+        user = db.query(User).filter(User.email.ilike(alt_email)).first()
+    elif user is None and "@skillaign.dev" in clean_email:
+        alt_email = clean_email.replace("@skillaign.dev", "@skillalign.dev")
+        user = db.query(User).filter(User.email.ilike(alt_email)).first()
+
+    generic_msg = "If an account matches that email address, we have sent instructions to reset your password."
+
+    if user is None:
+        logger.info(f"Password reset requested for non-existent email: {clean_email}")
+        return ForgotPasswordResponse(message=generic_msg)
+
+    if not user.is_active:
+        logger.warning(f"Password reset requested for deactivated user: {clean_email}")
+        return ForgotPasswordResponse(message=generic_msg)
+
+    # 2. Generate secure token
+    raw_token = generate_password_reset_token()
+    token_hash = hash_reset_token(raw_token)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=60)
+
+    # 3. Store hashed token & expiration in DB
+    user.password_reset_token = token_hash
+    user.password_reset_expires_at = expires_at
+    db.add(user)
+    db.commit()
+
+    # 4. Dispatch transactional email
+    frontend_base = "http://localhost:5173"
+    reset_url = f"{frontend_base}/reset-password?token={raw_token}"
+    email_sent = False
+    try:
+        email_sent = send_password_reset_email(
+            to_email=user.email or clean_email,
+            recipient_name=user.name,
+            reset_url=reset_url,
+            expires_in_minutes=60,
+        )
+    except Exception as e:
+        logger.error(f"Failed to dispatch password reset email to {clean_email}: {e}")
+
+    logger.info(f"Password reset token generated for user {user.id} ({user.email}). Email sent: {email_sent}")
+
+    # In dev or when email is not configured, provide dev_reset_url
+    dev_url = reset_url if (settings.DEBUG or not settings.SENDGRID_API_KEY) else None
+
+    return ForgotPasswordResponse(
+        message=generic_msg,
+        dev_reset_url=dev_url,
+    )
+
+
+def reset_password(db: Session, data: ResetPasswordRequest) -> ResetPasswordResponse:
+    """
+    Validate the incoming token against the stored SHA-256 hash and expiration,
+    update the user's password with a fresh bcrypt hash, and invalidate the reset token.
+    """
+    raw_token = data.token.strip()
+    if not raw_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reset token is required.",
+        )
+
+    token_hash = hash_reset_token(raw_token)
+
+    # Lookup user by hashed token
+    user = db.query(User).filter(User.password_reset_token == token_hash).first()
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The password reset link is invalid or has already been used.",
+        )
+
+    # Check token expiration
+    now_utc = datetime.now(timezone.utc)
+    if user.password_reset_expires_at is None or user.password_reset_expires_at < now_utc:
+        # Invalidate expired token
+        user.password_reset_token = None
+        user.password_reset_expires_at = None
+        db.add(user)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The password reset link has expired. Please request a new one.",
+        )
+
+    # Update password
+    user.password_hash = hash_password(data.new_password)
+    # Invalidate reset token immediately upon use
+    user.password_reset_token = None
+    user.password_reset_expires_at = None
+
+    db.add(user)
+    db.commit()
+
+    logger.info(f"Password successfully reset for user {user.id} ({user.email}).")
+    return ResetPasswordResponse(
+        message="Your password has been successfully updated. You may now sign in with your new credentials."
+    )
+
 
