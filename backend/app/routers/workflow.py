@@ -405,7 +405,7 @@ def send_slots_to_candidate(
                 candidate_name=candidate.full_name,
                 job_title=mr.job.title if mr.job else "the position",
                 slots=slots_info,
-                selection_url=f"http://localhost:5173/select-slot?token={token}&interview_id={interview.id}",
+                selection_url=f"{settings.FRONTEND_URL.rstrip('/')}/select-slot?token={token}&interview_id={interview.id}",
             )
     except Exception as e:
         logger.warning(f"Failed to send slot selection email: {e}")
@@ -1034,7 +1034,7 @@ def send_offer(
                 employment_type=offer.employment_type,
                 joining_date=offer.joining_date,
                 offer_expiry_date=offer.offer_expiry_date,
-                accept_url=f"http://localhost:5173/candidate/offers/{offer.id}?token={token}",
+                accept_url=f"{settings.FRONTEND_URL.rstrip('/')}/candidate/offers/{offer.id}?token={token}",
                 recruiter_name=current_user.name,
             )
     except Exception as e:

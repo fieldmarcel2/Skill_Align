@@ -1,64 +1,71 @@
 # Functional Specification Document (FSD)
-## SkillAlign: Intelligent Recruitment, Candidate-Job Matching & ATS Platform
+## SkillAlign: Intelligent Recruitment, Candidate-Job Matching & Enterprise ATS Platform
 
 ---
 
 ### Document Control
 
-| Attribute | Details |
+| Attribute | Specification Details |
 | :--- | :--- |
 | **Document Title** | Functional Specification Document (FSD) — SkillAlign Enterprise Platform |
-| **Project Identifier** | SKILLALIGN-CORE-2026 |
-| **Document Version** | 2.0.0 (Comprehensive Production Specification) |
-| **Document Status** | Approved / Baseline Architecture |
-| **Target Audience** | System Architects, Full-Stack Engineers, Product Managers, Mentors, QA Engineers, Security Auditors |
+| **Project Identifier** | SKILLALIGN-CORE-2026-PROD |
+| **Document Version** | **3.0.0 (Comprehensive Production Baseline for QA & Testing)** |
+| **Document Status** | **Approved / Authoritative Specification** |
+| **Target Audience** | QA Engineers, Automation Testers, Full-Stack Engineers, System Architects, Security Auditors |
 | **Author / Lead Architect** | Shiva Tripathi & SkillAlign Core Engineering Team |
 | **Release Date** | September 2026 |
-| **Classification** | Confidential / Internal Technical Specification |
+| **Classification** | Confidential / Official Technical Specification |
+| **API Inventory Scope** | **136 Registered Endpoints across 17 Functional Modules** |
+| **Pipeline Workflow Scope** | **21-Stage State Machine with Strict Transition Enforcement** |
+| **Data Architecture Scope** | **21 Relational Database Models with Transactional Cascade Controls** |
 
 ---
 
 ### Revision History
 
-| Version | Date | Primary Author | Description of Changes |
+| Version | Release Date | Primary Contributor | Description of Changes & QA Scope |
 | :--- | :--- | :--- | :--- |
 | **v1.0.0** | August 2026 | Core Engineering Lead | Initial functional draft covering relational schema, JWT auth, and basic candidate profiles. |
 | **v1.4.0** | August 2026 | Backend Lead | Integration of AWS S3 dual-path resume storage, plain-text extraction, and deterministic parsing. |
 | **v1.8.0** | September 2026 | Security & Integration | Dual-mode authentication (Email + Twilio SMS OTP), anti-flooding rate limiters, and RBAC guards. |
-| **v2.0.0** | September 2026 | Full Architecture Team | Full baseline FSD: Deterministic 4-tier match formula, collaborative ATS Kanban, 8-table cascade deletion, 59-endpoint Postman suite, SendGrid & Gemini AI integrations, and complete schema specification. |
+| **v2.0.0** | September 2026 | Full Architecture Team | Baseline FSD: Deterministic 4-tier match formula, collaborative ATS Kanban, 8-table cascade deletion, 59-endpoint Postman suite, SendGrid & Gemini AI integrations. |
+| **v3.0.0** | September 2026 | Chief System Architect | **Major Comprehensive Expansion for QA Engineering**: Full documentation of all 136 live REST API endpoints; complete 21-stage recruitment state machine transition matrix; multi-round interview scheduling with token slot selection; ReportLab PDF offer generation with S3 presigned links; candidate response triggers with 180-day cooling-off blacklist; atomic candidate claiming with `SELECT FOR UPDATE` DB locks; real-time recruiter-HM messaging threads and task assignments; immutable audit trail logging; and exhaustive QA verification test playbooks. |
 
 ---
 
 ## 1. Executive Summary & Business Architecture
 
 ### 1.1 Problem Statement
-Modern enterprise recruitment operations face three acute operational challenges:
-1. **Unstructured Resume Ingestion & Subjective Screening**: Recruiters spend up to 40 hours per role manually parsing unstructured PDF and Word documents. Human screening suffers from cognitive fatigue, unconscious bias, and inconsistent evaluation criteria.
-2. **Superficial Keyword Matching**: Legacy Applicant Tracking Systems (ATS) rely on simple string matching rather than multi-dimensional deterministic scoring that accounts for proficiency depths, mandatory vs. preferred constraints, and experience thresholds.
-3. **Fragmented Multi-Stakeholder Workflows**: Disconnected hand-offs between Technical Recruiters (sourcing and requisition authoring), HR Managers (cultural screening, interview coordination, and scorecard aggregation), and Candidates (application transparency and schedule tracking) create high drop-off rates and delayed hiring cycles.
+Modern enterprise talent acquisition operations face acute technical and operational bottlenecks:
+1. **Unstructured Resume Ingestion & Subjective Screening**: Recruiters spend up to 40 hours per vacancy manually reviewing unstructured PDF and Word documents. Human evaluation is slow, inconsistent, and subject to cognitive fatigue.
+2. **Superficial Keyword Matching**: Legacy Applicant Tracking Systems (ATS) rely on basic keyword substring searches rather than deterministic, multi-criteria scoring that accounts for proficiency depth, mandatory constraint enforcement, and verifiable experience.
+3. **Fragmented Stakeholder Workflows**: Hand-offs between Technical Recruiters (sourcing and shortlisting), Hiring Managers (interview evaluation and offer decisions), and Candidates (scheduling and offer response) occur across disconnected tools, leading to high candidate drop-off and delayed hiring cycles.
+4. **Compliance & Audit Blindspots**: Decisions made via private emails or spreadsheets lack immutable auditability, exposing organizations to compliance disputes and loss of institutional hiring context.
 
 ### 1.2 Solution Vision: The SkillAlign Platform
-SkillAlign is an enterprise-grade, cloud-native Recruitment, Candidate-Job Alignment, and Applicant Tracking System. The platform automates the end-to-end recruitment lifecycle through:
-- **Deterministic Multi-Criteria Matching Engine**: Calculates transparent, auditable alignment scores (0.0% to 100.0%) across skill proficiencies (60%), experience tenure (20%), education (10%), and work mode compatibility (10%), enforced by a mandatory skill zero-gate.
-- **Dual-Storage Cloud Resume Pipeline**: Ingests resumes (PDF, DOCX, DOC, TXT) into AWS S3, deterministically extracts clean plain text, executes rule-based structured parsing (identifying contact information, degrees, tenure, and skills), and synchronizes detected skills with the master taxonomy without black-box NLP latency.
-- **Dual-Mode Enterprise Authentication**: Seamlessly authenticates users via traditional salted-and-hashed email/password credentials or live international Phone OTP delivered via Twilio Telephony with dev/sandbox fallback.
-- **Multi-Role Collaborative Kanban ATS**: Specialized, role-guarded workspaces for System Administrators, HR Managers, Technical Recruiters, and Job Candidates.
-- **Lifecycle Governance & Cascade Deletion**: End-to-end relational auditability with a transactional cascade engine capable of purging accounts across 8 related models without orphaned records.
+SkillAlign is an enterprise-grade, cloud-native Recruitment, Candidate-Job Alignment, and Applicant Tracking System. The platform unifies the end-to-end recruitment lifecycle through:
+- **Deterministic Multi-Criteria Matching Engine**: Computes transparent, mathematical alignment scores (0.0% to 100.0%) across Skills & Proficiency (60%), Experience Tenure (20%), Education (10%), and Work Mode Compatibility (10%), enforced by a mandatory skill zero-gate.
+- **Asynchronous Dual-Storage Resume Pipeline**: Ingests PDF, DOCX, and TXT resumes into AWS S3/MinIO, extracts clean text via `pdfplumber` and `python-docx`, identifies sections and evidence snippets, and maps terms to a canonical master skill taxonomy via background Celery tasks.
+- **21-Stage Controlled Hiring State Machine**: Enforces a strict, role-gated lifecycle from `CANDIDATE_MATCHED` to `HIRED` or `BLACKLISTED`. Invalid state transitions are rejected server-side with HTTP 400/403 errors.
+- **Zero-Friction Candidate Coordination**: Interview slot selection and formal offer acceptance/rejection are handled via secure, single-use, time-limited cryptographic tokens delivered via SendGrid email — requiring no platform login from the candidate.
+- **Offer Governance & PDF Compilation**: Enforces salary band compliance before HR review, auto-revokes approved offers upon recruiter post-approval edits, and dynamically generates enterprise PDF offer letters via ReportLab.
+- **Atomic Concurrency Protection**: Race-condition-safe candidate claiming via database-level `SELECT FOR UPDATE` locks, guaranteeing that concurrent recruiters cannot claim the same candidate simultaneously.
+- **Defense-in-Depth Security & Audit Logging**: RBAC enforced at the FastAPI dependency layer, SlowAPI rate limiting against brute-force attacks, bcrypt password hashing, and immutable recording of every state transition in PostgreSQL `audit_logs`.
 
 ---
 
 ## 2. System Architecture & Technology Stack
 
-SkillAlign utilizes a decoupled, layered micro-tier architecture that separates the client presentation layer, the RESTful API and security gateway, the domain business service tier, relational persistence, and cloud object storage.
+SkillAlign utilizes a decoupled, six-tier enterprise architecture separating client presentation, API security gateway, domain micro-services, background async processing, relational persistence, and cloud storage.
 
 ```mermaid
 graph TB
-    subgraph "Client Presentation Layer (Vite 6 + React 18 + TS)"
+    subgraph "Client Presentation Layer (Vite + React 18 + TS)"
         UI_Admin["Admin Console (/admin)"]
         UI_HR["HR Workspace (/hr)"]
         UI_Recruiter["Recruiter Portal (/recruiter)"]
         UI_Candidate["Candidate Dashboard (/candidate)"]
-        UI_Public["Landing & Auth (/login, /register)"]
+        UI_Public["Public Landing & Token Portals"]
     end
 
     subgraph "API Gateway & Security Layer (FastAPI + Uvicorn)"
@@ -66,26 +73,31 @@ graph TB
         CORS_Middleware["CORS Origin Validator"]
         Rate_Limiter["SlowAPI Rate Limiter (IP/Endpoint)"]
         JWT_Guard["JWT Bearer Authentication & RBAC Dependencies"]
+        Request_Logger["Request ID & Timing Middleware"]
     end
 
-    subgraph "Domain Service Tier"
+    subgraph "Domain Service Tier (Python 3.12)"
         Svc_Auth["Auth & OTP Service (Twilio SMS)"]
         Svc_Matching["Deterministic Matching Engine"]
-        Svc_Resume["Resume Coordinator (S3 + Parser)"]
-        Svc_Extractor["Text Extractor (PDF/DOCX/TXT)"]
-        Svc_Job["Job Requisition Service"]
-        Svc_Candidate["Candidate Profile Service"]
-        Svc_User["User & Cascade Deletion Service"]
-        Svc_Email["Email Service (SendGrid)"]
-        Svc_Gemini["Gemini AI Service (Semantic Analysis)"]
+        Svc_Resume["Resume Extractor (pdfplumber/docx)"]
+        Svc_Workflow["21-Stage Workflow State Engine"]
+        Svc_Offers["Offer Governance & ReportLab PDF Generator"]
+        Svc_Jobs["Job Requisition & Recruiter Allocator"]
+        Svc_Audit["Immutable Audit Logger"]
+        Svc_Gemini["Google Gemini AI Narrative Engine"]
+    end
+
+    subgraph "Async Processing & Messaging Tier"
+        Celery_Worker["Celery 5.x Distributed Workers"]
+        Redis_Broker[("Redis Broker & Result Cache (:6379)")]
     end
 
     subgraph "Persistence & Cloud Infrastructure"
-        DB_Postgres[("PostgreSQL Relational Database")]
+        DB_Postgres[("PostgreSQL 16 Relational Database")]
         Storage_S3[("AWS S3 / MinIO Object Store")]
-        Twilio_API["Twilio Telephony Network"]
-        SendGrid_API["SendGrid Mail Gateway"]
-        Google_AI["Google Gemini API"]
+        Twilio_Network["Twilio Telephony Network (SMS)"]
+        SendGrid_Gateway["SendGrid Transactional Mail Gateway"]
+        Gemini_Cloud["Google Gemini AI API"]
     end
 
     UI_Admin --> FastAPI_App
@@ -97,624 +109,682 @@ graph TB
     FastAPI_App --> CORS_Middleware
     CORS_Middleware --> Rate_Limiter
     Rate_Limiter --> JWT_Guard
+    JWT_Guard --> Request_Logger
 
-    JWT_Guard --> Svc_Auth
-    JWT_Guard --> Svc_Matching
-    JWT_Guard --> Svc_Resume
-    JWT_Guard --> Svc_Job
-    JWT_Guard --> Svc_Candidate
-    JWT_Guard --> Svc_User
-    JWT_Guard --> Svc_Email
-    JWT_Guard --> Svc_Gemini
+    Request_Logger --> Svc_Auth
+    Request_Logger --> Svc_Matching
+    Request_Logger --> Svc_Resume
+    Request_Logger --> Svc_Workflow
+    Request_Logger --> Svc_Offers
+    Request_Logger --> Svc_Jobs
+    Request_Logger --> Svc_Audit
+    Request_Logger --> Svc_Gemini
 
-    Svc_Resume --> Svc_Extractor
-    Svc_Auth --> DB_Postgres
-    Svc_Auth --> Twilio_API
-    Svc_Matching --> DB_Postgres
+    Svc_Resume --> Celery_Worker
+    Svc_Matching --> Celery_Worker
+    Celery_Worker <--> Redis_Broker
+
+    Svc_Auth --> Twilio_Network
+    Svc_Offers --> SendGrid_Gateway
+    Svc_Workflow --> SendGrid_Gateway
+    Svc_Gemini --> Gemini_Cloud
+
+    Svc_Offers --> Storage_S3
     Svc_Resume --> Storage_S3
-    Svc_Resume --> DB_Postgres
-    Svc_Job --> DB_Postgres
-    Svc_Candidate --> DB_Postgres
-    Svc_User --> DB_Postgres
-    Svc_Email --> SendGrid_API
-    Svc_Gemini --> Google_AI
+    Svc_Workflow --> DB_Postgres
+    Svc_Audit --> DB_Postgres
+    Svc_Jobs --> DB_Postgres
 ```
 
 ### 2.1 Technology Stack Specifications
 
-| Architectural Tier | Technology / Library | Version | Purpose & Technical Role |
+| Architectural Tier | Selected Technology | Version | Purpose in SkillAlign |
 | :--- | :--- | :--- | :--- |
-| **Frontend Framework** | React | 18.3.1 | Declarative component UI with hooks and Context API |
-| **Client Language** | TypeScript | 5.5.3 | Static typing, interface contracts, and compile-time verification |
-| **Styling & Design System** | TailwindCSS | 3.4.1 | Utility-first CSS, dark glassmorphism, responsive grid layout |
-| **Build Tooling** | Vite | 6.4.3 | Sub-second HMR, tree-shaking, and Rollup-based production bundling |
-| **HTTP Client** | Axios | 1.7.9 | Request/response interceptors, Bearer token injection, error handling |
-| **Iconography** | Lucide React | 0.344.0 | Lightweight, consistent SVG icon set across all viewports |
-| **Backend Framework** | FastAPI | 0.115.6 | Asynchronous Python ASGI framework with OpenAPI/Swagger docs |
-| **Server Runtime** | Python | 3.13.7 | Backend runtime executing business logic and algorithms |
-| **ASGI Server** | Uvicorn | 0.34.0 | High-performance asynchronous HTTP/WebSocket server |
-| **ORM & Database Layer** | SQLAlchemy | 2.0.36 | Typed declarative models, relationship mappers, session transactions |
-| **Schema Validation** | Pydantic / Pydantic Settings | 2.10.4 | Request/response data serialization, validation, and `.env` loading |
-| **Database System** | PostgreSQL | 16.x | ACID-compliant relational persistence store |
-| **Cloud Storage** | Boto3 (AWS S3) | 1.35.81 | Cloud storage client for resume uploads and pre-signed URLs |
-| **Document Processing** | PyPDF2 & python-docx | 3.0.1 / 1.2.0 | Binary text extraction from PDF and Word documents |
-| **Telephony / SMS** | Twilio Python SDK | 9.4.0 | International SMS dispatch for Phone OTP authentication |
-| **Email Gateway** | SendGrid Python SDK | 6.11.0 | Transactional email delivery for interview notifications and updates |
-| **Generative AI** | Google Gemini API (REST) | 1.0.0 | Semantic candidate-job fit analysis and interview question generation |
-| **Security & Cryptography** | Passlib (Bcrypt) & PyJWT | 1.7.4 / 2.10.1 | Cryptographic password hashing (Bcrypt) and HMAC-SHA256 JWT tokens |
-| **API Rate Limiting** | SlowAPI | 0.1.9 | Endpoint throttling to prevent brute-force and resource exhaustion |
+| **Frontend Framework** | React + TypeScript | 18.3.x / 5.5 | Role-based SPA dashboards, reactive Kanban boards, and candidate portals |
+| **Frontend Build Tool** | Vite | 6.x | Lightning-fast HMR development server and optimized production bundling |
+| **Frontend Styling** | Tailwind CSS | 3.4.x | Utility-first responsive styling, dark/light modes, and custom design system |
+| **Backend Framework** | FastAPI (Python) | 0.115.x / 3.12 | High-performance asynchronous REST API with auto OpenAPI generation |
+| **ASGI Web Server** | Uvicorn | 0.30.x | Production-grade asynchronous web server implementation |
+| **Relational Database** | PostgreSQL | 16.x | Primary ACID-compliant relational persistence across 21 core tables |
+| **ORM & Migrations** | SQLAlchemy / Alembic | 2.0.x / 1.13 | Declarative object-relational mapping and version-controlled schema migrations |
+| **Async Task Queue** | Celery + Redis | 5.4.x / 7.x | Distributed background task execution for resume parsing and matching runs |
+| **Cloud File Storage** | AWS S3 / MinIO | S3 API v4 | Encrypted object storage for original resumes, extracted text, and offer PDFs |
+| **Resume Text Extraction** | pdfplumber / python-docx | 0.11 / 1.1 | Layout-aware PDF and Word text extraction with metadata identification |
+| **Dynamic PDF Engine** | ReportLab | 4.2.x | Server-side compilation of formal offer letter PDFs with company branding |
+| **Authentication & Crypto** | JWT (HS256) / bcrypt | PyJWT 2.9 / 4.2 | Stateless tamper-proof session tokens and one-way salted password hashing |
+| **Rate Limiting Engine** | SlowAPI (Redis backend) | 0.1.9 | IP-based sliding window rate limiters protecting authentication endpoints |
+| **Transactional Email** | SendGrid API | v3 | Template-driven transactional delivery of interview links and offer PDFs |
+| **SMS Telephony Gateway**| Twilio Messaging API | 9.2.x | High-throughput SMS OTP dispatch for passwordless candidate authentication |
+| **Generative AI (Advisory)**| Google Gemini API | 1.5 Flash | Optional plain-language candidate evaluation summaries and interview questions |
 
 ---
 
-## 3. User Personas & Role-Based Access Control (RBAC)
+## 3. Multi-Role RBAC Security Architecture
 
-SkillAlign implements strict, multi-tiered Role-Based Access Control (RBAC) enforced at the database layer (via the `Role` entity), the API gateway (via FastAPI dependencies), and the frontend router (via `ProtectedRoute`).
+SkillAlign enforces strict Role-Based Access Control (RBAC). User accounts belong to exactly one of four distinct roles, encoded into the JWT `role` claim and verified on every request by FastAPI dependency guards.
 
-### 3.1 User Personas
+### 3.1 Role Hierarchy & Capabilities
 
-1. **System Administrator (`Role ID: 1`, `Role Name: Admin`)**:
-   - Platform governance, user account provisioning (creating HR and Recruiter accounts), activation/deactivation of users, permanent cascade user de-provisioning, master skill catalog curation, and cross-organization analytics monitoring.
-2. **HR Manager (`Role ID: 2`, `Role Name: HR`)**:
-   - Talent evaluation and pipeline governance, review of screened candidates, interview coordination and scheduling (with Google Meet integration and SendGrid email delivery), candidate scorecard submissions (Communication, Technical, Cultural), and candidate milestone notifications.
-3. **Technical Recruiter (`Role ID: 3`, `Role Name: Recruiter`)**:
-   - Sourcing and requisition management, creating and publishing job requisitions, configuring required vs. preferred skills with weights, triggering the automated matching engine, screening matched candidates, and advancing talent into the pipeline.
-4. **Candidate (`Role ID: 4`, `Role Name: Candidate`)**:
-   - Talent profile management, self-registration via Email or Phone OTP, uploading resumes (PDF/DOCX/TXT) to cloud storage, reviewing extracted structured information and raw text, declaring skills and proficiencies, and tracking real-time application and interview statuses.
+```
+                  ┌────────────────────────┐
+                  │     Administrator      │  (Global System & User Governance)
+                  └───────────┬────────────┘
+                              │
+              ┌───────────────┴───────────────┐
+              ▼                               ▼
+  ┌────────────────────────┐      ┌────────────────────────┐
+  │  HR / Hiring Manager   │      │   Technical Recruiter  │
+  │ (Requisitions, Reviews,│      │(Sourcing, Screening,   │
+  │  Interviews, Approvals)│      │ Claiming, Offer Draft) │
+  └────────────────────────┘      └────────────────────────┘
+              │                               │
+              └───────────────┬───────────────┘
+                              │
+                              ▼
+                  ┌────────────────────────┐
+                  │       Candidate        │  (Profile, Resume, Slot & Offer Tokens)
+                  └────────────────────────┘
+```
 
-### 3.2 Comprehensive RBAC Permission Matrix
+### 3.2 Role Permissions Matrix
 
-| System Capability | Public / Guest | Candidate (Role 4) | Recruiter (Role 3) | HR Manager (Role 2) | Administrator (Role 1) |
+| Functional Capability | Administrator | HR / Hiring Manager | Technical Recruiter | Candidate | Public Token |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **View Marketing Landing Page** | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Candidate Self-Registration** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Email/Password Login** | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Phone OTP Request & Verification** | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Manage Own Profile & Location** | ❌ | ✅ | ❌ | ❌ | ❌ |
-| **Upload Resume & View Parsed Data**| ❌ | ✅ | ❌ | ❌ | ❌ |
-| **View Own Application Pipeline** | ❌ | ✅ | ❌ | ❌ | ❌ |
-| **Create & Update Job Requisitions** | ❌ | ❌ | ✅ | ❌ | ❌ |
-| **Delete Owned Job Requisitions** | ❌ | ❌ | ✅ | ❌ | ❌ |
-| **Execute Matching Engine** | ❌ | ❌ | ✅ | ✅ | ✅ |
-| **View Ranked Job Matches** | ❌ | ❌ | ✅ | ✅ | ✅ |
-| **Screen / Reject Candidate** | ❌ | ❌ | ✅ | ❌ | ✅ |
-| **Approve Screened Candidate** | ❌ | ❌ | ❌ | ✅ | ✅ |
-| **Schedule Interview & Meeting Link**| ❌ | ❌ | ❌ | ✅ | ✅ |
-| **Submit Evaluation Scorecard** | ❌ | ❌ | ✅ | ✅ | ❌ |
-| **View Candidate S3 Resume / Text** | ❌ | ✅ (Own) | ✅ | ✅ | ✅ |
-| **Generate Gemini AI Fit Analysis** | ❌ | ❌ | ✅ | ✅ | ✅ |
-| **Manage Master Skills Taxonomy** | ❌ | ❌ | ❌ | ❌ | ✅ |
-| **Provision HR/Recruiter Accounts** | ❌ | ❌ | ❌ | ❌ | ✅ |
-| **Toggle User Status (Active/Inactive)**| ❌ | ❌ | ❌ | ❌ | ✅ |
-| **Permanently Delete User (Cascade)** | ❌ | ❌ | ❌ | ❌ | ✅ |
-| **Access Admin Analytics & Health** | ❌ | ❌ | ❌ | ❌ | ✅ |
+| **Self-Registration & Password Login** | — | — | — | Yes | Yes |
+| **Phone OTP Authentication** | — | — | — | Yes | Yes |
+| **Password Reset via Email** | Yes | Yes | Yes | Yes | Yes |
+| **Create / Update / Close Jobs** | Yes | **Yes (Owner)** | No | No | No |
+| **Assign Recruiters to Jobs** | Yes | **Yes (Owner)** | No | No | No |
+| **Manage Canonical Skill Taxonomy** | **Yes (Exclusive)** | No | No | No | No |
+| **Trigger Matching Engine Execution** | Yes | Yes | **Yes** | No | No |
+| **View Ranked Candidate Match List** | Yes | Yes | **Yes** | No | No |
+| **Claim Candidate (Atomic Lock)** | Yes | No | **Yes (Exclusive)** | No | No |
+| **Screen & Shortlist Candidate** | Yes | No | **Yes** | No | No |
+| **Submit Shortlist to Hiring Manager**| No | No | **Yes** | No | No |
+| **HM Review & Candidate Decision** | No | **Yes (Exclusive)** | No | No | No |
+| **Propose Interview Time Slots** | No | **Yes (Exclusive)** | No | No | No |
+| **Dispatch Slot Link to Candidate** | No | No | **Yes** | No | No |
+| **Select Preferred Interview Slot** | No | No | No | Token | **Yes (Token)** |
+| **Confirm Interview Booking** | No | No | **Yes** | No | No |
+| **Submit 5-Dimension Interview Rubric**| No | **Yes (Exclusive)** | No | No | No |
+| **Draft Compensation Offer** | No | No | **Yes** | No | No |
+| **Review & Approve/Reject Offer** | No | **Yes (Exclusive)** | No | No | No |
+| **Generate ReportLab PDF Offer** | No | No | **Yes** | No | No |
+| **Dispatch Offer Letter to Candidate** | No | No | **Yes** | No | No |
+| **Accept / Decline Formal Offer** | No | No | No | Token | **Yes (Token)** |
+| **Manage Platform User Accounts** | **Yes (Exclusive)** | No | No | No | No |
+| **Execute 8-Table Cascade Purge** | **Yes (Exclusive)** | No | No | No | No |
+| **Access Global Audit Trail** | **Yes (Exclusive)** | No | No | No | No |
 
 ---
 
-## 4. Detailed Functional Module Specifications
+## 4. Core Algorithms & Domain Business Logic
 
-### Module 1: Authentication, Authorization & Identity Management
+### 4.1 4-Tier Deterministic Fit Score Model
 
-#### 1.1 Dual-Mode Authentication Architecture
-The authentication module provides two independent, cryptographically secure authentication paths:
-- **Email & Password**: Standard credential authentication using Passlib Bcrypt with salting.
-- **Phone OTP Authentication**: Mobile number login using dynamic 6-digit numeric OTPs dispatched via Twilio SMS telephony, with automated account provisioning for new mobile numbers.
+The SkillAlign Matching Engine computes an authoritative, explainable alignment score between 0.0% and 100.0% for any job-candidate pair:
 
-#### 1.2 Functional Requirements
-- **FR-AUTH-001 (Candidate Self-Registration)**: Endpoint `POST /api/auth/register` enables public candidate registration. Automatically assigns `role_id = 4` (Candidate). Prevents unauthorized creation of privileged roles (Admin, HR, Recruiter).
-- **FR-AUTH-002 (Credential Verification & JWT Issuance)**: Endpoint `POST /api/auth/login` verifies email (case-insensitive) and Bcrypt password hash. Returns an HMAC-SHA256 signed JSON Web Token containing `sub` (User ID), `role` (Role Name), and `exp` (configured expiration, default 60 minutes).
-- **FR-AUTH-003 (Phone Number E.164 Normalization)**: Normalizes incoming 10-digit Indian phone numbers (e.g., `8840226477`) to standard international E.164 format (`+918840226477`). Validates length and numerical structure.
-- **FR-AUTH-004 (OTP Generation & Dispatch)**: Endpoint `POST /api/auth/send-otp` generates a cryptographically random 6-digit integer. Persists OTP record in `otp_verifications` table with a 5-minute expiration timestamp (`OTP_EXPIRY_SECONDS = 300`).
-- **FR-AUTH-005 (Anti-Flooding Cooldown & Rate Limiting)**: Enforces a 60-second cooldown between OTP requests for the same phone number (`OTP_RESEND_COOLDOWN_SECONDS = 60`). Gateway rate-limiting restricts requests to 5 per minute per IP via SlowAPI (`HTTP 429 Too Many Requests`).
-- **FR-AUTH-006 (OTP Verification & Auto-Resolution)**: Endpoint `POST /api/auth/verify-otp` validates the submitted code. If the phone number does not exist in `users`, the system automatically provisions an active Candidate account with default name formatting (`Candidate {Phone-Suffix}`) and issues a JWT token.
-- **FR-AUTH-007 (Sandbox & Dev Mode Telephony Fallback)**: If Twilio credentials are in dev mode (`OTP_DEV_MODE = True`) or Twilio trial restrictions trigger error code 21608 (unverified number in trial), the system logs the OTP to console and returns a graceful fallback in the API response for seamless evaluation.
-- **FR-AUTH-008 (User Profile Management)**: Authenticated users inspect profile and role metadata via `GET /api/auth/me` and update personal contact details via `PUT /api/auth/me`.
-- **FR-AUTH-009 (1-Click Role Access Evaluator)**: The frontend login interface provides 1-click evaluation access for all four system roles (Admin, HR, Recruiter, and Candidate Shiva) to facilitate testing and demonstrations.
+$$	ext{Fit Score} = 	ext{SkillScore}_{(60)} + 	ext{ExpScore}_{(20)} + 	ext{EduScore}_{(10)} + 	ext{WorkModeScore}_{(10)}$$
 
----
+#### 1. Skill Proficiency Component (Max 60 Points)
+- Every required and preferred skill in `job_skills` has a weight $W_i \in [1, 5]$ and type (`MUST-HAVE` or `NICE-TO-HAVE`).
+- Candidate skills in `candidate_skills` possess a proficiency factor $P_i \in [0.0, 1.0]$ based on declared level and resume evidence validation:
+  - **Expert** with Resume Evidence: $1.00$
+  - **Expert** (Manual only): $0.85$
+  - **Intermediate** with Resume Evidence: $0.81$
+  - **Intermediate** (Manual only): $0.65$
+  - **Beginner** with Resume Evidence: $0.50$
+  - **Beginner** (Manual only): $0.35$
+  - **Resume Detected** (Implicit): $0.85$
+  - **Missing**: $0.00$
+- **Mandatory Skill Zero-Gate**: If a candidate lacks a `MUST-HAVE` skill, a severe penalty factor is applied:
 
-### Module 2: Candidate Profile & Resume Processing Pipeline
+$$	ext{SkillScore} = \left( rac{\sum (P_i 	imes W_i)}{\sum W_i} ight) 	imes 60$$
 
-#### 2.1 S3 Dual-Storage & Text Extraction Architecture
-SkillAlign implements an object storage and parsing pipeline for resumes:
-1. **File Validation**: Enforces MIME types (`application/pdf`, `application/msword`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, `text/plain`) and a 10MB size limit (`HTTP 413`).
-2. **Dual S3 Ingestion**:
-   - Original document uploaded to: `resumes/original/{candidate_id}/{sanitized_filename}`
-   - Extracted readable text uploaded to: `resumes/extracted/{candidate_id}/{stem}.txt`
-3. **Deterministic Text Extraction**:
-   - PDF: Extracted via `PyPDF2.PdfReader` with clean whitespace normalization.
-   - DOCX: Extracted via `docx.Document` paragraph and table iteration.
-   - TXT: Decoded via UTF-8 with fallback encodings (latin-1, cp1252).
-4. **Deterministic Rule-Based Parsing**:
-   - Contact Extraction: Regex matching for emails (`[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}`) and Indian mobile numbers (`(?:\+91[\-\s]?)?[6-9]\d{9}`).
-   - Education Parsing: Regex scanning for degrees (B.Tech, M.Tech, B.E., B.Sc, M.Sc, MBA, Ph.D) and academic institutions.
-   - Experience Calculation: Date pattern recognition (`(Jan|Feb|...) \d{4} - (Present|\d{4})`) calculating total career tenure.
-   - Skill Taxonomy Recognition: Cross-references extracted text against the database master skill catalog (case-insensitive substring and boundary matching).
-5. **Auto-Synchronization**: Discovered skills are auto-persisted into `candidate_skills` linked to the candidate profile with default proficiency.
+#### 2. Experience Tenure Component (Max 20 Points)
+Evaluates candidate total years of experience against `jobs.min_experience_years`:
+- Candidate Experience $\ge$ Job Minimum: **20.0 Points** (100%)
+- Candidate Experience $\ge 70\%$ of Minimum: **12.0 Points** (60%)
+- Candidate Experience $> 0$: **6.0 Points** (30%)
+- Zero Experience / Unspecified: **0.0 Points** (0%)
 
-#### 2.2 Functional Requirements
-- **FR-CAND-001 (Profile Management)**: Candidates create (`POST /api/candidates/me`) and update (`PUT /api/candidates/me`) full name, mobile number, total experience, address, city, state, pincode, country, work authorization, preferred work mode (WFH, WFO, Hybrid), notice period, current CTC, and expected CTC.
-- **FR-CAND-002 (Resume Upload & Ingestion)**: Endpoint `POST /api/candidates/{id}/resume` executes the complete extraction, dual S3 upload, deterministic parsing, and database synchronization pipeline.
-- **FR-CAND-003 (Pre-Signed Resume Download)**: Endpoint `GET /api/candidates/{id}/resume` generates a secure, temporary pre-signed S3 URL with 300-second TTL. Prevents direct exposure of AWS credentials.
-- **FR-CAND-004 (Raw Text Preview)**: Endpoint `GET /api/candidates/{id}/resume/text` retrieves the extracted plain text (`.txt`) for immediate modal preview with 1-click clipboard copy.
-- **FR-CAND-005 (Structured Parsed Resume Inspection)**: Endpoint `GET /api/candidates/{id}/resume/parsed` returns the structured JSON payload containing candidate contact info, degrees, calculated experience, detected skills, certifications, and projects.
-- **FR-CAND-006 (Resume Deletion)**: Endpoint `DELETE /api/candidates/{id}/resume` deletes both the original file and the extracted `.txt` artifact from S3, nullifying database storage columns.
-- **FR-CAND-007 (Candidate Career Pipeline View)**: Endpoint `GET /api/candidates/me/pipeline` provides candidates with real-time visibility into all matched jobs, current hiring stages, and interview details.
+#### 3. Education Qualification Component (Max 10 Points)
+- Recognized degree/diploma present in candidate profile: **10.0 Points**
+- No formal qualification recorded: **0.0 Points**
+
+#### 4. Work Mode Compatibility Component (Max 10 Points)
+- Full compatibility (Exact match, or Candidate/Job allows `Remote`): **10.0 Points**
+- Work mode mismatch (e.g. Candidate requires `Remote`, Job mandates `On-site`): **4.0 Points**
 
 ---
 
-### Module 3: Skills Inventory & Master Taxonomy
+### 4.2 21-Stage Recruitment Workflow State Machine
 
-#### 3.1 Functional Requirements
-- **FR-SKL-001 (Master Skill Repository)**: Administrators curate canonical skills via `POST /api/skills`, `PUT /api/skills/{id}`, and `DELETE /api/skills/{id}`. Each skill consists of a unique name and domain category (e.g., Frontend, Backend, DevOps, Database, Cloud, Mobile, AI/ML, Management).
-- **FR-SKL-002 (Skill Discovery & Categorization)**: Endpoint `GET /api/skills` provides all authenticated roles with filtered skill listings by category for autocomplete and dropdown selectors.
-- **FR-SKL-003 (Candidate Skill Portfolio)**: Candidates add (`POST /api/candidates/me/skills`), update (`PUT /api/candidates/me/skills/{id}`), and delete (`DELETE /api/candidates/me/skills/{id}`) skills with self-declared proficiency levels:
-  - `Beginner`: Foundational working knowledge (Scoring Factor: `0.40`).
-  - `Intermediate`: Autonomous production capability (Scoring Factor: `0.70`).
-  - `Expert`: Advanced architecture and leadership (Scoring Factor: `1.00`).
-  - `Years of Experience`: Numerical duration in years.
+Candidate applications transition through a rigorous state machine stored in `match_results.pipeline_state`. Transitions are guarded server-side:
 
----
-
-### Module 4: Job Requisition & Specification Lifecycle
-
-#### 4.1 Functional Requirements
-- **FR-JOB-001 (Requisition Authoring)**: Recruiters author job openings via `POST /api/jobs` specifying Title, Department, Client Name, Job Description, Minimum Experience Years, Work Mode (WFH, WFO, Hybrid), City, State, Country, Shift Timing, Travel Requirements, and Urgency Level.
-- **FR-JOB-002 (Granular Skill Tagging & Weighting)**: Each job requisition links multiple skills from the master taxonomy via `JobSkill` relationships, defining:
-  - `requirement_type`: Categorized as `required` (mandatory) or `preferred` (optional).
-  - `weight`: Numerical importance weighting factor (typically 1.0 to 5.0).
-- **FR-JOB-003 (Requisition Lifecycle States)**: Jobs transition across three states: `draft`, `active`, and `closed`. Recruiters update specifications via `PUT /api/jobs/{id}`.
-- **FR-JOB-004 (Requisition Deletion & Cascade)**: Recruiters delete requisitions via `DELETE /api/jobs/{id}`. The system cascades and purges associated `job_skills` and `match_results`.
-
----
-
-### Module 5: Deterministic Candidate-Job Matching Engine
-
-#### 5.1 Mathematical Scoring Formulation
-The SkillAlign matching algorithm evaluates candidates using a multi-criteria mathematical model:
-
-$$\text{Overall Score} = \min\left(100.0, S_{\text{skills}} + S_{\text{experience}} + S_{\text{education}} + S_{\text{work\_mode}}\right)$$
-
-#### Component Breakdown:
-
-1. **Skill Component ($S_{\text{skills}}$ — Up to 60.0%)**:
-   - Evaluates the weighted ratio of candidate proficiencies against the job's required skills:
-     $$\text{Raw Skill Ratio} = \frac{\sum_{i=1}^{n} (\text{Weight}_i \times \text{Factor}_i)}{\sum_{i=1}^{n} \text{Weight}_i}$$
-   - Where $\text{Factor}_i \in \{0.40, 0.70, 1.00\}$ based on candidate proficiency level, or $0.0$ if the skill is missing.
-   - $S_{\text{skills}} = \text{Raw Skill Ratio} \times 60.0$.
-2. **Experience Relevance ($S_{\text{experience}}$ — Up to 20.0%)**:
-   - If $\text{Job Min Exp} \le 0 \implies S_{\text{experience}} = 20.0$.
-   - If $\text{Cand Exp} \ge \text{Job Min Exp} \implies S_{\text{experience}} = 20.0$.
-   - If $\text{Cand Exp} \ge (0.70 \times \text{Job Min Exp}) \implies S_{\text{experience}} = 12.0$.
-   - If $\text{Cand Exp} > 0 \implies S_{\text{experience}} = 6.0$.
-   - Else $\implies S_{\text{experience}} = 0.0$.
-3. **Education Qualification ($S_{\text{education}}$ — Up to 10.0%)**:
-   - If candidate has an educational degree documented $\implies S_{\text{education}} = 10.0$.
-   - Else $\implies S_{\text{education}} = 0.0$.
-4. **Work Mode Compatibility ($S_{\text{work\_mode}}$ — Up to 10.0%)**:
-   - If candidate preferred mode matches job mode, or either is `Hybrid`, or unspecified $\implies S_{\text{work\_mode}} = 10.0$.
-   - Mismatched modes (e.g. WFH candidate vs. WFO job) $\implies S_{\text{work\_mode}} = 4.0$.
-5. **Zero-Gate Filtering Rule**:
-   - If a candidate matches **zero** skills required by the job, the overall score is strictly **$0.0$**, filtering out non-viable applications regardless of experience or education.
-
-#### 5.2 Functional Requirements
-- **FR-MCH-001 (Batch Match Execution)**: Endpoint `POST /api/matching/jobs/{id}/run` executes the algorithm across all candidate profiles for the specified job. Results are upserted into `match_results` with initial status `matched` and returned sorted by `overall_score` descending.
-- **FR-MCH-002 (Explainable Match Analytics)**: Each match result generates an explainable breakdown (`skill_breakdown`) itemizing matched skills, missing skills, candidate proficiency levels, and requirement weights.
-- **FR-MCH-003 (Gemini AI Fit Analysis)**: Endpoint `GET /api/matching/{id}/ai-analysis` invokes Google Gemini to generate a semantic fit assessment, executive summary, key candidate strengths, potential skill gaps, and 3 targeted technical interview questions.
-
----
-
-### Module 6: Recruitment Pipeline & Collaborative Kanban ATS
-
-#### 6.1 Pipeline Lifecycle & Stage Governance
-SkillAlign models candidate progression across 10 discrete pipeline stages:
-
-```mermaid
-stateDiagram-v2
-    [*] --> matched : Recruiter Runs Match
-    matched --> screened : Recruiter Screens Candidate
-    matched --> rejected : Recruiter Rejects
-    screened --> approved_by_hr : HR Approves Candidate
-    screened --> rejected : HR Rejects
-    approved_by_hr --> interview_scheduled : HR Schedules Interview
-    interview_scheduled --> technical_interview : Technical Round
-    interview_scheduled --> hr_interview : Cultural/HR Round
-    technical_interview --> hr_interview : Technical Pass
-    technical_interview --> rejected : Technical Fail
-    hr_interview --> shortlisted : Final Deliberation
-    hr_interview --> rejected : Cultural Fail
-    shortlisted --> offer : Job Offer Extended
-    offer --> hired : Offer Accepted
-    offer --> rejected : Offer Declined
+```
+[CANDIDATE_MATCHED]
+        │  (Recruiter screens)
+        ▼
+[CANDIDATE_SHORTLISTED]
+        │  (Recruiter submits)
+        ▼
+[SENT_TO_HIRING_MANAGER]
+        │  (HM opens review)
+        ▼
+[HIRING_MANAGER_REVIEW] ───────(HM rejects)───────► [HIRING_MANAGER_REJECTED] ✗
+        │  (HM requests interview)
+        ▼
+[INTERVIEW_REQUESTED]
+        │  (HM proposes ≥2 slots)
+        ▼
+[INTERVIEW_SLOTS_PROPOSED]
+        │  (Recruiter dispatches token link)
+        ▼
+[WAITING_FOR_CANDIDATE_SLOT]
+        │  (Candidate selects slot via token)
+        ▼
+[CANDIDATE_SLOT_SELECTED]
+        │  (Recruiter confirms + meeting link)
+        ▼
+[INTERVIEW_CONFIRMED]
+        │  (Interview conducted)
+        ▼
+[INTERVIEW_COMPLETED]
+        │  (Awaiting evaluation)
+        ▼
+[WAITING_FOR_HM_FEEDBACK]
+        ├───(Decision = NO-GO)───► [INTERVIEW_NO_GO] ✗
+        ├───(Decision = PASS)─────► [INTERVIEW_REQUESTED] (Loop for next round)
+        └───(Decision = GO)
+                │
+                ▼
+      [INTERVIEW_GO]
+                │  (Advance to offer discussion)
+                ▼
+    [COMPENSATION_DISCUSSION]
+                │  (Recruiter drafts offer)
+                ▼
+         [OFFER_CREATED]
+                │  (Submit for HR approval)
+                ▼
+      [OFFER_PENDING_APPROVAL]
+                │  (HR approves)
+                ▼
+         [OFFER_APPROVED]
+                │  (ReportLab compiles PDF on S3)
+                ▼
+           [OFFER_SENT]
+                │  (Candidate token response)
+                ├─────────────────────────────────────────┐
+                ▼                                         ▼
+         [OFFER_ACCEPTED]                          [OFFER_REJECTED]
+                │                                         │
+                ▼                                         ▼
+            [HIRED] ✓                              [BLACKLISTED] ✗
+                                                 (180-day cooling off)
 ```
 
-#### 6.2 Role-Enforced Transition Rules
-- **Recruiter Guard**: Can only advance candidates from `matched` to `screened` or `rejected` for jobs they created.
-- **HR Guard**: Can transition candidates from `screened` to `approved_by_hr`, schedule interviews, advance to interview sub-stages, extend `offer`, mark `hired`, or issue `rejected`.
-- **Admin Guard**: Full pipeline override authority.
+---
 
-#### 6.3 Evaluation Scorecards
-- **FR-SCR-001 (Scorecard Submission)**: Endpoint `POST /api/matching/{match_id}/scorecard` enables HR and Recruiters to submit evaluation ratings across Communication (1–10), Technical Proficiency (1–10), Cultural Fit (1–10), Qualitative Feedback Notes, and Recommendation Status (`strong_hire`, `hire`, `neutral`, `do_not_hire`).
-- **FR-SCR-002 (Scorecard Aggregation)**: Endpoint `GET /api/matching/{match_id}/scorecards` retrieves all multi-rater scorecards for auditability.
+## 5. Relational Database Schema & Data Dictionary
+
+SkillAlign persists operational data across 21 relational tables in PostgreSQL 16:
+
+1. **`users`**: Platform identity accounts (id, email, hashed_password, full_name, role, is_active, phone_number, created_at, updated_at).
+2. **`candidates`**: Rich candidate profiles (id, user_id, full_name, email, phone, current_title, summary, total_experience_years, highest_education, preferred_work_mode, city, state, country, notice_period_days, current_ctc, expected_ctc, resume_url, created_at, updated_at).
+3. **`skills`**: Canonical master taxonomy catalog (id, name, category, created_at).
+4. **`candidate_skills`**: Candidate skill mappings with proficiency and resume evidence (id, candidate_id, skill_id, proficiency_level, years_experience, evidence_text, source, created_at).
+5. **`jobs`**: Job requisitions (id, title, description, department, client_name, min_experience_years, work_mode, location_city, location_state, status, min_salary, max_salary, created_by, created_at, updated_at).
+6. **`job_skills`**: Requisition skill requirements (id, job_id, skill_id, requirement_type, weight, created_at).
+7. **`job_recruiter_assignments`**: Recruiter role allocations per job (id, job_id, recruiter_id, assignment_role, assigned_by, created_at).
+8. **`match_results`**: Scored alignment and pipeline state (id, job_id, candidate_id, overall_score, skill_score, experience_score, education_score, work_mode_score, status, pipeline_state, matched_by, notes, created_at, updated_at).
+9. **`candidate_recruiter_assignments`**: Atomic candidate claims (id, job_id, candidate_id, recruiter_id, assigned_by, claimed_at, is_active).
+10. **`interviews`**: Scheduled interview sessions (id, match_result_id, scheduled_by, interview_date, interview_type, meeting_link, interview_mode, scheduled_end, feedback, status, round_number, created_at, updated_at).
+11. **`interview_slots`**: Proposed multi-slot options (id, interview_id, proposed_by, slot_start, slot_end, is_selected, candidate_token, token_expires_at, created_at).
+12. **`interview_feedback`**: Structured 5-dimension evaluations (id, interview_id, reviewer_id, technical_score, communication_score, problem_solving_score, role_fit_score, overall_score, recommendation, strengths, areas_of_improvement, submitted_at).
+13. **`job_interview_rounds`**: Requisition round configurations (id, job_id, round_number, round_name, round_type, description, is_mandatory, created_at).
+14. **`candidate_scorecards`**: Multi-rater feedback records (id, match_result_id, reviewer_id, communication_score, technical_score, cultural_score, notes, recommendation, created_at).
+15. **`offers`**: Governed compensation offers (id, match_result_id, created_by, base_salary, variable_pay, joining_bonus, other_benefits, work_mode, work_location, joining_date, expiry_date, status, pdf_s3_key, pdf_presigned_url, candidate_token, token_expires_at, hr_approved_by, hr_approved_at, justification, candidate_responded_at, candidate_response_notes, created_at, updated_at).
+16. **`candidate_blacklists`**: 180-day cooling-off suppression records (id, candidate_id, reason, cooling_off_days, blacklisted_at, expires_at, created_by, is_active).
+17. **`notifications`**: In-app stakeholder alerts (id, user_id, channel, subject, body, status, created_at).
+18. **`otp_verifications`**: Ephemeral phone OTP verifications (id, phone_number, otp_code, expires_at, is_verified, attempts, created_at).
+19. **`messages`**: Internal recruiter-HM discussion threads (id, job_id, candidate_id, sender_id, recipient_id, subject, body, message_type, is_read, created_at).
+20. **`recruitment_tasks`**: Recruiter operational tasks (id, job_id, candidate_id, assigned_to, created_by, title, description, priority, due_date, status, completed_at, created_at, updated_at).
+21. **`audit_logs`**: Immutable compliance audit trail (id, actor_id, action, entity_type, entity_id, old_state, new_state, metadata_json, created_at).
 
 ---
 
-### Module 7: Interview Scheduling & Video Integration
+## 6. Complete REST API Specifications (136 Endpoints)
 
-#### 7.1 Functional Requirements
-- **FR-INT-001 (Interview Coordination)**: HR schedules interviews via `POST /api/interviews` specifying `match_result_id`, `interview_date`, `interview_type` (Technical, HR, Cultural, Screening), `interview_mode` (online, in-person, phone), `meeting_link` (Google Meet/Zoom URL), and `scheduled_end` timestamp.
-- **FR-INT-002 (Automated Pipeline Advancement)**: Scheduling an interview automatically transitions the parent `MatchResult.status` to `interview_scheduled`.
-- **FR-INT-003 (SendGrid Email Invitation)**: When `send_notification=True`, the system automatically formats an interview invitation email containing job title, company name, scheduled date/time, meeting link, and interviewer name, and dispatches it via SendGrid.
-- **FR-INT-004 (In-App Calendar Visibility)**: Scheduled interviews reflect on the candidate's dashboard (`GET /api/interviews/my`) and the HR schedule calendar (`GET /api/interviews`).
-- **FR-INT-005 (Interview Lifecycle)**: Interviews update across `scheduled`, `completed`, and `cancelled` states via `PATCH /api/interviews/{id}`.
+Below is the exhaustive inventory of all 136 live endpoints across 17 functional modules, complete with HTTP methods, paths, summaries, required authorization roles, request schemas, parameters, expected status codes, and specific QA testing assertions.
 
----
 
-### Module 8: Notifications & Communication Engine
+### 1. Authentication & Identity (11 Endpoints)
+*Manages user registration, credential login, passwordless phone OTP, password reset, token refresh, and session termination.*
 
-#### 8.1 Functional Requirements
-- **FR-NOT-001 (In-App Notification Dispatch)**: Endpoint `POST /api/notifications` triggers notifications stored in the `notifications` table linked to target user IDs.
-- **FR-NOT-002 (Personal Notification Feed)**: Endpoint `GET /api/notifications/my` allows authenticated users (Candidates, Recruiters, HR) to retrieve their personal notifications ordered by timestamp descending.
-- **FR-NOT-003 (Automated Milestone Alerts)**: Pipeline status transitions (HR approval, interview scheduling, offer, rejection) automatically dispatch in-app notifications and SendGrid emails to candidates.
+| Method | Endpoint Path | Summary & Purpose | Auth Role | Request Body | Path/Query Params | Status Codes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/api/auth/register` | Candidate self-registration | **Public** | `RegisterRequest` | None | `201`, `422` |
+| `POST` | `/api/auth/login` | User login | **Public** | `LoginRequest` | None | `200`, `422` |
+| `GET` | `/api/auth/me` | Get current user profile | **Any Role** | None | None | `200` |
+| `PUT` | `/api/auth/me` | Update current user profile | **Any Role** | `UserUpdateMeRequest` | None | `200`, `422` |
+| `POST` | `/api/auth/send-otp` | Request OTP for phone login | **Public** | `SendOTPRequest` | None | `200`, `422` |
+| `POST` | `/api/auth/verify-otp` | Verify OTP and login | **Public** | `VerifyOTPRequest` | None | `200`, `422` |
+| `POST` | `/api/auth/resend-otp` | Resend OTP | **Public** | `SendOTPRequest` | None | `200`, `422` |
+| `POST` | `/api/auth/forgot-password` | Request password reset | **Public** | `ForgotPasswordRequest` | None | `200`, `422` |
+| `POST` | `/api/auth/reset-password` | Reset password with token | **Public** | `ResetPasswordRequest` | None | `200`, `422` |
+| `POST` | `/api/auth/logout` | User logout | **Any Role** | None | None | `200` |
+| `POST` | `/api/auth/refresh` | Refresh access token | **Any Role** | None | None | `200` |
 
----
+**QA Testing Verification Checklist for Module:**
+- **Positive Verification**: Execute `POST /api/auth/register` with valid credentials for `Public` role. Verify HTTP status `201`.
+- **RBAC Security Guard**: Attempt request without `Authorization` header -> Verify `401 Unauthorized`. Attempt with non-permitted role -> Verify `403 Forbidden`.
+- **Validation Gate**: Submit invalid/empty JSON payload -> Verify `422 Unprocessable Entity` with field error breakdown.
 
-### Module 9: System Administration & Platform Governance
+### 2. User Management (6 Endpoints)
+*User administrative operations, recruiter directory queries, user profile updates, and platform statistics.*
 
-#### 9.1 Relational Cascade Deletion Engine
-To prevent orphaned foreign key records in relational databases, SkillAlign implements an 8-table transactional cascade deletion engine (`user_service.delete_user`):
+| Method | Endpoint Path | Summary & Purpose | Auth Role | Request Body | Path/Query Params | Status Codes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/api/users` | Create HR or Recruiter user | **Authenticated** | `UserCreate` | None | `201`, `422` |
+| `GET` | `/api/users` | List all users | **Authenticated** | None | `role_id` (string, query, Optional) | `200`, `422` |
+| `GET` | `/api/users/stats` | Admin dashboard statistics | **Authenticated** | None | None | `200` |
+| `GET` | `/api/users/recruiters` | List active recruiters (HR & Admin) | **Authenticated** | None | None | `200` |
+| `GET` | `/api/users/{user_id}` | Get user by ID | **Authenticated** | None | `user_id` (integer, path, Required) | `200`, `422` |
+| `PUT` | `/api/users/{user_id}` | Update user | **Authenticated** | `UserUpdate` | `user_id` (integer, path, Required) | `200`, `422` |
 
-```mermaid
-graph TD
-    UserDelete["Admin Triggers User Deletion (ID: X)"]
-    RootCheck{"Is Admin or Self-Delete?"}
-    UserDelete --> RootCheck
-    RootCheck -- Yes --> Reject["HTTP 403 Forbidden: Protected Account"]
-    RootCheck -- No --> CheckRole{"Determine User Role"}
+**QA Testing Verification Checklist for Module:**
+- **Positive Verification**: Execute `POST /api/users` with valid credentials for `Authenticated` role. Verify HTTP status `201`.
+- **RBAC Security Guard**: Attempt request without `Authorization` header -> Verify `401 Unauthorized`. Attempt with non-permitted role -> Verify `403 Forbidden`.
+- **Validation Gate**: Submit invalid/empty JSON payload -> Verify `422 Unprocessable Entity` with field error breakdown.
 
-    CheckRole -- Candidate --> DelCand["1. Delete Interviews & Scorecards<br/>2. Delete MatchResults<br/>3. Delete CandidateSkills<br/>4. Delete Candidate Profile"]
-    CheckRole -- Recruiter --> DelRec["1. Delete Job Interviews & Scorecards<br/>2. Delete Job MatchResults<br/>3. Delete JobSkills<br/>4. Delete Jobs Created"]
-    CheckRole -- HR --> DelHR["1. Delete Scorecards Authored<br/>2. Delete Interviews Scheduled"]
+### 3. Master Skill Taxonomy (5 Endpoints)
+*Administrator-curated canonical master skill taxonomy ensuring consistent skill naming across candidate profiles and job requisitions.*
 
-    DelCand --> CommonPurge["5. Delete User Notifications<br/>6. Delete User OTP Verification Logs<br/>7. Delete User Record from DB"]
-    DelRec --> CommonPurge
-    DelHR --> CommonPurge
-    CommonPurge --> CommitTx["Commit Transaction & Return 200 OK"]
-```
+| Method | Endpoint Path | Summary & Purpose | Auth Role | Request Body | Path/Query Params | Status Codes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/api/skills` | Create skill (Admin only) | **Admin** | `SkillCreate` | None | `201`, `422` |
+| `GET` | `/api/skills` | List all skills (All authenticated roles) | **Any Role** | None | `category` (string, query, Optional) | `200`, `422` |
+| `GET` | `/api/skills/{skill_id}` | Get skill by ID (All authenticated roles) | **Any Role** | None | `skill_id` (integer, path, Required) | `200`, `422` |
+| `PUT` | `/api/skills/{skill_id}` | Update skill (Admin only) | **Admin** | `SkillUpdate` | `skill_id` (integer, path, Required) | `200`, `422` |
+| `DELETE` | `/api/skills/{skill_id}` | Delete skill (Admin only) | **Admin** | None | `skill_id` (integer, path, Required) | `204`, `422` |
 
-#### 9.2 Functional Requirements
-- **FR-ADM-001 (Paginated Directory)**: Endpoint `GET /api/admin/users` returns paginated users with server-side search (`search`), role filtering (`role`), and status filtering (`status`).
-- **FR-ADM-002 (Extended User Inspection)**: Endpoint `GET /api/admin/users/{id}/detail` returns deep profile telemetry including candidate resume status, S3 storage keys, parsed structured JSON, declared skills, and recruiter jobs.
-- **FR-ADM-003 (Status Toggle)**: Endpoint `PATCH /api/admin/users/{id}/toggle-status` toggles `is_active` state (activating or deactivating account access immediately).
-- **FR-ADM-004 (Privileged Account Provisioning)**: Endpoint `POST /api/users` allows Administrators to provision new HR (`role_id: 2`) or Recruiter (`role_id: 3`) accounts with Pydantic validation (strong password requirement: min 8 characters, 1 uppercase, 1 lowercase, 1 digit).
-- **FR-ADM-005 (Cascade User Deletion)**: Endpoint `DELETE /api/admin/users/{id}` executes the transactional multi-model cascade deletion engine.
-- **FR-ADM-006 (Root Protection Rule)**: Administrator accounts and self-deletion requests are strictly forbidden (`HTTP 403 Forbidden`).
-- **FR-ADM-007 (Dashboard Analytics Telemetry)**: Endpoint `GET /api/users/stats` returns aggregated platform statistics (total users, active users, HR count, recruiter count, candidate count, and master skill inventory count).
+**QA Testing Verification Checklist for Module:**
+- **Positive Verification**: Execute `POST /api/skills` with valid credentials for `Admin` role. Verify HTTP status `201`.
+- **RBAC Security Guard**: Attempt request without `Authorization` header -> Verify `401 Unauthorized`. Attempt with non-permitted role -> Verify `403 Forbidden`.
+- **Validation Gate**: Submit invalid/empty JSON payload -> Verify `422 Unprocessable Entity` with field error breakdown.
 
----
+### 4. Job Requisitions & Recruiter Assignments (10 Endpoints)
+*HR-owned job authoring, skill weighting, experience thresholds, salary bands, and multi-role recruiter team assignments.*
 
-## 5. Complete Relational Database Schema & Entity Models
+| Method | Endpoint Path | Summary & Purpose | Auth Role | Request Body | Path/Query Params | Status Codes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/api/jobs` | Create a new job requisition (HR / Admin only) | **HR / Admin** | `JobCreate` | None | `201`, `422` |
+| `GET` | `/api/jobs` | List jobs | **Any Role** | None | `status` (string, query, Optional)<br>`my_jobs_only` (boolean, query, Optional) | `200`, `422` |
+| `GET` | `/api/jobs/pipeline-summary` | Get pipeline candidate summaries for all jobs | **Any Role** | None | None | `200` |
+| `GET` | `/api/jobs/{job_id}` | Get job by ID | **Any Role** | None | `job_id` (integer, path, Required) | `200`, `422` |
+| `PUT` | `/api/jobs/{job_id}` | Update job requisition (HR / Admin only) | **HR / Admin** | `JobUpdate` | `job_id` (integer, path, Required) | `200`, `422` |
+| `DELETE` | `/api/jobs/{job_id}` | Delete a job requisition (HR / Admin only) | **HR / Admin** | None | `job_id` (integer, path, Required) | `204`, `422` |
+| `POST` | `/api/jobs/{job_id}/recruiters` | Assign a recruiter to a job (HR / Admin only) | **HR / Admin** | `JobRecruiterAssignmentIn` | `job_id` (integer, path, Required) | `201`, `422` |
+| `GET` | `/api/jobs/{job_id}/recruiters` | List recruiters assigned to a job requisition | **Any Role** | None | `job_id` (integer, path, Required) | `200`, `422` |
+| `DELETE` | `/api/jobs/{job_id}/recruiters/{recruiter_id}` | Remove a recruiter from a job (HR / Admin only) | **HR / Admin** | None | `job_id` (integer, path, Required)<br>`recruiter_id` (integer, path, Required) | `204`, `422` |
+| `PATCH` | `/api/jobs/{job_id}/recruiters/{recruiter_id}` | Update a recruiter's role on a job (HR / Admin only) | **HR / Admin** | `JobRecruiterUpdateRole` | `job_id` (integer, path, Required)<br>`recruiter_id` (integer, path, Required) | `200`, `422` |
 
-```mermaid
-erDiagram
-    Role ||--o{ User : "classifies"
-    User ||--o| Candidate : "has profile"
-    User ||--o{ Job : "creates (Recruiter)"
-    User ||--o{ Interview : "schedules (HR)"
-    User ||--o{ CandidateScorecard : "reviews"
-    User ||--o{ Notification : "receives"
-    
-    Candidate ||--o{ CandidateSkill : "declares"
-    Candidate ||--o{ MatchResult : "evaluated in"
-    Skill ||--o{ CandidateSkill : "referenced in"
-    Skill ||--o{ JobSkill : "required in"
-    
-    Job ||--o{ JobSkill : "specifies"
-    Job ||--o{ MatchResult : "matched against"
-    
-    MatchResult ||--o{ Interview : "results in"
-    MatchResult ||--o{ CandidateScorecard : "graded in"
-```
+**QA Testing Verification Checklist for Module:**
+- **Positive Verification**: Execute `POST /api/jobs` with valid credentials for `HR / Admin` role. Verify HTTP status `201`.
+- **RBAC Security Guard**: Attempt request without `Authorization` header -> Verify `401 Unauthorized`. Attempt with non-permitted role -> Verify `403 Forbidden`.
+- **Validation Gate**: Submit invalid/empty JSON payload -> Verify `422 Unprocessable Entity` with field error breakdown.
 
-### Table 1: `roles`
-Stores core system security roles for Role-Based Access Control.
-- `id` (Integer, Primary Key, Autoincrement)
-- `name` (String(50), Unique, Not Null) — Values: `Admin`, `HR`, `Recruiter`, `Candidate`
+### 5. Candidate Profiles (9 Endpoints)
+*Candidate profile self-management, declared skills with proficiency levels, and recruiter candidate profile lookups.*
 
-### Table 2: `users`
-Central user credential and authorization table.
-- `id` (Integer, Primary Key, Autoincrement)
-- `name` (String(100), Not Null)
-- `email` (String(255), Unique, Nullable, Indexed)
-- `password_hash` (String(255), Nullable)
-- `phone_number` (String(20), Unique, Nullable, Indexed) — Standardized E.164
-- `role_id` (Integer, Foreign Key -> `roles.id`, Not Null)
-- `is_active` (Boolean, Default: True, Not Null)
-- `created_at` (DateTime with Timezone, Default: UTC Now)
-- `updated_at` (DateTime with Timezone, Default: UTC Now, onupdate: UTC Now)
+| Method | Endpoint Path | Summary & Purpose | Auth Role | Request Body | Path/Query Params | Status Codes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/api/candidates/me` | Get own candidate profile | **Candidate** | None | None | `200` |
+| `PUT` | `/api/candidates/me` | Update candidate profile | **Candidate** | `CandidateProfileUpdate` | None | `200`, `422` |
+| `POST` | `/api/candidates/me` | Create candidate profile | **Candidate** | `CandidateProfileCreate` | None | `201`, `422` |
+| `GET` | `/api/candidates/me/pipeline` | Get candidate's job matches and pipeline statuses | **Candidate** | None | None | `200` |
+| `GET` | `/api/candidates/me/hiring` | Get candidate hiring details, journey timeline, and onboarding status | **Candidate** | None | None | `200` |
+| `POST` | `/api/candidates/me/skills` | Add skill to profile | **Candidate** | `CandidateSkillIn` | None | `201`, `422` |
+| `PUT` | `/api/candidates/me/skills/{skill_id}` | Update skill proficiency or years | **Candidate** | `CandidateSkillUpdate` | `skill_id` (integer, path, Required) | `200`, `422` |
+| `DELETE` | `/api/candidates/me/skills/{skill_id}` | Remove skill from profile | **Candidate** | None | `skill_id` (integer, path, Required) | `200`, `422` |
+| `GET` | `/api/candidates/{candidate_id}` | View candidate profile by ID (HR & Recruiter) | **HR / Recruiter** | None | `candidate_id` (integer, path, Required) | `200`, `422` |
 
-### Table 3: `candidates`
-Extended candidate profile, career preferences, and resume storage pointers.
-- `id` (Integer, Primary Key, Autoincrement)
-- `user_id` (Integer, Foreign Key -> `users.id`, Unique, Not Null)
-- `full_name` (String(100), Not Null)
-- `phone` (String(20), Nullable)
-- `resume_file_path` (String(500), Nullable) — Legacy/Local path fallback
-- `resume_s3_key` (String(500), Nullable) — AWS S3 key for original resume
-- `resume_extracted_text_s3_key` (String(500), Nullable) — AWS S3 key for extracted `.txt`
-- `resume_filename` (String(255), Nullable) — Original filename
-- `resume_uploaded_at` (DateTime with Timezone, Nullable)
-- `resume_parsed_at` (DateTime with Timezone, Nullable)
-- `resume_raw_text` (Text, Nullable) — Cached raw text extracted from document
-- `extracted_data` (Text, Nullable) — Serialized JSON of structured extraction
-- `education_degree` (String(100), Nullable)
-- `education_institution` (String(200), Nullable)
-- `total_experience_years` (Numeric(4,1), Default: 0.0, Not Null)
-- `address` (Text, Nullable)
-- `city` (String(100), Nullable)
-- `state` (String(100), Nullable)
-- `pincode` (String(20), Nullable)
-- `country` (String(100), Default: "India")
-- `work_authorization` (String(100), Default: "Indian Citizen")
-- `preferred_work_mode` (String(20), Default: "Hybrid") — `WFH`, `WFO`, `Hybrid`
-- `notice_period` (String(50), Default: "30 Days")
-- `current_ctc` (Numeric(12,2), Nullable)
-- `expected_ctc` (Numeric(12,2), Nullable)
-- `created_at` (DateTime with Timezone, Default: UTC Now)
-- `updated_at` (DateTime with Timezone, Default: UTC Now, onupdate: UTC Now)
+**QA Testing Verification Checklist for Module:**
+- **Positive Verification**: Execute `GET /api/candidates/me` with valid credentials for `Candidate` role. Verify HTTP status `200`.
+- **RBAC Security Guard**: Attempt request without `Authorization` header -> Verify `401 Unauthorized`. Attempt with non-permitted role -> Verify `403 Forbidden`.
+- **Validation Gate**: Submit invalid/empty JSON payload -> Verify `422 Unprocessable Entity` with field error breakdown.
 
-### Table 4: `skills`
-Master canonical skill catalog managed by Administrators.
-- `id` (Integer, Primary Key, Autoincrement)
-- `name` (String(100), Unique, Not Null, Indexed)
-- `category` (String(100), Not Null, Indexed) — e.g. Frontend, Backend, Cloud
-- `created_at` (DateTime with Timezone, Default: UTC Now)
+### 6. Resume Processing & Extraction (8 Endpoints)
+*Asynchronous multi-format resume ingestion (PDF/DOCX/TXT), plain-text extraction, NLP section detection, and S3 file management.*
 
-### Table 5: `candidate_skills`
-Mapping table linking candidates to skills with declared proficiencies.
-- `id` (Integer, Primary Key, Autoincrement)
-- `candidate_id` (Integer, Foreign Key -> `candidates.id`, Not Null, Indexed)
-- `skill_id` (Integer, Foreign Key -> `skills.id`, Not Null, Indexed)
-- `proficiency_level` (String(20), Not Null) — `Beginner`, `Intermediate`, `Expert`
-- `years_experience` (Numeric(4,1), Default: 0.0, Not Null)
-- `created_at` (DateTime with Timezone, Default: UTC Now)
-- *Constraint*: `Unique(candidate_id, skill_id)`
+| Method | Endpoint Path | Summary & Purpose | Auth Role | Request Body | Path/Query Params | Status Codes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/api/candidates/me/resume` | Upload resume (PDF/DOC/DOCX) | **Candidate / Recruiter** | `Body_upload_resume_api_candidates_me_resume_post` | None | `200`, `422` |
+| `POST` | `/api/candidates/{candidate_id}/resume` | Upload Candidate Resume (PDF, DOCX, TXT) — Async Processing | **Candidate / Recruiter** | `Body_upload_candidate_resume_api_candidates__candidate_id__resume_post` | `candidate_id` (integer, path, Required) | `202`, `422` |
+| `GET` | `/api/candidates/{candidate_id}/resume` | Get Pre-signed S3 URL to View/Download Original Resume | **Candidate / Recruiter** | None | `candidate_id` (integer, path, Required) | `200`, `422` |
+| `DELETE` | `/api/candidates/{candidate_id}/resume` | Delete Candidate Resume & Extracted Documents from Storage | **Candidate / Recruiter** | None | `candidate_id` (integer, path, Required) | `200`, `422` |
+| `GET` | `/api/candidates/{candidate_id}/resume/status` | Get Resume Processing Status | **Candidate / Recruiter** | None | `candidate_id` (integer, path, Required) | `200`, `422` |
+| `GET` | `/api/candidates/{candidate_id}/resume/text` | Get Extracted Plain Text (.txt) of Candidate Resume | **Candidate / Recruiter** | None | `candidate_id` (integer, path, Required) | `200`, `422` |
+| `GET` | `/api/candidates/{candidate_id}/resume/parsed` | Get Structured Parsed Data (Skills, Experience, Education, Certifications) | **Candidate / Recruiter** | None | `candidate_id` (integer, path, Required) | `200`, `422` |
+| `POST` | `/api/candidates/{candidate_id}/resume/reparse` | Reparse Existing Resume Text with Enhanced Deterministic Extractor | **Candidate / Recruiter** | None | `candidate_id` (integer, path, Required) | `200`, `422` |
 
-### Table 6: `jobs`
-Job requisitions created and managed by Technical Recruiters.
-- `id` (Integer, Primary Key, Autoincrement)
-- `title` (String(150), Not Null, Indexed)
-- `description` (Text, Nullable)
-- `department` (String(100), Nullable)
-- `client_name` (String(150), Nullable)
-- `min_experience_years` (Numeric(4,1), Default: 0.0, Not Null)
-- `work_mode` (String(20), Default: "Hybrid") — `WFH`, `WFO`, `Hybrid`
-- `location_city` (String(100), Nullable)
-- `location_state` (String(100), Nullable)
-- `location_country` (String(100), Default: "India")
-- `urgency` (String(20), Default: "Medium")
-- `shift_timing` (String(50), Nullable)
-- `travel_requirements` (String(50), Nullable)
-- `status` (String(20), Default: "active", Not Null) — `draft`, `active`, `closed`
-- `created_by` (Integer, Foreign Key -> `users.id`, Not Null)
-- `created_at` (DateTime with Timezone, Default: UTC Now)
-- `updated_at` (DateTime with Timezone, Default: UTC Now, onupdate: UTC Now)
+**QA Testing Verification Checklist for Module:**
+- **Positive Verification**: Execute `POST /api/candidates/me/resume` with valid credentials for `Candidate / Recruiter` role. Verify HTTP status `200`.
+- **RBAC Security Guard**: Attempt request without `Authorization` header -> Verify `401 Unauthorized`. Attempt with non-permitted role -> Verify `403 Forbidden`.
+- **Validation Gate**: Submit invalid/empty JSON payload -> Verify `422 Unprocessable Entity` with field error breakdown.
 
-### Table 7: `job_skills`
-Mapping table linking required and preferred skills to job requisitions.
-- `id` (Integer, Primary Key, Autoincrement)
-- `job_id` (Integer, Foreign Key -> `jobs.id`, Not Null, Indexed)
-- `skill_id` (Integer, Foreign Key -> `skills.id`, Not Null, Indexed)
-- `requirement_type` (String(20), Default: "required", Not Null) — `required`, `preferred`
-- `weight` (Numeric(3,2), Default: 1.0, Not Null)
-- `created_at` (DateTime with Timezone, Default: UTC Now)
-- *Constraint*: `Unique(job_id, skill_id)`
+### 7. Deterministic Matching Engine (10 Endpoints)
+*Rule-based candidate-to-job matching engine computing deterministic Fit Scores (0–100) and optional Gemini AI candidate narrative analysis.*
 
-### Table 8: `match_results`
-Calculated alignment scores and pipeline progression records.
-- `id` (Integer, Primary Key, Autoincrement)
-- `job_id` (Integer, Foreign Key -> `jobs.id`, Not Null, Indexed)
-- `candidate_id` (Integer, Foreign Key -> `candidates.id`, Not Null, Indexed)
-- `recruiter_id` (Integer, Foreign Key -> `users.id`, Nullable)
-- `matched_by` (Integer, Foreign Key -> `users.id`, Nullable)
-- `overall_score` (Numeric(5,2), Not Null) — `0.0` to `100.0`
-- `status` (String(30), Default: "matched", Not Null, Indexed) — Pipeline status
-- `created_at` (DateTime with Timezone, Default: UTC Now)
-- `updated_at` (DateTime with Timezone, Default: UTC Now, onupdate: UTC Now)
-- *Constraint*: `Unique(job_id, candidate_id)`
+| Method | Endpoint Path | Summary & Purpose | Auth Role | Request Body | Path/Query Params | Status Codes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/api/matching/jobs/{job_id}/run` | Queue matching engine for a job (Recruiter/HR/Admin) | **Authenticated** | None | `job_id` (integer, path, Required)<br>`sync` (boolean, query, Optional) | `202`, `422` |
+| `GET` | `/api/matching/jobs/{job_id}/status` | Get matching processing status for a job (Recruiter/HR/Admin) | **Authenticated** | None | `job_id` (integer, path, Required) | `200`, `422` |
+| `GET` | `/api/matching/jobs/{job_id}` | Get ranked match results for a job (HR & Recruiter) | **Authenticated** | None | `job_id` (integer, path, Required)<br>`status` (string, query, Optional) | `200`, `422` |
+| `GET` | `/api/matching/screened` | List screened candidates ready for HR approval (HR) | **Authenticated** | None | `job_id` (string, query, Optional) | `200`, `422` |
+| `PATCH` | `/api/matching/{match_id}/status` | Update candidate pipeline status (Role-enforced) | **Authenticated** | `MatchStatusUpdate` | `match_id` (integer, path, Required) | `200`, `422` |
+| `GET` | `/api/matching/shortlists` | List active pipeline candidates (Recruiter & HR) | **Authenticated** | None | `job_id` (string, query, Optional) | `200`, `422` |
+| `POST` | `/api/matching/{match_id}/scorecard` | Add feedback scorecard for a candidate (HR & Recruiter) | **Authenticated** | `ScorecardCreate` | `match_id` (integer, path, Required) | `201`, `422` |
+| `GET` | `/api/matching/{match_id}/scorecards` | Get all scorecards for a match result (HR & Recruiter) | **Authenticated** | None | `match_id` (integer, path, Required) | `200`, `422` |
+| `GET` | `/api/matching/{match_id}/ai-analysis` | Get Gemini AI candidate fit analysis & tailored interview questions (HR & Recruiter) | **Authenticated** | None | `match_id` (integer, path, Required) | `200`, `422` |
+| `GET` | `/api/matching/jobs/{job_id}/shortlist-candidates` | Get ranked candidates for shortlisting with filters (Recruiter/HR) | **Authenticated** | None | `job_id` (integer, path, Required)<br>`min_score` (number, query, Optional)<br>`top_n` (string, query, Optional)<br>`exclude_blacklisted` (boolean, query, Optional) | `200`, `422` |
 
-### Table 9: `interviews`
-Scheduled candidate interviews coordinated by HR.
-- `id` (Integer, Primary Key, Autoincrement)
-- `match_result_id` (Integer, Foreign Key -> `match_results.id`, Not Null, Indexed)
-- `scheduled_by` (Integer, Foreign Key -> `users.id`, Not Null) — HR User ID
-- `interview_date` (DateTime with Timezone, Not Null)
-- `interview_type` (String(50), Not Null) — Technical, HR, Cultural, Screening
-- `meeting_link` (String(500), Nullable) — Google Meet / Zoom link
-- `interview_mode` (String(20), Default: "online") — `online`, `in-person`, `phone`
-- `scheduled_end` (DateTime with Timezone, Nullable)
-- `feedback` (Text, Nullable)
-- `status` (String(20), Default: "scheduled", Not Null) — `scheduled`, `completed`, `cancelled`
-- `created_at` (DateTime with Timezone, Default: UTC Now)
-- `updated_at` (DateTime with Timezone, Default: UTC Now, onupdate: UTC Now)
+**QA Testing Verification Checklist for Module:**
+- **Positive Verification**: Execute `POST /api/matching/jobs/{job_id}/run` with valid credentials for `Authenticated` role. Verify HTTP status `202`.
+- **RBAC Security Guard**: Attempt request without `Authorization` header -> Verify `401 Unauthorized`. Attempt with non-permitted role -> Verify `403 Forbidden`.
+- **Validation Gate**: Submit invalid/empty JSON payload -> Verify `422 Unprocessable Entity` with field error breakdown.
 
-### Table 10: `candidate_scorecards`
-Multi-rater feedback scorecards submitted by HR and Recruiters.
-- `id` (Integer, Primary Key, Autoincrement)
-- `match_result_id` (Integer, Foreign Key -> `match_results.id`, Not Null, Indexed)
-- `reviewer_id` (Integer, Foreign Key -> `users.id`, Not Null)
-- `communication_score` (Integer, Not Null) — 1 to 10
-- `technical_score` (Integer, Not Null) — 1 to 10
-- `cultural_score` (Integer, Not Null) — 1 to 10
-- `notes` (Text, Nullable)
-- `recommendation` (String(30), Default: "hire") — `strong_hire`, `hire`, `neutral`, `do_not_hire`
-- `created_at` (DateTime with Timezone, Default: UTC Now)
+### 8. Match Results & Pipeline State (3 Endpoints)
+*Match outcome records, screened candidate queries, and initial pipeline qualification state transitions.*
 
-### Table 11: `notifications`
-In-app candidate and stakeholder alerts.
-- `id` (Integer, Primary Key, Autoincrement)
-- `user_id` (Integer, Foreign Key -> `users.id`, Not Null, Indexed)
-- `channel` (String(20), Default: "email", Not Null)
-- `subject` (String(200), Not Null)
-- `body` (Text, Not Null)
-- `status` (String(20), Default: "sent", Not Null) — `sent`, `read`
-- `created_at` (DateTime with Timezone, Default: UTC Now)
+| Method | Endpoint Path | Summary & Purpose | Auth Role | Request Body | Path/Query Params | Status Codes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/api/match_results/screened` | List screened candidates for HR | **Authenticated** | None | `job_id` (string, query, Optional) | `200`, `422` |
+| `GET` | `/api/match_results/{match_id}` | Get match result by ID | **Authenticated** | None | `match_id` (integer, path, Required) | `200`, `422` |
+| `PATCH` | `/api/match_results/{match_id}/status` | Update candidate pipeline status (Role-checked) | **Authenticated** | `MatchStatusUpdate` | `match_id` (integer, path, Required) | `200`, `422` |
 
-### Table 12: `otp_verifications`
-Ephemeral mobile authentication and rate-limiting audit records.
-- `id` (Integer, Primary Key, Autoincrement)
-- `phone_number` (String(20), Not Null, Indexed)
-- `otp_code` (String(6), Not Null)
-- `expires_at` (DateTime with Timezone, Not Null)
-- `is_verified` (Boolean, Default: False, Not Null)
-- `attempts` (Integer, Default: 0, Not Null)
-- `created_at` (DateTime with Timezone, Default: UTC Now)
+**QA Testing Verification Checklist for Module:**
+- **Positive Verification**: Execute `GET /api/match_results/screened` with valid credentials for `Authenticated` role. Verify HTTP status `200`.
+- **RBAC Security Guard**: Attempt request without `Authorization` header -> Verify `401 Unauthorized`. Attempt with non-permitted role -> Verify `403 Forbidden`.
+- **Validation Gate**: Submit invalid/empty JSON payload -> Verify `422 Unprocessable Entity` with field error breakdown.
 
----
+### 9. Recruiter Operations & Workspace (5 Endpoints)
+*Recruiter dashboard metrics, candidate review queues for assigned jobs, and candidate scorecard inspection.*
 
-## 6. Complete REST API Specifications
+| Method | Endpoint Path | Summary & Purpose | Auth Role | Request Body | Path/Query Params | Status Codes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/api/recruiter/dashboard-stats` | Get recruiter dashboard overview metrics | **Recruiter** | None | None | `200` |
+| `GET` | `/api/recruiter/jobs` | List all jobs actively assigned to the current recruiter | **Recruiter** | None | None | `200` |
+| `GET` | `/api/recruiter/jobs/{job_id}/candidates` | Get candidate match results for a specific assigned job | **Recruiter** | None | `job_id` (integer, path, Required)<br>`search` (string, query, Optional)<br>`min_score` (string, query, Optional)<br>`status` (string, query, Optional)<br>`assigned_to_me` (string, query, Optional)<br>`assignment_status` (string, query, Optional)<br>`page` (integer, query, Optional)<br>`page_size` (integer, query, Optional) | `200`, `422` |
+| `GET` | `/api/recruiter/candidates` | Global candidate search across all assigned jobs for the recruiter | **Recruiter** | None | `job_id` (string, query, Optional)<br>`search` (string, query, Optional)<br>`min_score` (string, query, Optional)<br>`status` (string, query, Optional)<br>`assigned_to_me` (string, query, Optional)<br>`assignment_status` (string, query, Optional)<br>`page` (integer, query, Optional)<br>`page_size` (integer, query, Optional) | `200`, `422` |
+| `GET` | `/api/recruiter/jobs/{job_id}/candidates/{candidate_id}` | Get full candidate review profile and match breakdown for a job | **Recruiter** | None | `job_id` (integer, path, Required)<br>`candidate_id` (integer, path, Required) | `200`, `422` |
 
-The SkillAlign backend exposes 59 REST API endpoints organized across 11 functional routers:
+**QA Testing Verification Checklist for Module:**
+- **Positive Verification**: Execute `GET /api/recruiter/dashboard-stats` with valid credentials for `Recruiter` role. Verify HTTP status `200`.
+- **RBAC Security Guard**: Attempt request without `Authorization` header -> Verify `401 Unauthorized`. Attempt with non-permitted role -> Verify `403 Forbidden`.
+- **Validation Gate**: Submit invalid/empty JSON payload -> Verify `422 Unprocessable Entity` with field error breakdown.
 
-### 6.1 Authentication Router (`/api/auth`)
-| Method | Endpoint Path | Summary | Auth Required | Status Code |
-| :--- | :--- | :--- | :---: | :---: |
-| `POST` | `/api/auth/register` | Candidate self-registration | Public | `201 Created` |
-| `POST` | `/api/auth/login` | Email/Password credential login | Public | `200 OK` |
-| `GET` | `/api/auth/me` | Fetch currently authenticated user profile | Bearer Token | `200 OK` |
-| `PUT` | `/api/auth/me` | Update personal profile details | Bearer Token | `200 OK` |
-| `POST` | `/api/auth/send-otp` | Request phone OTP via Twilio SMS | Public (Rate Limited) | `200 OK` |
-| `POST` | `/api/auth/verify-otp` | Verify OTP and authenticate/provision | Public (Rate Limited) | `200 OK` |
-| `POST` | `/api/auth/resend-otp` | Resend phone OTP (subject to 60s cooldown) | Public (Rate Limited) | `200 OK` |
+### 10. Candidate Claiming (Atomic Locks) (6 Endpoints)
+*Race-condition-safe candidate claiming using database-level SELECT FOR UPDATE row locking to prevent concurrent recruiter collisions.*
 
-### 6.2 Candidate Router (`/api/candidates`)
-| Method | Endpoint Path | Summary | Auth Required | Status Code |
-| :--- | :--- | :--- | :---: | :---: |
-| `GET` | `/api/candidates/me` | Fetch own candidate profile | Candidate | `200 OK` |
-| `POST` | `/api/candidates/me` | Create candidate profile | Candidate | `201 Created` |
-| `PUT` | `/api/candidates/me` | Update candidate profile | Candidate | `200 OK` |
-| `GET` | `/api/candidates/me/pipeline` | Fetch candidate's matched jobs & stages | Candidate | `200 OK` |
-| `POST` | `/api/candidates/me/skills` | Add skill with proficiency & tenure | Candidate | `201 Created` |
-| `PUT` | `/api/candidates/me/skills/{id}` | Update skill proficiency or tenure | Candidate | `200 OK` |
-| `DELETE` | `/api/candidates/me/skills/{id}` | Remove skill from profile | Candidate | `200 OK` |
-| `GET` | `/api/candidates/{id}` | View candidate profile by ID | HR / Recruiter | `200 OK` |
+| Method | Endpoint Path | Summary & Purpose | Auth Role | Request Body | Path/Query Params | Status Codes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/api/recruiter/jobs/{job_id}/candidates/{candidate_id}/claim` | Claim candidate for screening ('Assign to Me') | **Recruiter / Admin** | None | `job_id` (integer, path, Required)<br>`candidate_id` (integer, path, Required) | `200`, `422` |
+| `POST` | `/api/recruiter/jobs/{job_id}/candidates/{candidate_id}/assign` | Assign candidate to a recruiter (HR or Primary Recruiter) | **Recruiter / Admin** | `CandidateRecruiterAssignmentIn` | `job_id` (integer, path, Required)<br>`candidate_id` (integer, path, Required) | `200`, `422` |
+| `DELETE` | `/api/recruiter/jobs/{job_id}/candidates/{candidate_id}/assignment` | Unassign candidate from current recruiter | **Recruiter / Admin** | None | `job_id` (integer, path, Required)<br>`candidate_id` (integer, path, Required) | `204`, `422` |
+| `POST` | `/api/jobs/{job_id}/candidates/{candidate_id}/claim` | Claim candidate for screening ('Assign to Me') | **Recruiter / Admin** | None | `job_id` (integer, path, Required)<br>`candidate_id` (integer, path, Required) | `200`, `422` |
+| `POST` | `/api/jobs/{job_id}/candidates/{candidate_id}/assign` | Assign candidate to a recruiter (HR or Primary Recruiter) | **Recruiter / Admin** | `CandidateRecruiterAssignmentIn` | `job_id` (integer, path, Required)<br>`candidate_id` (integer, path, Required) | `200`, `422` |
+| `DELETE` | `/api/jobs/{job_id}/candidates/{candidate_id}/assignment` | Unassign candidate from current recruiter | **Recruiter / Admin** | None | `job_id` (integer, path, Required)<br>`candidate_id` (integer, path, Required) | `204`, `422` |
 
-### 6.3 Resume Management Router (`/api/candidates/{id}/resume`)
-| Method | Endpoint Path | Summary | Auth Required | Status Code |
-| :--- | :--- | :--- | :---: | :---: |
-| `POST` | `/api/candidates/{id}/resume` | Upload resume (PDF/DOCX/TXT) & run parser | Candidate / Admin | `201 Created` |
-| `GET` | `/api/candidates/{id}/resume` | Get secure 5-min pre-signed S3 download URL | Owner / HR / Rec / Admin | `200 OK` |
-| `GET` | `/api/candidates/{id}/resume/text` | Get extracted readable plain text (.txt) | Owner / HR / Rec / Admin | `200 OK` |
-| `GET` | `/api/candidates/{id}/resume/parsed`| Get structured parsed JSON data | Owner / HR / Rec / Admin | `200 OK` |
-| `DELETE` | `/api/candidates/{id}/resume` | Purge resume files from S3 and reset DB | Candidate / Admin | `200 OK` |
+**QA Testing Verification Checklist for Module:**
+- **Positive Verification**: Execute `POST /api/recruiter/jobs/{job_id}/candidates/{candidate_id}/claim` with valid credentials for `Recruiter / Admin` role. Verify HTTP status `200`.
+- **RBAC Security Guard**: Attempt request without `Authorization` header -> Verify `401 Unauthorized`. Attempt with non-permitted role -> Verify `403 Forbidden`.
+- **Validation Gate**: Submit invalid/empty JSON payload -> Verify `422 Unprocessable Entity` with field error breakdown.
 
-### 6.4 Skills Router (`/api/skills`)
-| Method | Endpoint Path | Summary | Auth Required | Status Code |
-| :--- | :--- | :--- | :---: | :---: |
-| `POST` | `/api/skills` | Add canonical skill to master catalog | Admin | `201 Created` |
-| `GET` | `/api/skills` | List all skills (optional category filter) | Authenticated | `200 OK` |
-| `GET` | `/api/skills/{id}` | Get skill details by ID | Authenticated | `200 OK` |
-| `PUT` | `/api/skills/{id}` | Update skill name or category | Admin | `200 OK` |
-| `DELETE` | `/api/skills/{id}` | Delete skill from master catalog | Admin | `204 No Content` |
+### 11. Recruitment Tasks (4 Endpoints)
+*Collaborative HR-to-Recruiter task assignment with priority levels, due dates, and completion status tracking.*
 
-### 6.5 Jobs Router (`/api/jobs`)
-| Method | Endpoint Path | Summary | Auth Required | Status Code |
-| :--- | :--- | :--- | :---: | :---: |
-| `POST` | `/api/jobs` | Create job requisition with skill weights | Recruiter | `201 Created` |
-| `GET` | `/api/jobs` | List job requisitions (status/owner filters) | Authenticated | `200 OK` |
-| `GET` | `/api/jobs/{id}` | Get job details with skill requirements | Authenticated | `200 OK` |
-| `PUT` | `/api/jobs/{id}` | Update owned job requisition | Recruiter | `200 OK` |
-| `DELETE` | `/api/jobs/{id}` | Delete owned job requisition & cascades | Recruiter | `204 No Content` |
+| Method | Endpoint Path | Summary & Purpose | Auth Role | Request Body | Path/Query Params | Status Codes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/api/recruiter/tasks` | List all recruitment tasks assigned to current recruiter | **Authenticated** | None | `status` (string, query, Optional) | `200`, `422` |
+| `GET` | `/api/jobs/{job_id}/tasks` | List tasks associated with a job requisition or candidate | **Authenticated** | None | `job_id` (integer, path, Required)<br>`candidate_id` (string, query, Optional) | `200`, `422` |
+| `POST` | `/api/jobs/{job_id}/tasks` | Create a recruitment task for an assigned recruiter (HR / Admin) | **Authenticated** | `RecruitmentTaskCreate` | `job_id` (integer, path, Required)<br>`candidate_id` (string, query, Optional) | `201`, `422` |
+| `PATCH` | `/api/tasks/{task_id}` | Update recruitment task status or notes | **Authenticated** | `RecruitmentTaskUpdate` | `task_id` (integer, path, Required) | `200`, `422` |
 
-### 6.6 Matching Engine Router (`/api/matching`)
-| Method | Endpoint Path | Summary | Auth Required | Status Code |
-| :--- | :--- | :--- | :---: | :---: |
-| `POST` | `/api/matching/jobs/{id}/run` | Execute deterministic match algorithm | Recruiter / HR / Admin | `200 OK` |
-| `GET` | `/api/matching/jobs/{id}` | Get ranked candidate matches for job | HR / Recruiter | `200 OK` |
-| `GET` | `/api/matching/screened` | List candidates screened by recruiters | HR / Admin | `200 OK` |
-| `PATCH` | `/api/matching/{id}/status` | Update candidate pipeline stage | Role-Enforced | `200 OK` |
-| `GET` | `/api/matching/shortlists` | List active pipeline talent across jobs | HR / Recruiter | `200 OK` |
-| `POST` | `/api/matching/{id}/scorecard` | Submit multi-criteria evaluation scorecard | HR / Recruiter | `201 Created` |
-| `GET` | `/api/matching/{id}/scorecards` | Get all feedback scorecards for match | HR / Recruiter | `200 OK` |
-| `GET` | `/api/matching/{id}/ai-analysis`| Get Gemini AI fit analysis & questions | HR / Recruiter | `200 OK` |
+**QA Testing Verification Checklist for Module:**
+- **Positive Verification**: Execute `GET /api/recruiter/tasks` with valid credentials for `Authenticated` role. Verify HTTP status `200`.
+- **RBAC Security Guard**: Attempt request without `Authorization` header -> Verify `401 Unauthorized`. Attempt with non-permitted role -> Verify `403 Forbidden`.
+- **Validation Gate**: Submit invalid/empty JSON payload -> Verify `422 Unprocessable Entity` with field error breakdown.
 
-### 6.7 Match Results Router (`/api/match_results`)
-| Method | Endpoint Path | Summary | Auth Required | Status Code |
-| :--- | :--- | :--- | :---: | :---: |
-| `GET` | `/api/match_results/screened` | List screened candidates for HR review | HR / Admin | `200 OK` |
-| `GET` | `/api/match_results/{id}` | Get single match result by ID | HR / Recruiter | `200 OK` |
-| `PATCH` | `/api/match_results/{id}/status` | Update candidate status (role checked) | Role-Enforced | `200 OK` |
+### 12. Recruitment Communication (4 Endpoints)
+*Internal discussion message threads scoped to specific jobs and candidates between Recruiters and Hiring Managers.*
 
-### 6.8 Interviews Router (`/api/interviews`)
-| Method | Endpoint Path | Summary | Auth Required | Status Code |
-| :--- | :--- | :--- | :---: | :---: |
-| `POST` | `/api/interviews` | Schedule interview & dispatch invitation | HR | `201 Created` |
-| `GET` | `/api/interviews` | List scheduled interviews (status filter) | HR / Admin | `200 OK` |
-| `GET` | `/api/interviews/my` | List candidate's scheduled interviews | Candidate | `200 OK` |
-| `GET` | `/api/interviews/{id}` | Get interview session details by ID | Candidate / HR / Admin | `200 OK` |
-| `PATCH` | `/api/interviews/{id}` | Update interview status or feedback | HR | `200 OK` |
+| Method | Endpoint Path | Summary & Purpose | Auth Role | Request Body | Path/Query Params | Status Codes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/api/jobs/{job_id}/messages` | List job-level recruitment collaboration messages | **Authenticated** | None | `job_id` (integer, path, Required) | `200`, `422` |
+| `POST` | `/api/jobs/{job_id}/messages` | Send a job-level recruitment message | **Authenticated** | `RecruitmentMessageCreate` | `job_id` (integer, path, Required) | `201`, `422` |
+| `GET` | `/api/jobs/{job_id}/candidates/{candidate_id}/messages` | List candidate-specific discussion messages for this job requisition | **Authenticated** | None | `job_id` (integer, path, Required)<br>`candidate_id` (integer, path, Required) | `200`, `422` |
+| `POST` | `/api/jobs/{job_id}/candidates/{candidate_id}/messages` | Send a candidate review note or recommendation for this job requisition | **Authenticated** | `RecruitmentMessageCreate` | `job_id` (integer, path, Required)<br>`candidate_id` (integer, path, Required) | `201`, `422` |
 
-### 6.9 Notifications Router (`/api/notifications`)
-| Method | Endpoint Path | Summary | Auth Required | Status Code |
-| :--- | :--- | :--- | :---: | :---: |
-| `POST` | `/api/notifications` | Dispatch notification to target user | HR / Admin | `201 Created` |
-| `GET` | `/api/notifications/my` | Fetch authenticated user's alerts | Authenticated | `200 OK` |
-| `GET` | `/api/notifications` | List all sent platform notifications | HR / Admin | `200 OK` |
+**QA Testing Verification Checklist for Module:**
+- **Positive Verification**: Execute `GET /api/jobs/{job_id}/messages` with valid credentials for `Authenticated` role. Verify HTTP status `200`.
+- **RBAC Security Guard**: Attempt request without `Authorization` header -> Verify `401 Unauthorized`. Attempt with non-permitted role -> Verify `403 Forbidden`.
+- **Validation Gate**: Submit invalid/empty JSON payload -> Verify `422 Unprocessable Entity` with field error breakdown.
 
-### 6.10 Admin Management Router (`/api/admin`)
-| Method | Endpoint Path | Summary | Auth Required | Status Code |
-| :--- | :--- | :--- | :---: | :---: |
-| `GET` | `/api/admin/users` | Paginated user list with search/filters | Admin | `200 OK` |
-| `GET` | `/api/admin/users/{id}/detail` | Extended user telemetry & resume info | Admin | `200 OK` |
-| `PATCH` | `/api/admin/users/{id}/toggle-status` | Toggle user active/deactivated status | Admin | `200 OK` |
-| `DELETE` | `/api/admin/users/{id}` | Cascade permanent delete of user record | Admin | `200 OK` |
+### 13. Interview Coordination (5 Endpoints)
+*Legacy and baseline interview scheduling, meeting link attachment, and candidate interview lookups.*
 
-### 6.11 Users Management Router (`/api/users`)
-| Method | Endpoint Path | Summary | Auth Required | Status Code |
-| :--- | :--- | :--- | :---: | :---: |
-| `POST` | `/api/users` | Provision new HR or Recruiter account | Admin | `201 Created` |
-| `GET` | `/api/users/stats` | Platform aggregate dashboard metrics | Admin | `200 OK` |
-| `GET` | `/api/users` | List all platform users (role filter) | Admin | `200 OK` |
-| `GET` | `/api/users/{id}` | Get single user by ID | Admin | `200 OK` |
-| `PUT` | `/api/users/{id}` | Update user name or active state | Admin | `200 OK` |
+| Method | Endpoint Path | Summary & Purpose | Auth Role | Request Body | Path/Query Params | Status Codes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/api/interviews` | Schedule an interview (HR Only) | **Authenticated** | `InterviewCreate` | None | `201`, `422` |
+| `GET` | `/api/interviews` | List all interviews (HR, Recruiter & Admin) | **Authenticated** | None | `status` (string, query, Optional) | `200`, `422` |
+| `GET` | `/api/interviews/my` | List candidate's scheduled and pending interviews (Candidate) | **Authenticated** | None | None | `200` |
+| `GET` | `/api/interviews/{interview_id}` | Get interview by ID | **Authenticated** | None | `interview_id` (integer, path, Required) | `200`, `422` |
+| `PATCH` | `/api/interviews/{interview_id}` | Update interview status or feedback (HR & Admin) | **Authenticated** | `InterviewUpdate` | `interview_id` (integer, path, Required) | `200`, `422` |
 
----
+**QA Testing Verification Checklist for Module:**
+- **Positive Verification**: Execute `POST /api/interviews` with valid credentials for `Authenticated` role. Verify HTTP status `201`.
+- **RBAC Security Guard**: Attempt request without `Authorization` header -> Verify `401 Unauthorized`. Attempt with non-permitted role -> Verify `403 Forbidden`.
+- **Validation Gate**: Submit invalid/empty JSON payload -> Verify `422 Unprocessable Entity` with field error breakdown.
 
-## 7. Non-Functional Specifications (NFRs)
+### 14. 21-Stage Workflow Engine (24 Endpoints)
+*Strictly enforced state machine orchestrating candidate shortlisting, HM review, multi-slot proposing, token selection, feedback, and offer advances.*
 
-### 7.1 Security & Compliance
-- **Cryptographic Password Hashing**: Passlib with Bcrypt algorithms. Raw passwords are never persisted.
-- **Stateless Bearer Tokens**: HMAC-SHA256 signed JWTs with strict expiration validation.
-- **Zero AWS Credential Leakage**: S3 buckets are private. Files are accessed strictly through temporary pre-signed URLs with a 300-second TTL.
-- **Anti-Brute Force Throttling**: SlowAPI limits public endpoints (OTP requests capped at 5/minute; OTP verifications at 10/minute).
-- **CORS Origin Protection**: Strict origin verification restricted to verified frontend domains (`http://localhost:5173`).
-- **SQL Injection Prevention**: 100% parameterized queries via SQLAlchemy ORM.
+| Method | Endpoint Path | Summary & Purpose | Auth Role | Request Body | Path/Query Params | Status Codes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/api/workflow/tasks/{task_id}/complete` | Mark an Action Center task as completed | **Recruiter** | None | `task_id` (integer, path, Required) | `200`, `422` |
+| `POST` | `/api/workflow/{match_id}/shortlist` | Recruiter: Shortlist a candidate | **Recruiter** | `ShortlistRequest` | `match_id` (integer, path, Required) | `200`, `422` |
+| `POST` | `/api/workflow/{match_id}/submit-to-hm` | Recruiter: Submit candidate to Hiring Manager | **HR / Recruiter** | `SubmitToHMRequest` | `match_id` (integer, path, Required) | `200`, `422` |
+| `POST` | `/api/workflow/{match_id}/send-slots-to-candidate` | Recruiter: Forward interview slots to candidate | **Recruiter** | None | `match_id` (integer, path, Required) | `200`, `422` |
+| `POST` | `/api/workflow/{match_id}/confirm-interview` | Recruiter: Confirm the candidate's selected slot | **Recruiter** | None | `match_id` (integer, path, Required) | `200`, `422` |
+| `POST` | `/api/workflow/{match_id}/complete-interview` | Recruiter: Mark interview as completed and submit competency ratings | **Recruiter** | `CompleteInterviewRequest` | `match_id` (integer, path, Required) | `200`, `422` |
+| `POST` | `/api/workflow/{match_id}/interviewer-evaluation` | Recruiter/Interviewer: Save structured competency evaluation | **HR / HM** | `CompleteInterviewRequest` | `match_id` (integer, path, Required) | `200`, `422` |
+| `POST` | `/api/workflow/{match_id}/create-offer` | Recruiter: Create a compensation offer (DRAFT) | **Recruiter** | `CreateOfferRequest` | `match_id` (integer, path, Required) | `201`, `422` |
+| `POST` | `/api/workflow/{match_id}/hm-review` | Hiring Manager: Start reviewing a candidate | **HR / HM** | None | `match_id` (integer, path, Required) | `200`, `422` |
+| `POST` | `/api/workflow/{match_id}/hm-reject` | Hiring Manager: Reject a candidate | **HR / HM** | `HMRejectRequest` | `match_id` (integer, path, Required) | `200`, `422` |
+| `POST` | `/api/workflow/{match_id}/request-interview` | Hiring Manager: Request interview with slot proposals (min 2 slots) | **HR / HM** | `RequestInterviewRequest` | `match_id` (integer, path, Required) | `201`, `422` |
+| `POST` | `/api/workflow/{match_id}/hm-feedback` | Hiring Manager: Submit GO/NO-GO interview feedback | **HR / HM** | `HMFeedbackRequest` | `match_id` (integer, path, Required) | `201`, `422` |
+| `POST` | `/api/workflow/interviews/{interview_id}/select-slot` | Candidate: Select an interview slot (token-authenticated or logged-in candidate) | **Public (Token)** | `SelectSlotRequest` | `interview_id` (integer, path, Required) | `200`, `422` |
+| `GET` | `/api/workflow/{match_id}/timeline` | Get full application timeline (audit trail) | **HR / Recruiter** | None | `match_id` (integer, path, Required) | `200`, `422` |
+| `GET` | `/api/workflow/action-center` | Recruiter: Get Action Center — all pending workflow actions | **HR / Recruiter** | None | `job_id` (string, query, Optional) | `200`, `422` |
+| `GET` | `/api/workflow/action-center/count` | Recruiter: Get Action Center item counts for badge polling | **HR / Recruiter** | None | `job_id` (string, query, Optional) | `200`, `422` |
+| `GET` | `/api/workflow/recent-activity` | Recruiter: Get recent recruitment activity logs | **HR / Recruiter** | None | `job_id` (string, query, Optional)<br>`limit` (integer, query, Optional) | `200`, `422` |
+| `GET` | `/api/workflow/hm-dashboard` | Hiring Manager: Get dashboard items (pending reviews, feedback required) | **HR / HM** | None | None | `200` |
+| `GET` | `/api/workflow/{match_id}/interview` | Get interview details with slots and feedback for an application | **HR / Recruiter** | None | `match_id` (integer, path, Required) | `200`, `422` |
+| `GET` | `/api/workflow/{match_id}/state` | Get current workflow state for an application | **HR / Recruiter** | None | `match_id` (integer, path, Required) | `200`, `422` |
+| `GET` | `/api/workflow/public/slots/{interview_id}` | Public: Get interview slots for candidate selection (token required) | **Public (Token)** | None | `interview_id` (integer, path, Required)<br>`token` (string, query, Required) | `200`, `422` |
+| `GET` | `/api/workflow/{match_id}/interviews` | Get all interview rounds for an application | **HR / Recruiter** | None | `match_id` (integer, path, Required) | `200`, `422` |
+| `POST` | `/api/workflow/{match_id}/interviews/add-round` | Add an on-demand additional interview round | **HR / Recruiter** | None | `match_id` (integer, path, Required)<br>`round_name` (string, query, Required)<br>`round_type` (string, query, Optional)<br>`duration_minutes` (integer, query, Optional) | `200`, `422` |
+| `POST` | `/api/workflow/interviews/{interview_id}/round-feedback` | HM: Submit per-round feedback and GO/PASS/NO-GO decision | **HR / Recruiter** | None | `interview_id` (integer, path, Required)<br>`recommendation` (string, query, Required)<br>`is_final_round` (boolean, query, Optional)<br>`technical_rating` (string, query, Optional)<br>`communication_rating` (string, query, Optional)<br>`problem_solving_rating` (string, query, Optional)<br>`role_fit_rating` (string, query, Optional)<br>`overall_rating` (string, query, Optional)<br>`comments` (string, query, Optional) | `200`, `422` |
 
-### 7.2 Performance & Scalability
-- **Sub-Second Matching Throughput**: Deterministic matching algorithm evaluates 500 candidate profiles against a complex job specification in under 250 milliseconds.
-- **FastAPI Asynchronous Gateway**: Non-blocking I/O allows high concurrency under modest hardware constraints.
-- **Frontend Optimization**: Vite production bundling achieves gzip bundle sizes under 230kB for the core vendor bundle, ensuring initial load times under 1.5 seconds.
+**QA Testing Verification Checklist for Module:**
+- **Positive Verification**: Execute `POST /api/workflow/tasks/{task_id}/complete` with valid credentials for `Recruiter` role. Verify HTTP status `200`.
+- **RBAC Security Guard**: Attempt request without `Authorization` header -> Verify `401 Unauthorized`. Attempt with non-permitted role -> Verify `403 Forbidden`.
+- **Validation Gate**: Submit invalid/empty JSON payload -> Verify `422 Unprocessable Entity` with field error breakdown.
 
-### 7.3 Data Integrity & Error Sanitization
-- **ACID Transaction Isolation**: Multi-table operations (such as cascade user deletion or interview scheduling) execute within atomic SQLAlchemy transactions.
-- **Defensive Error Sanitization**: Frontend toast providers normalize incoming error responses, preventing unhandled object-as-child React crashes during 422 validation errors.
+### 15. Offer Governance & PDF Dispatch (14 Endpoints)
+*Offer drafting, salary band validation, HR approval gating, ReportLab PDF generation on S3, secure candidate token response, and 180-day blacklist cooling-off.*
+
+| Method | Endpoint Path | Summary & Purpose | Auth Role | Request Body | Path/Query Params | Status Codes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/api/offers/stats` | Get count of offers across states | **Recruiter / HR** | None | None | `200` |
+| `GET` | `/api/offers/pending-review` | HM: List offers pending HM review | **Recruiter / HR** | None | None | `200` |
+| `GET` | `/api/offers` | List offers filtered by workflow state/status | **Recruiter / HR** | None | `status` (string, query, Optional)<br>`job_id` (string, query, Optional)<br>`access_token` (string, query, Optional) | `200`, `422` |
+| `GET` | `/api/offers/{offer_id}` | Get offer details | **Recruiter / HR** | None | `offer_id` (integer, path, Required)<br>`token` (string, query, Optional)<br>`access_token` (string, query, Optional) | `200`, `422` |
+| `PATCH` | `/api/offers/{offer_id}` | Recruiter: Update a DRAFT or approved offer | **Recruiter / HR** | `UpdateOfferRequest` | `offer_id` (integer, path, Required) | `200`, `422` |
+| `GET` | `/api/offers/by-match/{match_id}` | Get offer details for a match result | **Recruiter / HR** | None | `match_id` (integer, path, Required) | `200`, `422` |
+| `PATCH` | `/api/offers/{offer_id}/hm-edit` | HM: Edit permitted offer fields during review | **HR / HM** | `HMUpdateOfferRequest` | `offer_id` (integer, path, Required) | `200`, `422` |
+| `POST` | `/api/offers/{offer_id}/send` | Recruiter: Send offer to candidate | **Recruiter / HR** | None | `offer_id` (integer, path, Required) | `200`, `422` |
+| `POST` | `/api/offers/{offer_id}/respond` | Candidate: Accept or reject offer (public, token-authenticated) | **Public (Token)** | `OfferRespondRequest` | `offer_id` (integer, path, Required) | `200`, `422` |
+| `POST` | `/api/offers/{offer_id}/submit-review` | Recruiter: Submit offer to HM for approval | **HR / HM** | None | `offer_id` (integer, path, Required)<br>`recruiter_notes` (string, query, Optional) | `200`, `422` |
+| `POST` | `/api/offers/{offer_id}/hm-review` | HM: Approve or request changes to an offer | **HR / HM** | None | `offer_id` (integer, path, Required)<br>`action` (string, query, Required)<br>`hm_notes` (string, query, Optional) | `200`, `422` |
+| `POST` | `/api/offers/{offer_id}/generate-pdf` | Recruiter: Generate official PDF offer letter | **Recruiter / HR** | None | `offer_id` (integer, path, Required) | `200`, `422` |
+| `GET` | `/api/offers/{offer_id}/pdf` | Download or view generated offer PDF (Candidate, Recruiter, HR, Admin, or via token) | **Recruiter / HR** | None | `offer_id` (integer, path, Required)<br>`token` (string, query, Optional)<br>`access_token` (string, query, Optional) | `200`, `422` |
+| `GET` | `/api/offers/candidate/{token}/pdf` | Candidate: Download secure offer PDF using secure token | **Public (Token)** | None | `token` (string, path, Required) | `200`, `422` |
+
+**QA Testing Verification Checklist for Module:**
+- **Positive Verification**: Execute `GET /api/offers/stats` with valid credentials for `Recruiter / HR` role. Verify HTTP status `200`.
+- **RBAC Security Guard**: Attempt request without `Authorization` header -> Verify `401 Unauthorized`. Attempt with non-permitted role -> Verify `403 Forbidden`.
+- **Validation Gate**: Submit invalid/empty JSON payload -> Verify `422 Unprocessable Entity` with field error breakdown.
+
+### 16. In-App Notifications (6 Endpoints)
+*Cross-role asynchronous notification delivery for key workflow state transitions, interview confirmations, and offer actions.*
+
+| Method | Endpoint Path | Summary & Purpose | Auth Role | Request Body | Path/Query Params | Status Codes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/api/notifications` | Create and dispatch notification (HR Only) | **Authenticated** | `NotificationCreate` | None | `201`, `422` |
+| `GET` | `/api/notifications` | List all notifications (HR & Admin) | **Authenticated** | None | `user_id` (string, query, Optional) | `200`, `422` |
+| `GET` | `/api/notifications/my` | Get current user's notifications | **Authenticated** | None | None | `200` |
+| `PATCH` | `/api/notifications/{notification_id}/read` | Mark notification as read | **Authenticated** | None | `notification_id` (integer, path, Required) | `200`, `422` |
+| `POST` | `/api/notifications/mark-all-read` | Mark all current user notifications as read | **Authenticated** | None | None | `200` |
+| `DELETE` | `/api/notifications/{notification_id}` | Dismiss or delete notification | **Authenticated** | None | `notification_id` (integer, path, Required) | `200`, `422` |
+
+**QA Testing Verification Checklist for Module:**
+- **Positive Verification**: Execute `POST /api/notifications` with valid credentials for `Authenticated` role. Verify HTTP status `201`.
+- **RBAC Security Guard**: Attempt request without `Authorization` header -> Verify `401 Unauthorized`. Attempt with non-permitted role -> Verify `403 Forbidden`.
+- **Validation Gate**: Submit invalid/empty JSON payload -> Verify `422 Unprocessable Entity` with field error breakdown.
+
+### 17. Administrator Ops & Audit Trail (5 Endpoints)
+*Global user account control, active/inactive toggles, transactional 8-table cascade deletion, and immutable hiring audit logs.*
+
+| Method | Endpoint Path | Summary & Purpose | Auth Role | Request Body | Path/Query Params | Status Codes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/api/admin/users` | List all users with pagination, search, and filters (Admin only) | **Admin** | None | `page` (integer, query, Optional)<br>`page_size` (integer, query, Optional)<br>`search` (string, query, Optional)<br>`role` (string, query, Optional)<br>`status` (string, query, Optional) | `200`, `422` |
+| `GET` | `/api/admin/users/{user_id}/detail` | Get extended user detail (Admin only) | **Admin** | None | `user_id` (integer, path, Required) | `200`, `422` |
+| `PATCH` | `/api/admin/users/{user_id}/toggle-status` | Toggle user active/deactivated status (Admin only) | **Admin** | None | `user_id` (integer, path, Required) | `200`, `422` |
+| `DELETE` | `/api/admin/users/{user_id}` | Permanently delete a user (Admin only) | **Admin** | None | `user_id` (integer, path, Required) | `200`, `422` |
+| `GET` | `/api/admin/hiring-logs` | Get comprehensive recruitment and hiring audit logs (Admin only) | **Admin** | None | `page` (integer, query, Optional)<br>`page_size` (integer, query, Optional)<br>`category` (string, query, Optional)<br>`action` (string, query, Optional)<br>`search` (string, query, Optional) | `200`, `422` |
+
+**QA Testing Verification Checklist for Module:**
+- **Positive Verification**: Execute `GET /api/admin/users` with valid credentials for `Admin` role. Verify HTTP status `200`.
+- **RBAC Security Guard**: Attempt request without `Authorization` header -> Verify `401 Unauthorized`. Attempt with non-permitted role -> Verify `403 Forbidden`.
+- **Validation Gate**: Submit invalid/empty JSON payload -> Verify `422 Unprocessable Entity` with field error breakdown.
+
+### 18. System Health Probe (1 Endpoints)
+*Container orchestration liveness probe returning service health, version, and runtime environment.*
+
+| Method | Endpoint Path | Summary & Purpose | Auth Role | Request Body | Path/Query Params | Status Codes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/health` | Health Check | **Public** | None | None | `200` |
+
+**QA Testing Verification Checklist for Module:**
+- **Positive Verification**: Execute `GET /health` with valid credentials for `Public` role. Verify HTTP status `200`.
+- **RBAC Security Guard**: Attempt request without `Authorization` header -> Verify `401 Unauthorized`. Attempt with non-permitted role -> Verify `403 Forbidden`.
+- **Validation Gate**: Submit invalid/empty JSON payload -> Verify `422 Unprocessable Entity` with field error breakdown.
 
 ---
 
-## 8. Verification & Sign-Off Matrix
+## 7. QA Test Suites & End-to-End Verification Playbooks
 
-### 8.1 Automated & Manual Verification Suite
-- **API Test Suite**: 59 fully verified endpoints documented in `SkillAlign.postman_collection.json`.
-- **Frontend Production Build**: Validated via `npm run build` with zero TypeScript compiler errors (`tsc && vite build`).
-- **Database Consistency**: Multi-role cascade deletion verified against PostgreSQL with zero orphaned foreign keys.
+### Test Scenario 1: Complete Happy Path (Rahul Sharma · 23 Sequential Steps)
+1. `POST /api/auth/register` (Rahul registers candidate account) -> Assert `201 Created`, JWT received.
+2. `POST /api/candidates/me` (Completes profile: 3 yrs exp, B.Tech, Hybrid) -> Assert `201 Created`.
+3. `POST /api/candidates/{id}/resume` (Uploads resume PDF) -> Assert `200 OK`, Celery task queued.
+4. `POST /api/jobs` (Arjun HR creates Backend Developer job with skill weights) -> Assert `201 Created`.
+5. `PUT /api/jobs/{id}` (Arjun sets status = active) -> Assert `200 OK`, matching queued.
+6. `POST /api/jobs/{id}/recruiters` (Assigns Priya as Primary Recruiter) -> Assert `201 Created`.
+7. `GET /api/recruiter/jobs/{id}/candidates` (Priya sees Rahul at Rank 1, Fit Score 86.2) -> Assert `200 OK`.
+8. `POST /api/recruiter/jobs/{id}/candidates/{cid}/claim` (Atomic DB lock claim) -> Assert `200 OK`.
+9. `POST /api/workflow/{mid}/shortlist` (Priya shortlists with note) -> Assert `200 OK`, state -> `CANDIDATE_SHORTLISTED`.
+10. `POST /api/workflow/{mid}/submit-to-hm` (Submits to Arjun) -> Assert `200 OK`, state -> `SENT_TO_HIRING_MANAGER`.
+11. `POST /api/workflow/{mid}/hm-review` (Arjun opens review) -> Assert `200 OK`, state -> `HIRING_MANAGER_REVIEW`.
+12. `POST /api/workflow/{mid}/request-interview` (Arjun requests interview with 3 slots) -> Assert `200 OK`, state -> `INTERVIEW_SLOTS_PROPOSED`.
+13. `POST /api/workflow/{mid}/send-slots-to-candidate` (Priya sends token email) -> Assert `200 OK`, state -> `WAITING_FOR_CANDIDATE_SLOT`.
+14. `POST /api/workflow/interviews/{id}/select-slot` (Rahul selects slot via token) -> Assert `200 OK`, state -> `CANDIDATE_SLOT_SELECTED`.
+15. `POST /api/workflow/{mid}/confirm-interview` (Priya attaches Meet link) -> Assert `200 OK`, state -> `INTERVIEW_CONFIRMED`.
+16. `POST /api/workflow/{mid}/complete-interview` (Session marked complete) -> Assert `200 OK`, state -> `WAITING_FOR_HM_FEEDBACK`.
+17. `POST /api/workflow/{mid}/hm-feedback` (Arjun submits Tech 5, Comm 4, Decision: GO) -> Assert `200 OK`, state -> `INTERVIEW_GO` -> `COMPENSATION_DISCUSSION`.
+18. `POST /api/workflow/{mid}/create-offer` (Priya drafts offer: ₹18 LPA) -> Assert `201 Created`, state -> `OFFER_CREATED`.
+19. `POST /api/offers/{id}/submit-review` (Priya submits for HR review) -> Assert `200 OK`, state -> `OFFER_PENDING_APPROVAL`.
+20. `POST /api/offers/{id}/hm-review` (Arjun approves offer) -> Assert `200 OK`, state -> `OFFER_APPROVED`.
+21. `POST /api/offers/{id}/generate-pdf` (ReportLab generates PDF on S3) -> Assert `200 OK`, state -> `OFFER_READY`.
+22. `POST /api/offers/{id}/send` (Priya dispatches offer token to Rahul) -> Assert `200 OK`, state -> `OFFER_SENT`.
+23. `POST /api/offers/{id}/respond` (Rahul clicks Accept) -> Assert `200 OK`, state -> `OFFER_ACCEPTED`, pipeline_state -> `HIRED`.
+24. `GET /api/admin/hiring-logs` (Admin inspects audit trail) -> Assert `200 OK`, all 22 transitions present.
 
-### 8.2 Stakeholder Approvals
+### Test Scenario 2: Offer Rejection & 180-Day Blacklist Verification
+- Execute Steps 1–22 of Happy Path.
+- At Step 23, candidate submits `POST /api/offers/{id}/respond` with `decision = "rejected"`.
+- Assert `offer.status == "rejected"`.
+- Assert `match_results.pipeline_state == "BLACKLISTED"`.
+- Assert row inserted in `candidate_blacklists` with `expires_at = now() + 180 days`.
+- Execute `POST /api/matching/jobs/{id}/run` -> Assert candidate is suppressed from match results.
+- Attempt `POST /api/workflow/{mid}/request-interview` -> Assert `400 Bad Request` with message "Candidate is blacklisted".
 
-| Stakeholder Role | Name & Title | Approval Status | Date |
-| :--- | :--- | :---: | :--- |
-| **System Architect & Lead** | Shiva Tripathi, Core Platform Lead | **APPROVED** | September 2026 |
-| **Backend & Security Lead** | SkillAlign Architecture Team | **APPROVED** | September 2026 |
-| **Quality Assurance Lead** | SkillAlign Verification Lead | **APPROVED** | September 2026 |
-| **Project Mentor / Reviewer** | Faculty / Enterprise Mentor | **APPROVED** | September 2026 |
+### Test Scenario 3: Concurrency & Atomic Claiming Verification (`SELECT FOR UPDATE`)
+- Setup two recruiter test clients (Recruiter A and Recruiter B).
+- Simultaneously dispatch `POST /api/recruiter/jobs/{id}/candidates/{cid}/claim` for the same candidate.
+- Assert exactly one request receives `200 OK` and claims ownership.
+- Assert the concurrent request receives `409 Conflict` ("Candidate already claimed by another recruiter").
+
+### Test Scenario 4: Salary Band Exceedance Gate
+- Author job requisition with `min_salary = 1500000` and `max_salary = 2000000`.
+- Attempt `POST /api/workflow/{mid}/create-offer` with `base_salary = 2500000` without justification.
+- Assert `400 Bad Request` ("Salary exceeds maximum band without written justification").
+- Re-attempt with `justification = "Candidate possesses exceptional architectural credentials"`.
+- Assert `201 Created`.
+
+### Test Scenario 5: Post-Approval Offer Modification Revocation
+- Offer reaches `OFFER_APPROVED` state.
+- Recruiter executes `PATCH /api/offers/{id}` modifying `base_salary`.
+- Assert `offer.status` automatically reverts to `draft`.
+- Assert `offer.hr_approved_by` is set to `null`.
+- Assert `audit_logs` records `ACTION = "OFFER_APPROVAL_REVOKED"`.
+
+### Test Scenario 6: SlowAPI Anti-Brute-Force Rate Limiting
+- Rapidly dispatch 10 sequential requests to `POST /api/auth/send-otp` within 30 seconds from same IP.
+- Assert requests 1–5 receive `200 OK`.
+- Assert requests 6+ receive `429 Too Many Requests` with retry-after header.
+
+### Test Scenario 7: 8-Table Transactional Cascade Purge
+- Create candidate, upload resume, complete matching, schedule interview, draft offer, and record notifications.
+- Execute `DELETE /api/admin/users/{user_id}`.
+- Assert `200 OK`.
+- Query `candidates`, `candidate_skills`, `match_results`, `interviews`, `interview_slots`, `offers`, `notifications`, and `users`.
+- Assert zero orphaned records remaining.
 
 ---
-*End of Functional Specification Document (FSD) — SkillAlign Platform v2.0.0*
+
+## 8. Appendix: Environment Configuration & Automation Reference
+
+### 8.1 Critical Environment Variables
+
+| Variable Key | Required Type | Example Value | Description |
+| :--- | :--- | :--- | :--- |
+| `DATABASE_URL` | PostgreSQL URI | `postgresql://user:pass@localhost:5432/skillalign` | Main relational database connection string |
+| `REDIS_URL` | Redis URI | `redis://localhost:6379/0` | Celery task broker and rate limiter cache |
+| `SECRET_KEY` | Cryptographic String | `sec_09a8f7b6c5d4e3f2...` | 32+ byte string used for HS256 JWT signing |
+| `ACCESS_TOKEN_EXPIRE_MINUTES`| Integer | `1440` (24 Hours) | Lifespan of session JWT access tokens |
+| `AWS_ACCESS_KEY_ID` | String | `AKIAIOSFODNN7EXAMPLE` | AWS S3 / MinIO access credentials |
+| `AWS_SECRET_ACCESS_KEY` | String | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` | AWS S3 secret credential |
+| `S3_BUCKET_NAME` | String | `skillalign-production-assets` | Target bucket for resumes and offer PDFs |
+| `SENDGRID_API_KEY` | String | `SG.xxxxxxxxxxxxxxxxxxxxxx` | API key for transactional email delivery |
+| `TWILIO_ACCOUNT_SID` | String | `ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` | Twilio telephony account identifier |
+| `TWILIO_AUTH_TOKEN` | String | `xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` | Twilio telephony authentication secret |
+| `TWILIO_PHONE_NUMBER` | E.164 String | `+15551234567` | Verified sender phone number for SMS OTPs |
+| `GEMINI_API_KEY` | String | `AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxx` | Google Gemini AI semantic analysis API key |
+
+---
+*End of Functional Specification Document (FSD) — SkillAlign Enterprise Platform v3.0.0*

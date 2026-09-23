@@ -16,6 +16,7 @@ from app.core.config import settings
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,   # detect stale connections before using them
+    pool_recycle=300,     # recycle connections every 5 mins for Neon / serverless DBs
     pool_size=10,
     max_overflow=20,
     echo=settings.DB_ECHO,

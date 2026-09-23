@@ -43,10 +43,10 @@ import {
   CandidateHiringResponse,
 } from "../types";
 
-// ── Security: Use relative base URL so the Vite proxy handles routing.
-// The real backend URL (http://localhost:8000) is NEVER exposed to the browser.
-// In production, configure your reverse proxy (nginx/Caddy) to proxy /api/* similarly.
-const API_BASE_URL = "";
+// Base URL configured via environment variable for Vercel/production.
+// In local dev, if unset, defaults to empty string to use the Vite proxy.
+const rawApiUrl = (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || "") as string;
+export const API_BASE_URL = rawApiUrl.replace(/\/+$/, "");
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,

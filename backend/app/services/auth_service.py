@@ -383,7 +383,7 @@ def request_password_reset(db: Session, data: ForgotPasswordRequest) -> ForgotPa
     db.commit()
 
     # 4. Dispatch transactional email
-    frontend_base = "http://localhost:5173"
+    frontend_base = settings.FRONTEND_URL.rstrip("/")
     reset_url = f"{frontend_base}/reset-password?token={raw_token}"
     email_sent = False
     try:

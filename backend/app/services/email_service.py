@@ -106,7 +106,7 @@ def send_interview_scheduled_email(
             {link_display}
           </div>
 
-          <p>Please ensure you join on time and have your setup tested prior to the meeting. You can also view this and your other active rounds directly inside your <a href="http://localhost:5173/candidate" style="color: #4F46E5;">Candidate Dashboard</a>.</p>
+          <p>Please ensure you join on time and have your setup tested prior to the meeting. You can also view this and your other active rounds directly inside your <a href="{settings.FRONTEND_URL.rstrip('/')}/candidate" style="color: #4F46E5;">Candidate Dashboard</a>.</p>
 
           <p style="margin-top: 24px;">Best regards,<br><strong>{recruiter_name}</strong><br>SkillAlign Hiring Team</p>
         </div>
@@ -182,7 +182,7 @@ def send_application_status_email(
             <h3 style="margin:0; color:#4f46e5;">{status_label}</h3>
             {f'<p style="margin: 8px 0 0 0; font-size: 14px; color:#475569;">{additional_details}</p>' if additional_details else ''}
           </div>
-          <p>You can track the progress of your application at any time by logging into your <a href="http://localhost:5173/candidate" style="color: #4F46E5;">SkillAlign Dashboard</a>.</p>
+          <p>You can track the progress of your application at any time by logging into your <a href="{settings.FRONTEND_URL.rstrip('/')}/candidate" style="color: #4F46E5;">SkillAlign Dashboard</a>.</p>
           <p style="margin-top: 24px;">Best regards,<br><strong>{recruiter_name}</strong></p>
         </div>
         <div class="footer">
@@ -371,7 +371,7 @@ def send_offer_email(
         <a href="{accept_url}&accept=true" class="btn-accept">✓ Accept Offer</a>
         <a href="{accept_url}&accept=false" class="btn-reject">✗ Decline Offer</a>
         <p style="font-size:13px;color:#64748b;margin-top:24px;">
-          Or visit your <a href="http://localhost:5173/candidate" style="color:#4f46e5">dashboard</a> to respond.
+          Or visit your <a href="{settings.FRONTEND_URL.rstrip('/')}/candidate" style="color:#4f46e5">dashboard</a> to respond.
         </p>
         <p>Best regards,<br><strong>{recruiter_name}</strong><br>SkillAlign Hiring Team</p>
       </div>

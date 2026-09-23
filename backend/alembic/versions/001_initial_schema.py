@@ -256,11 +256,73 @@ def upgrade() -> None:
     op.create_index("ix_match_results_matched_by", "match_results", ["matched_by"])
     op.create_index("ix_match_results_status", "match_results", ["status"])
 
+    # ── 9. interviews ─────────────────────────────────────────────────────────
+    op.create_table(
+        "interviews",
+        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column("match_result_id", sa.Integer(), nullable=False),
+        sa.Column("scheduled_by", sa.Integer(), nullable=False),
+        sa.Column("interview_date", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("interview_type", sa.String(50), nullable=False, server_default="technical"),
+        sa.Column("meeting_link", sa.String(500), nullable=True),
+        sa.Column("interview_mode", sa.String(50), nullable=True, server_default="online"),
+        sa.Column("scheduled_end", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("feedback", sa.Text(), nullable=True),
+        sa.Column("status", sa.String(30), nullable=False, server_default="scheduled"),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+        sa.ForeignKeyConstraint(
+            ["match_result_id"], ["match_results.id"],
+            name="fk_interviews_match_result_id",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["scheduled_by"], ["users.id"],
+            name="fk_interviews_scheduled_by",
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name="pk_interviews"),
+    )
+    op.create_index("ix_interviews_match_result_id", "interviews", ["match_result_id"])
+    op.create_index("ix_interviews_scheduled_by", "interviews", ["scheduled_by"])
+    op.create_index("ix_interviews_status", "interviews", ["status"])
+
+    # ── 10. notifications ─────────────────────────────────────────────────────
+    op.create_table(
+        "notifications",
+        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("channel", sa.String(50), nullable=False, server_default="in_app"),
+        sa.Column("subject", sa.String(255), nullable=False),
+        sa.Column("body", sa.Text(), nullable=False),
+        sa.Column("status", sa.String(30), nullable=False, server_default="sent"),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"], ["users.id"],
+            name="fk_notifications_user_id",
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name="pk_notifications"),
+    )
+    op.create_index("ix_notifications_user_id", "notifications", ["user_id"])
+    op.create_index("ix_notifications_status", "notifications", ["status"])
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # DOWNGRADE — drop tables in reverse dependency order
 # ═══════════════════════════════════════════════════════════════════════════
 def downgrade() -> None:
+    op.drop_table("notifications")
+    op.drop_table("interviews")
     op.drop_table("match_results")
     op.drop_table("candidate_skills")
     op.drop_table("candidates")
