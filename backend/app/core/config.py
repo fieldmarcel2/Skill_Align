@@ -63,6 +63,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
         "http://localhost:4173",
         "http://127.0.0.1:4173",
+        "https://skill-align-tau.vercel.app",
+        "https://skillalign.vercel.app",
     ]
 
     @field_validator("ALLOWED_ORIGINS", mode="before")

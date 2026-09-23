@@ -34,9 +34,26 @@ import argparse
 
 # Make app importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
 
 from sqlalchemy.exc import IntegrityError
-from app.database.session import SessionLocal
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from app.core.config import settings
+
+db_url = os.environ.get("DATABASE_URL") or settings.DATABASE_URL
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+engine = create_engine(db_url, pool_pre_ping=True)
+SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+
 from app.models.role import Role
 from app.models.user import User
 from app.models.skill import Skill
@@ -271,8 +288,20 @@ DEV_USERS = [
         "role_id": 1,
     },
     {
+        "name": "System Admin",
+        "email": "admin@skillalign.dev",
+        "password": "Admin@123",
+        "role_id": 1,
+    },
+    {
         "name": "Sarah HR",
         "email": "hr@skillaign.dev",
+        "password": "HR@12345",
+        "role_id": 2,
+    },
+    {
+        "name": "Sarah HR",
+        "email": "hr@skillalign.dev",
         "password": "HR@12345",
         "role_id": 2,
     },
@@ -280,6 +309,12 @@ DEV_USERS = [
         "name": "James Recruiter",
         "email": "recruiter@skillaign.dev",
         "password": "Rec@12345",
+        "role_id": 3,
+    },
+    {
+        "name": "James Recruiter",
+        "email": "recruiter@skillalign.dev",
+        "password": "Pass@123",
         "role_id": 3,
     },
     {
@@ -292,6 +327,12 @@ DEV_USERS = [
         "name": "Bob Smith",
         "email": "bob@candidate.dev",
         "password": "Bob@12345",
+        "role_id": 4,
+    },
+    {
+        "name": "Shiva Candidate",
+        "email": "shiva4850t@gmail.com",
+        "password": "Password123!",
         "role_id": 4,
     },
 ]
@@ -355,6 +396,17 @@ DEV_CANDIDATES = [
             {"name": "TypeScript", "proficiency": "Intermediate",  "years": 2},
             {"name": "Node.js",    "proficiency": "Intermediate",  "years": 1},
             {"name": "JavaScript", "proficiency": "Expert",        "years": 3},
+        ],
+    },
+    {
+        "user_email": "shiva4850t@gmail.com",
+        "full_name": "Shiva Candidate",
+        "phone": "+91-9999999999",
+        "total_experience_years": 3,
+        "skills": [
+            {"name": "Python",     "proficiency": "Expert",        "years": 3},
+            {"name": "FastAPI",    "proficiency": "Expert",        "years": 2},
+            {"name": "React",      "proficiency": "Intermediate",  "years": 2},
         ],
     },
 ]
