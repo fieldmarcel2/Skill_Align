@@ -13,7 +13,7 @@ Endpoints:
 from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.database.session import get_db
 from app.core.dependencies import get_current_user, require_hr, require_admin_or_hr, require_hr_or_recruiter
@@ -182,7 +182,7 @@ def list_interviews(
     db: Session = Depends(get_db),
     user: User = Depends(require_hr_or_recruiter)
 ):
-    query = db.query(Interview)
+    query = db.query(Interview).options(selectinload(Interview.slots))
     if status_filter:
         query = query.filter(Interview.status == status_filter)
     interviews = query.order_by(Interview.interview_date.asc()).all()
@@ -205,6 +205,7 @@ def list_my_interviews(
 
     interviews = (
         db.query(Interview)
+        .options(selectinload(Interview.slots))
         .join(Interview.match_result)
         .filter(
             MatchResult.candidate_id == candidate.id,
