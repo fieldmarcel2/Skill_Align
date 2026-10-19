@@ -111,20 +111,8 @@ def is_token_blacklisted(token: str) -> bool:
 
 
 
-# ── Phone Number Normalization ────────────────────────────────────────────────
-
+#phone no. normalization
 def normalize_phone(phone: str, default_region: str = "IN") -> str:
-    """
-    Normalize a phone number to E.164 format using the phonenumbers library.
-
-    Examples:
-        "+91 98765 43210"  → "+919876543210"
-        "09876543210"      → "+919876543210"
-        "+919876543210"    → "+919876543210"
-
-    Raises:
-        ValueError: if the phone number is invalid or cannot be parsed.
-    """
     import phonenumbers
 
     try:

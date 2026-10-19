@@ -12,14 +12,11 @@ import sqlalchemy as sa
 
 # ── revision identifiers ────────────────────────────────────────────────────
 revision: str = "b7f8a9c0d1e2"
-down_revision: Union[str, None] = "a1b2c3d4e5f6"
+down_revision: Union[str, None] = "a1b2c3d4e5f6" #The ID of the previous checkpoint
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# UPGRADE
-# ═══════════════════════════════════════════════════════════════════════════
 def upgrade() -> None:
 
     # ── 1. Add phone_number column to users ──────────────────────────────────
@@ -82,9 +79,6 @@ def upgrade() -> None:
     )
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# DOWNGRADE
-# ═══════════════════════════════════════════════════════════════════════════
 def downgrade() -> None:
 
     # ── Drop otp_verifications table ─────────────────────────────────────────

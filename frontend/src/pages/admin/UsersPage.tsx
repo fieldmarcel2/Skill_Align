@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { adminApi, usersApi } from "../../services/api";
 import { User, PaginatedUsersResponse, AdminStats } from "../../types";
 import { useToast } from "../../components/ui/toast";
@@ -48,6 +48,7 @@ import {
   X,
   Trash2,
   AlertTriangle,
+  Eye,
 } from "lucide-react";
 
 const PAGE_SIZE = 10;
@@ -55,6 +56,7 @@ const PAGE_SIZE = 10;
 export const UsersPage: React.FC = () => {
   const toast = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // Pagination + filter state
   const [data, setData] = useState<PaginatedUsersResponse | null>(null);
@@ -62,7 +64,7 @@ export const UsersPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
+  const [roleFilter, setRoleFilter] = useState(searchParams.get("role") || "all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [togglingId, setTogglingId] = useState<number | null>(null);
   const [copiedText, setCopiedText] = useState<string | null>(null);
@@ -128,7 +130,8 @@ export const UsersPage: React.FC = () => {
         setIsLoading(false);
       }
     },
-    [toast]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
 
   useEffect(() => {
@@ -243,7 +246,7 @@ export const UsersPage: React.FC = () => {
       case "Admin":
         return <Badge variant="purple" className="gap-1"><Shield className="w-3 h-3" /> Admin</Badge>;
       case "HR":
-        return <Badge variant="info" className="gap-1"><Users className="w-3 h-3" /> HR</Badge>;
+        return <Badge variant="info" className="gap-1"><Users className="w-3 h-3" /> HM</Badge>;
       case "Recruiter":
         return <Badge variant="success" className="gap-1"><Briefcase className="w-3 h-3" /> Recruiter</Badge>;
       case "Candidate":
@@ -313,7 +316,7 @@ export const UsersPage: React.FC = () => {
 
           <div className="p-3.5 rounded-xl border border-border/70 bg-card/70 backdrop-blur-xl space-y-1">
             <div className="flex items-center justify-between text-muted-foreground">
-              <span className="text-xs font-semibold">HR Managers</span>
+              <span className="text-xs font-semibold">Hiring Managers (HM)</span>
               <Sparkles className="h-4 w-4 text-blue-400" />
             </div>
             <p className="text-2xl font-extrabold font-outfit text-foreground">{stats.hr_users}</p>
@@ -339,7 +342,7 @@ export const UsersPage: React.FC = () => {
             { id: "all", label: "All Roles", icon: Users },
             { id: "Candidate", label: "Candidates", icon: UserCheck },
             { id: "Recruiter", label: "Recruiters", icon: Briefcase },
-            { id: "HR", label: "HR Managers", icon: Sparkles },
+            { id: "HR", label: "Hiring Managers (HM)", icon: Sparkles },
             { id: "Admin", label: "Administrators", icon: Shield },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -454,12 +457,22 @@ export const UsersPage: React.FC = () => {
                     {/* User Name with Initial Avatar */}
                     <TableCell className="font-semibold text-foreground">
                       <div className="flex items-center gap-2.5">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600/20 to-purple-600/20 border border-indigo-500/30 text-primary text-xs font-extrabold font-outfit shadow-xs shrink-0">
+                        <Link
+                          to={`/admin/users/${u.id}`}
+                          className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600/20 to-purple-600/20 border border-indigo-500/30 text-primary text-xs font-extrabold font-outfit shadow-xs shrink-0 hover:border-primary/60 transition-colors"
+                          title={`View profile of ${u.name}`}
+                        >
                           {u.name ? u.name.charAt(0).toUpperCase() : "U"}
-                        </div>
+                        </Link>
                         <div>
-                          <p className="text-sm font-bold text-foreground leading-tight font-outfit">{u.name}</p>
-                          <span className="text-[10px] text-muted-foreground">ID #{u.id}</span>
+                          <Link
+                            to={`/admin/users/${u.id}`}
+                            className="text-sm font-bold text-foreground hover:text-primary hover:underline leading-tight font-outfit transition-colors cursor-pointer block"
+                            title={`View profile of ${u.name}`}
+                          >
+                            {u.name}
+                          </Link>
+                          <span className="text-[10px] text-muted-foreground block">ID #{u.id}</span>
                         </div>
                       </div>
                     </TableCell>
@@ -542,18 +555,21 @@ export const UsersPage: React.FC = () => {
                       })}
                     </TableCell>
 
-                    {/* Actions: View Details + Toggle Status */}
+                    {/* Actions: View Details (Eye icon) + Toggle Status + Delete */}
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          id={`view-user-${u.id}`}
-                          size="sm"
-                          variant="ghost"
-                          className="text-xs h-7 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 gap-1"
-                          onClick={() => navigate(`/admin/users/${u.id}`)}
-                        >
-                          <ExternalLink className="h-3 w-3" /> View
-                        </Button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Link to={`/admin/users/${u.id}`}>
+                          <Button
+                            id={`view-user-${u.id}`}
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-lg cursor-pointer transition-colors"
+                            title={`Inspect details for ${u.name}`}
+                            aria-label={`Inspect details for ${u.name}`}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </Link>
                         {u.role.name !== "Admin" ? (
                           <>
                             <Button
@@ -641,7 +657,7 @@ export const UsersPage: React.FC = () => {
           <DialogHeader>
             <DialogTitle className="font-outfit text-xl">Provision Team Account</DialogTitle>
             <DialogDescription>
-              Create a new HR Manager or Recruiter account with verified email and phone number.
+              Create a new Hiring Manager (HM) or Recruiter account with verified email and phone number.
             </DialogDescription>
           </DialogHeader>
 
@@ -651,9 +667,9 @@ export const UsersPage: React.FC = () => {
               <select
                 value={createRoleId}
                 onChange={(e) => setCreateRoleId(Number(e.target.value))}
-                className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
               >
-                <option value={2}>HR Manager</option>
+                <option value={2}>Hiring Manager (HM)</option>
                 <option value={3}>Recruiter</option>
               </select>
             </div>

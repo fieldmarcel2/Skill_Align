@@ -237,18 +237,29 @@ def list_shortlists(
     db: Session = Depends(get_db),
     user: User = Depends(require_hr_or_recruiter),
 ):
+    from sqlalchemy import or_
     active_statuses = [
         "screened", "approved_by_hr", "interview_scheduled", "shortlisted",
         "screening", "technical_interview", "hr_interview", "offer", "hired"
     ]
-    query = db.query(MatchResult).filter(MatchResult.status.in_(active_statuses))
+    active_pipeline_states = [
+        "CANDIDATE_SHORTLISTED", "SENT_TO_HIRING_MANAGER", "HIRING_MANAGER_REVIEW",
+        "INTERVIEW_REQUESTED", "INTERVIEW_SLOTS_PROPOSED", "WAITING_FOR_CANDIDATE_SLOT",
+        "CANDIDATE_SLOT_SELECTED", "INTERVIEW_CONFIRMED", "INTERVIEW_COMPLETED",
+        "WAITING_FOR_HM_FEEDBACK", "INTERVIEW_GO", "COMPENSATION_DISCUSSION",
+        "OFFER_CREATED", "OFFER_SENT", "OFFER_ACCEPTED", "HIRED"
+    ]
+    query = db.query(MatchResult).filter(
+        or_(
+            MatchResult.status.in_(active_statuses),
+            MatchResult.pipeline_state.in_(active_pipeline_states),
+        )
+    ).filter(MatchResult.status != "rejected")
 
     if job_id:
         query = query.filter(MatchResult.job_id == job_id)
 
-    # Note: Recruiters now see all shortlisted candidates (not filtered by job ownership)
-    # since HR creates jobs, not Recruiters
-
+    # Note: Recruiters and HMs see all active pipeline candidates
     results = query.order_by(MatchResult.overall_score.desc()).all()
     output = []
     for r in results:

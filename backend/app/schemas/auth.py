@@ -19,16 +19,10 @@ from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
 from datetime import datetime
 
 
-# ── Password validation ───────────────────────────────────────────────────────
+# ── Password validation ─────
 
 def _validate_password(value: str) -> str:
-    """
-    Enforce a minimum password policy:
-    - At least 8 characters
-    - At least one uppercase letter
-    - At least one lowercase letter
-    - At least one digit
-    """
+   
     if len(value) < 8:
         raise ValueError("Password must be at least 8 characters.")
     if not re.search(r"[A-Z]", value):
@@ -40,14 +34,10 @@ def _validate_password(value: str) -> str:
     return value
 
 
-# ── Register ──────────────────────────────────────────────────────────────────
+# ── Register ─────────
 
 class RegisterRequest(BaseModel):
-    """
-    Public self-registration strictly for Candidates only.
-    Both Email and Phone are required.
-    Privileged roles (HR, Recruiter) must be provisioned by an Administrator.
-    """
+  
     name: str
     email: EmailStr
     password: str
@@ -75,14 +65,14 @@ class RegisterRequest(BaseModel):
         return v
 
 
-# ── Login ─────────────────────────────────────────────────────────────────────
+# ── Login ───────
 
 class LoginRequest(BaseModel):
     email: str
     password: str
 
 
-# ── User profile (safe — no password_hash) ───────────────────────────────────
+# ── User profile ────────
 
 class RoleOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)

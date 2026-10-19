@@ -80,6 +80,17 @@ async def store_resume_and_queue(
     original_s3_key = f"resumes/original/{candidate.id}/{safe_name}"
     content_type = file.content_type or "application/pdf"
 
+    logger.info(
+        "Resume upload started for candidate %s, filename=%s",
+        candidate.id,
+        safe_name,
+        extra={
+            "event": "resume_upload_started",
+            "candidate_id": candidate.id,
+            "file_type": file_ext,
+        },
+    )
+
     # Delete previous files
     if candidate.resume_s3_key:
         s3_service.delete_file(candidate.resume_s3_key)
@@ -93,8 +104,32 @@ async def store_resume_and_queue(
             s3_key=original_s3_key,
             content_type=content_type,
         )
+        logger.info(
+            "Resume stored successfully for candidate %s to %s",
+            candidate.id,
+            original_s3_key,
+            extra={
+                "event": "resume_upload_completed",
+                "candidate_id": candidate.id,
+                "s3_key": original_s3_key,
+                "file_type": file_ext,
+                "status": "success",
+            },
+        )
     except Exception as e:
-        logger.error(f"Failed to store resume in storage: {e}")
+        logger.error(
+            "Failed to store resume in storage for candidate %s: %s",
+            candidate.id,
+            str(e),
+            exc_info=True,
+            extra={
+                "event": "resume_upload_failed",
+                "candidate_id": candidate.id,
+                "file_type": file_ext,
+                "status": "failed",
+                "exception_type": type(e).__name__,
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to upload resume to storage: {str(e)}",
@@ -216,6 +251,18 @@ async def _process_synchronous_fallback(
     Fallback synchronous processing when Celery is unavailable.
     Used in development or when Redis is not reachable.
     """
+    start_parse = time.perf_counter()
+    logger.info(
+        "Resume parsing started for candidate %s, format=%s",
+        candidate.id,
+        content_type,
+        extra={
+            "event": "resume_parsing_started",
+            "candidate_id": candidate.id,
+            "file_type": content_type,
+        },
+    )
+
     try:
         extracted_text, detected_format = extract_text_from_file(
             file_bytes=content_bytes,
@@ -223,7 +270,18 @@ async def _process_synchronous_fallback(
             content_type=content_type,
         )
     except Exception as e:
-        logger.error(f"Fallback extraction failed: {e}")
+        logger.error(
+            "Fallback extraction failed for candidate %s: %s",
+            candidate.id,
+            str(e),
+            exc_info=True,
+            extra={
+                "event": "resume_parsing_failed",
+                "candidate_id": candidate.id,
+                "exception_type": type(e).__name__,
+                "status": "failed",
+            },
+        )
         return
 
     # Store extracted text
@@ -241,6 +299,22 @@ async def _process_synchronous_fallback(
     skill_lookup = {s.name.lower(): s for s in master_skills}
 
     parsed_data = parse_resume_text(raw_text=extracted_text, master_skills=master_skill_names)
+    duration_ms = round((time.perf_counter() - start_parse) * 1000, 2)
+    skills_count = len(parsed_data.get("skills", []))
+
+    logger.info(
+        "Resume parsing completed for candidate %s in %.2fms (%d skills detected)",
+        candidate.id,
+        duration_ms,
+        skills_count,
+        extra={
+            "event": "resume_parsing_completed",
+            "candidate_id": candidate.id,
+            "duration_ms": duration_ms,
+            "skills_count": skills_count,
+            "status": "success",
+        },
+    )
 
     now_utc = datetime.now(timezone.utc)
     candidate.resume_raw_text = extracted_text

@@ -1,0 +1,1821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>SkillAlign — End-to-End System Flow & Architecture Diagram</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --ink: #0c1e3e;
+  --mute: #475569;
+  --card: #ffffff;
+  --card2: #f1f5f9;
+  --bd: #cbd5e1;
+  --sh: rgba(15, 23, 42, 0.12);
+  --glass: rgba(248, 250, 252, 0.92);
+  --lane: rgba(255, 255, 255, 0.78);
+  --line: #2563eb;
+  --hot: #2563eb;
+  --hot-glow: rgba(37, 99, 235, 0.45);
+  --f: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --b: 'Inter', system-ui, sans-serif;
+  --m: 'JetBrains Mono', ui-monospace, monospace;
+  --b1: #c3d9fe;
+  --b2: #b8e6fe;
+  --b3: #d9e8ff;
+  --bg: #edf4fc;
+}
+
+:root[data-theme="dark"] {
+  --ink: #f0f6ff;
+  --mute: #94a3b8;
+  --card: #0d1728;
+  --card2: #08101d;
+  --bd: #1e293b;
+  --sh: rgba(0, 0, 0, 0.8);
+  --glass: rgba(10, 19, 35, 0.90);
+  --lane: rgba(14, 25, 45, 0.60);
+  --line: #38bdf8;
+  --hot: #38bdf8;
+  --hot-glow: rgba(56, 189, 248, 0.55);
+  --b1: #0a192f;
+  --b2: #07233d;
+  --b3: #0c1c38;
+  --bg: #050b14;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: var(--b);
+  background: var(--bg);
+  color: var(--ink);
+  overflow: hidden;
+  transition: background 0.6s ease, color 0.4s ease;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Dynamic Aurora Ambient Background (Pristine Light Bluish Palette) */
+#aur {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+  pointer-events: none;
+}
+
+#aur i {
+  position: absolute;
+  width: 65vmax;
+  height: 65vmax;
+  border-radius: 50%;
+  filter: blur(110px);
+  opacity: 0.75;
+  animation: driftAnim 24s ease-in-out infinite alternate;
+}
+
+#aur i:nth-child(1) {
+  background: var(--b1);
+  left: -15vmax;
+  top: -20vmax;
+}
+
+#aur i:nth-child(2) {
+  background: var(--b2);
+  right: -20vmax;
+  top: 10vmax;
+  animation-delay: -8s;
+  animation-duration: 28s;
+}
+
+#aur i:nth-child(3) {
+  background: var(--b3);
+  left: 25vmax;
+  bottom: -30vmax;
+  animation-delay: -14s;
+}
+
+@keyframes driftAnim {
+  to {
+    transform: translate(9vmax, 7vmax) scale(1.22) rotate(32deg);
+  }
+}
+
+#aur::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(color-mix(in srgb, var(--hot) 14%, transparent) 1.2px, transparent 1.2px);
+  background-size: 26px 26px;
+  opacity: 0.65;
+}
+
+/* Glassmorphic Navigation Header */
+header {
+  position: relative;
+  z-index: 25;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 22px;
+  background: var(--glass);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--bd);
+  box-shadow: 0 4px 16px -4px var(--sh);
+}
+
+.brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.brand-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font: 900 16px var(--f);
+  letter-spacing: -0.01em;
+  color: #fff;
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  box-shadow: 0 6px 18px -3px rgba(37, 99, 235, 0.45);
+}
+
+.brand-info h1 {
+  font-family: var(--f);
+  font-size: 17.5px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.brand-info small {
+  display: block;
+  font-family: var(--b);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--mute);
+  margin-top: 1px;
+}
+
+.controls-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+button {
+  font-family: var(--f);
+  font-weight: 700;
+  font-size: 12px;
+  padding: 7px 13px;
+  border-radius: 9px;
+  border: 1px solid var(--bd);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+button:hover, button:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px -6px var(--sh);
+  outline: none;
+}
+
+button.on {
+  background: var(--ink);
+  color: var(--card);
+  border-color: var(--ink);
+}
+
+button.go {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  border: 1px solid #1d4ed8;
+  color: #fff;
+  box-shadow: 0 8px 18px -6px rgba(37, 99, 235, 0.5);
+}
+
+:root[data-theme="dark"] button.go {
+  background: linear-gradient(135deg, #0284c7, #38bdf8);
+  color: #070b12;
+  border-color: #38bdf8;
+}
+
+.dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.zoom-badge {
+  font-family: var(--m);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--mute);
+  padding: 0 4px;
+}
+
+/* Canvas Viewport */
+#vp {
+  position: absolute;
+  z-index: 5;
+  top: var(--h, 64px);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+
+#vp:active {
+  cursor: grabbing;
+}
+
+#board {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 6400px;
+  height: 1160px;
+  transform-origin: 0 0;
+}
+
+#tilt {
+  position: absolute;
+  inset: 0;
+}
+
+/* Horizontal Swimlane Tracks */
+.lane {
+  position: absolute;
+  left: 0;
+  width: 6400px;
+  height: 204px;
+  border-radius: 20px;
+  background: var(--lane);
+  border: 1px solid var(--bd);
+  box-shadow: 0 24px 38px -18px var(--sh), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.lane::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--c), transparent 25%);
+  opacity: 0.16;
+}
+
+.lane-header {
+  position: absolute;
+  left: 14px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  gap: 6px;
+}
+
+.lane-header b {
+  font-family: var(--f);
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--c);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.lane-header small {
+  font-family: var(--m);
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--mute);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* SVG Vector Flows & Animations */
+svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 12;
+}
+
+.e-track {
+  fill: none;
+  stroke: var(--card);
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.95;
+  transition: opacity 0.3s;
+}
+
+:root[data-theme="dark"] .e-track {
+  stroke: rgba(13, 23, 40, 0.95);
+}
+
+.e-track.hl {
+  stroke: var(--hot-glow) !important;
+  stroke-width: 10 !important;
+  opacity: 1 !important;
+}
+
+.e {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 3.2;
+  stroke-dasharray: 8 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  animation: flowDashes 1.2s linear infinite;
+  transition: stroke 0.3s ease, stroke-width 0.3s ease, filter 0.3s ease;
+}
+
+@keyframes flowDashes {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
+
+.e.hl {
+  stroke: var(--hot) !important;
+  stroke-width: 5.5 !important;
+  stroke-dasharray: none !important;
+  filter: drop-shadow(0 0 12px var(--hot)) !important;
+}
+
+.e.bad {
+  stroke: #f43f5e;
+}
+
+.p {
+  fill: var(--hot);
+  filter: drop-shadow(0 0 6px var(--hot));
+}
+
+.p.bad {
+  fill: #f43f5e;
+  filter: drop-shadow(0 0 6px #f43f5e);
+}
+
+.port {
+  fill: var(--line);
+  stroke: var(--card);
+  stroke-width: 1.5;
+  transition: fill 0.3s;
+}
+
+:root[data-theme="dark"] .port {
+  stroke: #0d1728;
+}
+
+.port.bad {
+  fill: #f43f5e;
+}
+
+.lbl-bg {
+  fill: var(--card);
+  stroke: var(--bd);
+  stroke-width: 1.5;
+  rx: 8;
+  filter: drop-shadow(0 2px 8px var(--sh));
+  pointer-events: auto;
+}
+
+.lbl {
+  font-family: var(--f);
+  font-size: 10.5px;
+  font-weight: 800;
+  fill: var(--ink);
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: auto;
+}
+
+.lbl.bad {
+  fill: #e11d48;
+}
+
+.lbl.good {
+  fill: #059669;
+}
+
+:root[data-theme="dark"] .lbl.good {
+  fill: #10b981;
+}
+
+:root[data-theme="dark"] .lbl.bad {
+  fill: #fb7185;
+}
+
+/* Node Cards */
+.n {
+  position: absolute;
+  width: 238px;
+  height: 134px;
+  padding: 13px 14px 10px;
+  border-radius: 16px;
+  background: linear-gradient(155deg, var(--card), var(--card2));
+  border: 1.5px solid color-mix(in srgb, var(--c) 28%, var(--bd));
+  box-shadow: 0 16px 28px -12px var(--sh), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  transition: transform 0.25s, box-shadow 0.25s, opacity 0.3s, border-color 0.25s, outline 0.25s;
+  animation: cardDrop 0.5s ease-out both;
+  animation-delay: var(--d);
+  cursor: pointer;
+  overflow: hidden;
+  z-index: 10;
+}
+
+:root[data-theme="dark"] .n {
+  box-shadow: 0 16px 28px -12px var(--sh), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.n::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 5px;
+  background: linear-gradient(90deg, var(--c), color-mix(in srgb, var(--c) 35%, #fff));
+  transition: height 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+}
+
+.n::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 0%), rgba(255, 255, 255, 0.35), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.25s;
+  pointer-events: none;
+}
+
+:root[data-theme="dark"] .n::after {
+  background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 0%), rgba(56, 189, 248, 0.25), transparent 60%);
+}
+
+.n:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 26px 36px -12px var(--sh);
+}
+
+.n:hover::after {
+  opacity: 1;
+}
+
+@keyframes cardDrop {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+.n .t {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.n .ic {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  background: color-mix(in srgb, var(--c) 16%, transparent);
+}
+
+.n h3 {
+  font-family: var(--f);
+  font-size: 13.5px;
+  font-weight: 800;
+  line-height: 1.2;
+  padding-right: 22px;
+}
+
+.n .ep {
+  display: inline-block;
+  margin-top: 6px;
+  font-family: var(--m);
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) 12%, transparent);
+  padding: 2px 7px;
+  border-radius: 6px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.n .k {
+  margin-top: 5px;
+  font-family: var(--b);
+  font-size: 11px;
+  line-height: 1.38;
+  color: var(--mute);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.n .no {
+  position: absolute;
+  right: 10px;
+  top: 12px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--c);
+  color: #fff;
+  font-family: var(--f);
+  font-size: 10.5px;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* Specialized Card Archetypes */
+.n.end {
+  background: linear-gradient(140deg, var(--c), color-mix(in srgb, var(--c) 55%, #000));
+  color: #fff;
+  border-radius: 50px 16px 50px 16px;
+}
+
+.n.end .k, .n.end .ep {
+  color: #fff;
+}
+
+.n.end .ep {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.n.end::before {
+  display: none;
+}
+
+.n.dec {
+  border: 2px dashed var(--c);
+  border-radius: 18px;
+}
+
+.n.sub {
+  border-left: 4px solid var(--c);
+}
+
+/* ==========================================================================
+   DYNAMIC HIGHLIGHTING: Clicked / Active Card & System Flow
+   ========================================================================== */
+
+/* 1. Selected Card on Click */
+.n.sel {
+  outline: 3px solid var(--hot) !important;
+  outline-offset: 3px !important;
+  transform: translateY(-5px) scale(1.02) !important;
+  box-shadow: 0 0 24px -2px var(--hot-glow), 0 20px 36px -10px var(--sh) !important;
+  border-color: var(--hot) !important;
+  z-index: 25 !important;
+}
+
+.n.sel::before {
+  height: 6px;
+  background: linear-gradient(90deg, var(--hot), #60a5fa, #93c5fd);
+  box-shadow: 0 0 12px var(--hot);
+}
+
+/* 2. System Flow Active Step (Tour / Lifecycle Tracer) */
+.n.cur {
+  outline: 3px solid var(--hot) !important;
+  outline-offset: 3px !important;
+  transform: translateY(-6px) scale(1.03) !important;
+  box-shadow: 0 0 0 3px var(--hot), 0 0 36px 8px var(--hot-glow), 0 24px 40px -10px var(--sh) !important;
+  z-index: 25 !important;
+  animation: curPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes curPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 3.5px var(--hot), 0 0 32px 8px var(--hot-glow), 0 24px 44px -10px var(--sh);
+  }
+  50% {
+    box-shadow: 0 0 0 6px var(--hot), 0 0 54px 16px var(--hot-glow), 0 30px 56px -12px var(--sh);
+  }
+}
+
+.n.cur::before {
+  height: 6px;
+  background: linear-gradient(90deg, #38bdf8, #60a5fa, #818cf8);
+  box-shadow: 0 0 14px var(--hot);
+}
+
+/* 3. Visited / Progressed Cards */
+.n.seen::before {
+  background: linear-gradient(90deg, #10b981, #059669);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+}
+
+.n.dim {
+  opacity: 0.16;
+  filter: grayscale(0.6);
+}
+
+/* Details Inspector Drawer */
+#side {
+  position: fixed;
+  z-index: 35;
+  right: 18px;
+  top: calc(var(--h, 64px) + 14px);
+  width: 440px;
+  max-height: calc(100% - var(--h, 64px) - 90px);
+  overflow-y: auto;
+  background: var(--glass);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  border: 1px solid var(--bd);
+  border-radius: 20px;
+  padding: 22px;
+  box-shadow: 0 24px 50px -10px var(--sh);
+  display: none;
+  animation: drawerSlide 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+@keyframes drawerSlide {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+}
+
+#side.show {
+  display: block;
+}
+
+#side h2 {
+  font-family: var(--f);
+  font-size: 19px;
+  font-weight: 800;
+  margin: 10px 0 6px;
+  line-height: 1.25;
+}
+
+.tag {
+  font-family: var(--f);
+  font-weight: 800;
+  font-size: 10.5px;
+  color: #fff;
+  padding: 3px 10px;
+  border-radius: 99px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#side dt {
+  font-family: var(--f);
+  font-weight: 800;
+  font-size: 11px;
+  color: var(--mute);
+  margin-top: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+#side dd {
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin-top: 4px;
+}
+
+#side code {
+  font-family: var(--m);
+  font-size: 11px;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  padding: 7px 9px;
+  border-radius: 8px;
+  display: block;
+  word-break: break-all;
+  border: 1px solid var(--bd);
+}
+
+.copy-btn {
+  margin-top: 6px;
+  padding: 4px 10px;
+  font-size: 10.5px;
+  border-radius: 6px;
+}
+
+.chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.chip-link {
+  font-family: var(--f);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: 7px;
+  border: 1px solid var(--bd);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.chip-link:hover {
+  border-color: var(--hot);
+  color: var(--hot);
+}
+
+#x {
+  float: right;
+  padding: 4px 10px;
+}
+
+/* Guided Tour Floating Controller */
+#tour {
+  position: fixed;
+  z-index: 45;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0));
+  transform: translateX(-50%);
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 2px solid var(--hot);
+  border-radius: 18px;
+  padding: 10px 18px;
+  display: none;
+  align-items: center;
+  gap: 14px;
+  max-width: 96vw;
+  box-shadow: 0 18px 45px -8px var(--sh);
+}
+
+#tour.show {
+  display: flex;
+}
+
+#tour small {
+  font-family: var(--f);
+  font-weight: 800;
+  font-size: 11px;
+  color: var(--mute);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+#tour strong {
+  display: block;
+  font-family: var(--f);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+#prog {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  border-radius: 0 0 16px 16px;
+  background: var(--hot);
+  transition: width 0.4s ease;
+}
+
+#hint {
+  position: fixed;
+  z-index: 8;
+  left: 20px;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0));
+  font-family: var(--m);
+  font-size: 11.5px;
+  color: var(--mute);
+}
+
+@media(max-width: 768px) {
+  #side {
+    left: 10px;
+    right: 10px;
+    top: auto;
+    bottom: 80px;
+    width: auto;
+    max-height: 50%;
+  }
+  #hint {
+    display: none;
+  }
+}
+
+@media(prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Docs & Specs Navigation Dropdown */
+.dropdown-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 330px;
+  background: var(--glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--bd);
+  border-radius: 16px;
+  box-shadow: 0 24px 48px -10px var(--sh);
+  padding: 8px;
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  z-index: 60;
+  animation: dropIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dropdown-menu.show {
+  display: flex;
+}
+
+@keyframes dropIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.menu-head {
+  padding: 8px 10px 8px;
+  border-bottom: 1px solid var(--bd);
+}
+
+.menu-head strong {
+  display: block;
+  font-family: var(--f);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.menu-head small {
+  font-size: 10.5px;
+  color: var(--mute);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--ink);
+  transition: all 0.15s ease;
+}
+
+.menu-item:hover {
+  background: color-mix(in srgb, var(--hot) 12%, transparent);
+}
+
+.item-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.menu-item b {
+  display: block;
+  font-family: var(--f);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.menu-item p {
+  font-size: 10.5px;
+  color: var(--mute);
+  margin-top: 2px;
+  line-height: 1.3;
+}
+</style>
+</head>
+<body>
+
+<div id="aur"><i></i><i></i><i></i></div>
+
+<header id="hd">
+  <div class="brand">
+    <div class="brand-badge">SA</div>
+    <div class="brand-info">
+      <h1>SkillAlign Architecture &amp; Workflow</h1>
+      <small>Enterprise ATS · Deterministic 4-Pillar Matching · Async Celery Workers · ReportLab PDF · Admin Governance</small>
+    </div>
+  </div>
+
+  <div class="controls-bar" id="fl"></div>
+
+  <div class="controls-bar">
+    <div class="dropdown-wrap" id="docWrap">
+      <button id="docBtn" title="Help & Documentation Hub">
+        <span>📖</span> Help &amp; Docs ▾
+      </button>
+      <div class="dropdown-menu" id="docMenu">
+        <div class="menu-head">
+          <strong>SkillAlign Knowledge Base</strong>
+          <small>Enterprise Documentation &amp; APIs</small>
+        </div>
+        <a href="SkillAlign_Official_Documentation.html" target="_blank" rel="noopener noreferrer" class="menu-item">
+          <div class="item-icon" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);">📘</div>
+          <div>
+            <b>Official Documentation</b>
+            <p>System specifications, ERD, RBAC &amp; algorithm blueprints</p>
+          </div>
+        </a>
+        <a href="docs/SkillAlign-API-Reference.html" target="_blank" rel="noopener noreferrer" class="menu-item">
+          <div class="item-icon" style="background:linear-gradient(135deg,#0284c7,#2563eb);">⚡</div>
+          <div>
+            <b>API Reference Catalog</b>
+            <p>Interactive OpenAPI 3.1 endpoints &amp; FastAPI contracts</p>
+          </div>
+        </a>
+        <a href="SkillAlign.postman_collection.json" download="SkillAlign.postman_collection.json" class="menu-item">
+          <div class="item-icon" style="background:linear-gradient(135deg,#d97706,#ea580c);">📥</div>
+          <div>
+            <b>Postman Collection</b>
+            <p>Download ready-to-run REST testing suite</p>
+          </div>
+        </a>
+      </div>
+    </div>
+    <button class="go" id="tb">▶ Trace Lifecycle</button>
+    <button id="fit">Fit View</button>
+    <button id="zin" title="Zoom In">+</button>
+    <span class="zoom-badge" id="zval">100%</span>
+    <button id="zout" title="Zoom Out">-</button>
+    <button id="th">Dark Mode</button>
+  </div>
+</header>
+
+<div id="vp">
+  <div id="board">
+    <div id="tilt">
+      <svg id="svg" width="6400" height="1160">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="var(--line)"/>
+          </marker>
+          <marker id="arr-bad" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e"/>
+          </marker>
+          <marker id="arr-hl" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 1 L 9 5 L 0 9 z" fill="#38bdf8"/>
+          </marker>
+        </defs>
+        <g id="eg-tracks"></g>
+        <g id="eg"></g>
+        <g id="eg-ports"></g>
+        <g id="eg-labels"></g>
+        <circle id="pulse" r="11" cx="-80" cy="-80" fill="#38bdf8" stroke="#ffffff" stroke-width="3"/>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<aside id="side"></aside>
+
+<div id="tour">
+  <button id="pv">◀ Back</button>
+  <div>
+    <small id="ts">Step 1 of 25</small>
+    <strong id="tt">User Governance &amp; Enterprise RBAC</strong>
+  </div>
+  <button id="nx" class="go">Next ▶</button>
+  <button id="ps">Auto-play</button>
+  <button id="tx">✕</button>
+  <div id="prog"></div>
+</div>
+
+<div id="hint">Drag canvas to pan · scroll wheel to zoom · click cards to highlight system flow &amp; inspect specs</div>
+
+<script>
+// Operational Swimlane Tracks (Harmonious Executive Bluish Palette)
+const L = {
+  cand: { n: 'Candidate Track', sub: 'Self-Service Portal & Verification', c: '#0284c7', r: 0 },
+  rec:  { n: 'Recruiter Track',  sub: 'Action Center & Sourcing Operations', c: '#4f46e5', r: 1 },
+  hr:   { n: 'HR & HM Track',    sub: 'Requisition & Rubric Evaluation', c: '#7c3aed', r: 2 },
+  adm:  { n: 'Admin Governance', sub: 'Security, Policy & Audit Oversight', c: '#1d4ed8', r: 3 },
+  sys:  { n: 'System Tier',      sub: 'Deterministic Engines & Worker Tasks', c: '#0d9488', r: 4 }
+};
+
+// Nodes: [id, lane, col, icon, title, endpoint, objective, tech_spec, state, actor, type, db_tables, rbac]
+const N = [
+  // Col 0
+  ['adm_rbac', 'adm', 0, '🛡️', 'RBAC & Identity Governance', 'GET /api/admin/users · PATCH /toggle-status',
+   'Enterprise-grade identity administration governing role boundaries (Admin, HR, Recruiter, Candidate), session validation, and immediate account deactivation.',
+   'FastAPI dependency require_admin validates JWT bearer claims against roles table. Supports server-side search, filtering by active/deactivated status, and instant account revocation.',
+   'RBAC_ACTIVE', 'System Administrator', 'proc', 'users, roles, audit_logs', 'Admin Only'],
+
+  ['job', 'hr', 0, '📝', 'Job Requisition Setup', 'POST /api/jobs · POST /jobs/:id/activate',
+   'Hiring Manager structures operational role requirements, department budget headcount, required skills, and min experience parameters.',
+   'Validates JobCreate schema. Persists weighted job_skills (priority scale 1-5). Activating requisition transitions status to JOB_ACTIVE and queues batch matching.',
+   'JOB_ACTIVE', 'HR / Hiring Manager', 'proc', 'jobs, job_skills', 'HR / Hiring Manager'],
+
+  ['start', 'cand', 0, '👤', 'Candidate Signup & JWT Auth', 'POST /api/auth/register · POST /auth/login',
+   'Candidate onboards via email or verified phone OTP, establishing verified cryptographic session credentials.',
+   'Passlib handles bcrypt password hashing (12 rounds). System issues HS256-encoded JWT access tokens with 60-minute TTL. Enforces uniqueness on email and phone numbers.',
+   'INIT', 'Candidate Self-Service', 'start', 'users, candidates', 'Public / Candidate'],
+
+  // Col 1
+  ['upload', 'cand', 1, '📄', 'Resume Ingestion & S3 Vault', 'POST /api/candidates/me/resume',
+   'Ingests unstructured candidate resume files with strict MIME-type integrity checks and dual-storage persistence.',
+   'Multi-part file upload validated via python-magic (PDF, DOCX, TXT, max 10MB). Stored in AWS S3 or encrypted local vault. Enqueues Celery task with candidate_id payload.',
+   'RESUME_UPLOADED', 'Candidate Self-Service', 'proc', 'candidate_resumes (parse_status="PENDING")', 'Candidate (Authenticated)'],
+
+  // Col 2
+  ['celery', 'sys', 2, '⚡', 'Celery + pdfplumber Worker', 'Celery Task: tasks.process_resume',
+   'Asynchronous layout-aware vector text extraction executing in isolated worker processes without ML hallucination.',
+   'Celery worker daemon executes pdfplumber bounding-box layout engine. Extracts clean plain text with column alignment preservation. Zero stochastic or generative hallucination risk.',
+   'PARSED', 'Celery Distributed Worker', 'sub', 'candidate_resumes (extracted_text, parse_status="COMPLETED")', 'Internal Worker Daemon'],
+
+  // Col 3
+  ['tax', 'sys', 3, '🏷️', 'Skill Taxonomy & Evidence Mining', 'Service: resume_txt_parser.py',
+   'Canonical skill normalization across aliases and syntactic sentence proof context extraction.',
+   'Dictionary-mapped alias resolution (e.g. ReactJS -> React). Mines surrounding sentence boundaries to extract evidence_snippet, detected years_of_experience, and proficiency rating.',
+   'INDEXED', 'Deterministic Parsing Engine', 'sub', 'candidate_skills (skill_id, evidence_snippet, proficiency)', 'Internal Worker Daemon'],
+
+  // Col 4
+  ['match', 'sys', 4, '🎯', '4-Pillar Deterministic Match Engine', 'GET /api/matching/jobs/:id/candidates',
+   'Sub-second mathematical candidate fit calculation across 4 weighted objective pillars plus verifiable proof boost.',
+   'Deterministic formula: Skills (50%) + Experience (25%) + Education Tier (15%) + Work Mode (10%) + Evidence Boost. Computes O(N*S) vectorized leaderboard without AI bias.',
+   'CANDIDATE_MATCHED', 'FastAPI Match Engine', 'sub', 'match_results (pipeline_state="CANDIDATE_MATCHED")', 'Recruiter / Hiring Manager'],
+
+  // Col 5
+  ['claim', 'rec', 5, '🔍', 'Candidate Inspection & Claim', 'POST /api/recruiter/claim',
+   'Recruiter inspects itemized 4-pillar scorecard, verifies resume evidence proof snippets, and claims profile.',
+   'Atomic database row-level locking assigns claimed_by_recruiter_id. Prevents duplicate outreach and recruiter collisions across the enterprise talent team.',
+   'CLAIMED', 'Recruiter', 'proc', 'candidates (claimed_by_recruiter_id), audit_logs', 'Recruiter Only'],
+
+  // Col 6
+  ['screen', 'rec', 6, '⚖️', 'Recruiter Screening Gate', 'POST /api/workflow/transition',
+   'Initial human screening checkpoint evaluating communication, availability, and compensation alignment.',
+   'State machine validates transition rules. Rejection requires mandatory standardized reason code. Approval advances pipeline state to CANDIDATE_SHORTLISTED.',
+   'SCREENING_DECISION', 'Recruiter', 'dec', 'match_results (pipeline_state="CANDIDATE_SHORTLISTED")', 'Recruiter Only'],
+
+  // Col 7
+  ['submit_hm', 'rec', 7, '🚀', 'Shortlist Submission to HM', 'POST /api/workflow/transition',
+   'Transfers verified candidate dossier to the assigned Hiring Manager review queue with screening notes.',
+   'Transitions pipeline state to SENT_TO_HIRING_MANAGER. Dispatches in-app notification and email alert to the specific department hiring manager.',
+   'SENT_TO_HM', 'Recruiter', 'proc', 'match_results, notifications, audit_logs', 'Recruiter Only'],
+
+  ['rec_rej', 'cand', 7, '✕', 'Recruiter Rejection (Terminal)', 'POST /api/workflow/transition',
+   'Terminal rejection state terminating sourcing pipeline for non-qualifying candidate profiles.',
+   'Transitions state to REJECTED. Logs actor ID, immutable reason code, and timestamp in audit_logs. Candidate notification dispatched via email.',
+   'REJECTED', 'Recruiter', 'end', 'match_results (pipeline_state="REJECTED"), audit_logs', 'Recruiter Only'],
+
+  // Col 8
+  ['hm_gate', 'hr', 8, '👔', 'Hiring Manager Review Gate', 'POST /api/workflow/transition',
+   'Technical manager checkpoint reviewing portfolio, verified evidence snippets, and project history.',
+   'Hiring Manager either approves profile advancing to interview scheduling (INTERVIEW_REQUESTED) or declines with technical feedback (HIRING_MANAGER_REJECTED).',
+   'HM_REVIEW_DECISION', 'Hiring Manager', 'dec', 'match_results (pipeline_state="INTERVIEW_REQUESTED")', 'Hiring Manager Only'],
+
+  // Col 9
+  ['slots', 'rec', 9, '📅', 'Propose 2-4 Interview Windows', 'POST /api/interviews/propose-slots',
+   'Coordinates panel availability and creates 2 to 4 selectable interview time windows with cryptographic token.',
+   'Generates HMAC SHA-256 cryptographically signed token embedded in candidate link. Allows 1-click self-service booking without prior candidate authentication.',
+   'SLOTS_PROPOSED', 'Recruiter', 'proc', 'interviews, interview_slots (status="PROPOSED")', 'Recruiter Only'],
+
+  ['hm_rej', 'cand', 9, '✕', 'HM Review Declined (Terminal)', 'POST /api/workflow/transition',
+   'Terminal rejection state resulting from Hiring Manager technical dossier review.',
+   'Transitions state to HIRING_MANAGER_REJECTED. Closes candidate loop for current requisition; records feedback notes in audit trail.',
+   'HIRING_MANAGER_REJECTED', 'Hiring Manager', 'end', 'match_results, audit_logs', 'Hiring Manager Only'],
+
+  // Col 10
+  ['msg', 'sys', 10, '📩', 'Notification Gateway Dispatch', 'POST /api/notifications/send',
+   'Automated transactional notification engine dispatching tokenized links via multi-channel gateways.',
+   'SendGrid (Email) and Twilio (SMS) REST dispatch. Generates responsive HTML email with embedded HMAC booking URL with 72-hour TTL expiration.',
+   'DISPATCHED', 'Transactional Notification Engine', 'sub', 'notifications, audit_logs', 'System Internal Service'],
+
+  // Col 11
+  ['slot_sel', 'cand', 11, '🖱️', '1-Click Candidate Slot Selection', 'POST /api/interviews/select-slot',
+   'Candidate selects preferred interview slot via secure browser portal with instantaneous panel confirmation.',
+   'Verifies HMAC signature hash. Executes atomic PostgreSQL transaction with SELECT ... FOR UPDATE row-level locking to prevent concurrent double-booking.',
+   'SLOT_SELECTED', 'Candidate Self-Service', 'proc', 'interview_slots (status="SELECTED"), match_results', 'Public (Signed Token)'],
+
+  // Col 12
+  ['interview', 'cand', 12, '🎙️', 'Panel Interview Execution', 'Integration: Calendar / Google Meet',
+   'Synchronous technical evaluation panel covering coding architecture, system design, and communication.',
+   'Live state transitions to INTERVIEW_IN_PROGRESS. Webhooks or calendar integrations track attendance and meeting duration metadata.',
+   'IN_PROGRESS', 'Interview Panel & Candidate', 'proc', 'interviews, match_results (INTERVIEW_IN_PROGRESS)', 'Panel / Candidate'],
+
+  // Col 13
+  ['scorecard', 'hr', 13, '📋', 'Structured Rubric Scorecard', 'POST /api/interviews/:id/feedback',
+   'Independent multi-competency numerical rating submitted by interviewers immediately post-round.',
+   'Records standardized ratings (0-100) across Coding, System Design, Problem Solving, and Culture. Aggregates weighted score and permanently locks submission against tampering.',
+   'EVALUATED', 'Interview Panel / Hiring Manager', 'proc', 'interview_feedback, match_results', 'Interview Panelist / HM'],
+
+  // Col 14
+  ['eval_gate', 'hr', 14, '⚖️', 'Interview Evaluation Decision Gate', 'POST /api/workflow/transition',
+   'Automated threshold checkpoint evaluating aggregated scorecard score against hiring standard.',
+   'Composite score >= 75 triggers offer generation pathway (INTERVIEW_GO). Composite score < 75 transitions candidate to terminal rejection (INTERVIEW_NO_GO).',
+   'EVALUATION_DECISION', 'Hiring Manager / System', 'dec', 'match_results (pipeline_state="INTERVIEW_GO")', 'Hiring Manager / System'],
+
+  ['eval_rej', 'cand', 14, '✕', 'Evaluation No-Go (Terminal)', 'POST /api/workflow/transition',
+   'Terminal rejection resulting from failure to meet standardized rubric evaluation threshold (<75 pts).',
+   'Transitions state to INTERVIEW_NO_GO. Locks interview record; triggers templated respectful rejection email dispatch.',
+   'INTERVIEW_NO_GO', 'Hiring Manager', 'end', 'match_results (INTERVIEW_NO_GO), audit_logs', 'Hiring Manager Only'],
+
+  // Col 15
+  ['draft_offer', 'rec', 15, '💼', 'Draft Compensation Package', 'POST /api/offers',
+   'Recruiter constructs formal compensation breakdown aligned with requisition budget bands.',
+   'Calculates Base Salary, HRA, Variable Performance Pay, Joining Bonus, and Equity Grants. Validates annualized CTC against requisition approved budget parameters.',
+   'OFFER_DRAFT', 'Recruiter', 'proc', 'offers (status="DRAFT", pipeline_state="OFFER_PENDING_APPROVAL")', 'Recruiter Only'],
+
+  // Col 16
+  ['offer_gate', 'hr', 16, '🛡️', 'HR Executive Offer Approval Gate', 'POST /api/offers/:id/approve',
+   'Executive governance review verifying salary equity, pay parity compliance, and budget clearance.',
+   'HR Director reviews drafted terms. Signing approval updates status to APPROVED and records approving user ID, timestamp, and signed hash in immutable audit trail.',
+   'OFFER_APPROVED', 'HR Director / Executive', 'dec', 'offers (status="APPROVED", approved_by_user_id)', 'HR Executive Only'],
+
+  // Col 17
+  ['pdf', 'sys', 17, '📄', 'ReportLab Vector PDF Compilation', 'Service: offer_pdf_service.py',
+   'Server-side high-fidelity compilation of formal dual-annexure offer letter document.',
+   'ReportLab 3.x builds pixel-perfect vector PDF complete with CTC breakdown annexure, legal clauses, and digital signature hash block in sub-450ms. Uploads to S3.',
+   'PDF_READY', 'ReportLab PDF Engine', 'sub', 'offers (offer_letter_url, token_hash, status="SENT")', 'Internal Worker Daemon'],
+
+  // Col 18
+  ['offer_decision', 'cand', 18, '✍️', 'Candidate Formal Offer Decision Gate', 'GET /api/offers/portal/:token',
+   'Candidate reviews annualized compensation schedule and executes binding digital signature or decline.',
+   'Tokenized portal access validates candidate signature token. E-signature captures timestamp, IP address, and acceptance legal declaration hash.',
+   'OFFER_DECISION', 'Candidate Self-Service', 'dec', 'offers (viewed_at, signed_at)', 'Public (Signed Token)'],
+
+  // Col 19
+  ['hired', 'cand', 19, '🎉', 'Position Filled: HIRED Status', 'POST /api/offers/respond {action:"ACCEPT"}',
+   'Terminal successful completion of requisition lifecycle; transitions candidate into employee onboarding.',
+   'Atomic transaction transitions status to HIRED. Requisition headcount marked filled; active job postings closed; webhook triggers employee provisioning.',
+   'HIRED', 'Candidate / HR Team', 'end', 'offers (status="ACCEPTED"), match_results (HIRED)', 'Candidate / System'],
+
+  ['declined', 'adm', 19, '⛔', '6-Mo Cooldown & Blacklist Policy', 'POST /api/offers/respond {action:"DECLINE"}',
+   'Automated policy enforcement placing candidates declining formal offers into mandatory cooldown.',
+   'Sets cooling_off_until = NOW() + INTERVAL "6 MONTHS". Matching engine automatically suppresses cooled-off candidates from active leaderboard match calculations.',
+   'COOLING_OFF', 'Admin Policy Engine', 'end', 'candidates (cooling_off_until), match_results (BLACKLISTED)', 'Admin Policy Engine'],
+
+  // Col 20
+  ['sys_audit', 'sys', 20, '💾', 'Immutable Relational Audit Logger', 'Service: audit_service.py',
+   'Underlying event-sourcing relational database table capturing append-only delta logs.',
+   'Captures actor_id, actor_role, action, from_state, to_state, JSON payload diff, and IP address. Read-only table with zero in-place update or deletion permissions.',
+   'AUDITED', 'PostgreSQL Audit Engine', 'sub', 'audit_logs (append-only table)', 'System Internal Engine'],
+
+  ['adm_audit', 'adm', 20, '📜', 'Centralized Audit & Compliance Ledger', 'GET /api/admin/hiring-logs',
+   'Unified administrative oversight console for regulatory inspection, SOC2 compliance, and audit trail examination.',
+   'Supports full-text search across actor, candidate, job, and action type. Filter by categories (OFFERS, INTERVIEWS, REVIEWS, SOURCING, TASKS) with relative time formatters.',
+   'LEDGER_ACTIVE', 'System Administrator / Auditor', 'proc', 'audit_logs, users, jobs, candidates', 'Admin Only'],
+
+  // Col 21
+  ['adm_kpi', 'adm', 21, '📊', 'Executive Hiring Funnel & Analytics KPI', 'GET /api/admin/hiring-logs (Metrics)',
+   'C-Suite analytical dashboard computing recruitment pipeline throughput, time-to-hire velocity, and conversion ratios.',
+   'Real-time SQL rollups compute total_hires, total_offers, total_interviews, 24h recent activity, and funnel drop-off rates across departments.',
+   'ANALYTICS_ROLLUP', 'Executive Leadership / Admin', 'proc', 'audit_logs, match_results, jobs', 'Admin / Executive Leadership']
+];
+
+// Vector Connections: [from, to, label, status]
+const E = [
+  ['adm_rbac', 'job', 'Dept Permissions', ''],
+  ['adm_rbac', 'start', 'RBAC Token Policy', ''],
+  ['start', 'upload', 'Auth Token (JWT)', ''],
+  ['upload', 'celery', 'Async Task Enqueue', ''],
+  ['celery', 'tax', 'Layout-Clean Text', ''],
+  ['tax', 'match', 'Skill Evidence Proof', ''],
+  ['job', 'match', 'Requisition Weights 1-5', ''],
+  ['match', 'claim', 'Ranked Leaderboard', ''],
+  ['claim', 'screen', 'Claim Lock Acquired', ''],
+  ['screen', 'submit_hm', '✓ Shortlisted', ''],
+  ['screen', 'rec_rej', '✕ Rejection Reason', 'bad'],
+  ['submit_hm', 'hm_gate', 'Portfolio Dossier', ''],
+  ['hm_gate', 'slots', '✓ Request Round', ''],
+  ['hm_gate', 'hm_rej', '✕ Decline Review', 'bad'],
+  ['slots', 'msg', 'Signed HMAC Token', ''],
+  ['msg', 'slot_sel', '1-Click Invite Link', ''],
+  ['slot_sel', 'interview', 'Atomic Slot Lock', ''],
+  ['interview', 'scorecard', 'Panel Feedback', ''],
+  ['scorecard', 'eval_gate', 'Rubric Score Matrix', ''],
+  ['eval_gate', 'draft_offer', '✓ Score >= 75', ''],
+  ['eval_gate', 'eval_rej', '✕ Score < 75', 'bad'],
+  ['draft_offer', 'offer_gate', 'Band & Equity Audit', ''],
+  ['offer_gate', 'pdf', '✓ Budget Approved', ''],
+  ['pdf', 'offer_decision', 'Secured Token Portal', ''],
+  ['offer_decision', 'hired', '✓ Offer Accepted', ''],
+  ['offer_decision', 'declined', '✕ Offer Declined', 'bad'],
+  ['hired', 'sys_audit', 'Signed Acceptance Hash', ''],
+  ['sys_audit', 'adm_audit', 'Live Event Feed', ''],
+  ['adm_audit', 'adm_kpi', 'Funnel Rollup & KPIs', '']
+];
+
+// Sequential Guided Tour Pipeline (Complete 25-Step Enterprise Saga)
+const TOUR = [
+  'adm_rbac',
+  'job',
+  'start',
+  'upload',
+  'celery',
+  'tax',
+  'match',
+  'claim',
+  'screen',
+  'submit_hm',
+  'hm_gate',
+  'slots',
+  'msg',
+  'slot_sel',
+  'interview',
+  'scorecard',
+  'eval_gate',
+  'draft_offer',
+  'offer_gate',
+  'pdf',
+  'offer_decision',
+  'hired',
+  'sys_audit',
+  'adm_audit',
+  'adm_kpi'
+];
+
+const X0 = 120, DX = 270, LH = 210, Y0 = 34, NW = 238, NH = 134;
+const by = {}, $ = id => document.getElementById(id), tilt = $('tilt'), side = $('side'), NS = 'http://www.w3.org/2000/svg';
+
+// Render Swimlanes
+Object.keys(L).forEach(k => {
+  const d = document.createElement('div');
+  d.className = 'lane';
+  d.style.cssText = `top:${L[k].r * LH + 20}px;--c:${L[k].c}`;
+  d.innerHTML = `<div class="lane-header"><b>${L[k].n}</b><small>${L[k].sub}</small></div>`;
+  tilt.insertBefore(d, $('svg'));
+});
+
+// Render Nodes
+N.forEach((a, i) => {
+  const [id, l, c, ic, t, ep, obj, tech, st, who, ty, db, rbac] = a;
+  const el = document.createElement('div');
+  el.className = 'n ' + (ty || '');
+  const x = X0 + c * DX;
+  const y = L[l].r * LH + 20 + Y0;
+  el.style.cssText = `left:${x}px;top:${y}px;--c:${L[l].c};--d:${(c * 0.06 + i * 0.02).toFixed(2)}s`;
+  
+  const no = TOUR.indexOf(id) + 1;
+  el.innerHTML = `
+    <div class="t">
+      <div class="ic">${ic}</div>
+      <h3>${t}</h3>
+    </div>
+    ${no && !ty.includes('end') ? `<span class="no">${no}</span>` : ''}
+    <span class="ep">${ep}</span>
+    <p class="k">${obj}</p>
+  `;
+  
+  el.tabIndex = 0;
+  el.onclick = () => {
+    open(id);
+    focus(id);
+  };
+  el.onkeydown = e => e.key === 'Enter' && (open(id), focus(id));
+  
+  // Spotlight Cursor Flashlight Effect
+  el.onmousemove = e => {
+    const r = el.getBoundingClientRect();
+    el.style.setProperty('--mx', `${e.clientX - r.left}px`);
+    el.style.setProperty('--my', `${e.clientY - r.top}px`);
+  };
+
+  tilt.appendChild(el);
+  by[id] = { a, el, l, x, y };
+});
+
+// Smart Corridor Edge Routing Engine
+function getEdgeRoute(f, t) {
+  const A = by[f], B = by[t];
+  if (!A || !B) return null;
+
+  // 1. adm_rbac -> start (routes out left side of adm_rbac into margin, up to start)
+  if (f === 'adm_rbac' && t === 'start') {
+    const x1 = A.x;
+    const y1 = A.y + NH / 2;
+    const x2 = B.x;
+    const y2 = B.y + NH / 2;
+    const mx = A.x - 45; // open margin corridor at x = 75px
+    return {
+      x1, y1, x2, y2,
+      d: `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`
+    };
+  }
+
+  // 2. job -> match (travels along empty hr row 2, turns down into top of match)
+  if (f === 'job' && t === 'match') {
+    const x1 = A.x + NW;
+    const y1 = A.y + NH / 2;
+    const x2 = B.x + NW / 2;
+    const y2 = B.y;
+    const cr = 32;
+    return {
+      x1, y1, x2, y2,
+      d: `M ${x1} ${y1} L ${x2 - cr} ${y1} Q ${x2} ${y1} ${x2} ${y1 + cr} L ${x2} ${y2}`
+    };
+  }
+
+  // 3. Same Column: Vertical Connection
+  if (Math.abs(A.x - B.x) < 40) {
+    const x1 = A.x + NW / 2;
+    const x2 = B.x + NW / 2;
+    const dn = B.y > A.y;
+    const y1 = A.y + (dn ? NH : 0);
+    const y2 = B.y + (dn ? 0 : NH);
+    return {
+      x1, y1, x2, y2,
+      d: `M ${x1} ${y1} L ${x2} ${y2}`
+    };
+  }
+
+  // 4. Same Row: Direct Horizontal Connection
+  if (Math.abs(A.y - B.y) < 20 && B.x > A.x) {
+    const x1 = A.x + NW;
+    const y1 = A.y + NH / 2;
+    const x2 = B.x;
+    const y2 = B.y + NH / 2;
+    return {
+      x1, y1, x2, y2,
+      d: `M ${x1} ${y1} L ${x2} ${y2}`
+    };
+  }
+
+  // 5. Forward connection between different rows
+  if (B.x > A.x) {
+    const x1 = A.x + NW;
+    const y1 = A.y + NH / 2;
+    const x2 = B.x;
+    const y2 = B.y + NH / 2;
+    const cx = (x1 + x2) / 2;
+    const gap = x2 - x1;
+
+    // If gap is small (adjacent column ~32px) or large vertical span:
+    // Route strictly through the vertical corridor cx without bulging into cards
+    if (gap <= 40 || Math.abs(y2 - y1) > 160) {
+      const bend = y2 > y1 ? 30 : -30;
+      return {
+        x1, y1, x2, y2,
+        d: `M ${x1} ${y1} C ${cx} ${y1}, ${cx} ${y1 + bend}, ${cx} ${(y1 + y2) / 2} S ${cx} ${y2}, ${x2} ${y2}`
+      };
+    }
+
+    // Gentle diagonal bezier for adjacent rows
+    const dx = Math.min(50, Math.max(20, gap * 0.45));
+    return {
+      x1, y1, x2, y2,
+      d: `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`
+    };
+  }
+
+  // 6. Backward connection (fallback)
+  const x1 = A.x + NW / 2;
+  const y1 = A.y + NH;
+  const x2 = B.x + NW / 2;
+  const y2 = B.y + NH;
+  return {
+    x1, y1, x2, y2,
+    d: `M ${x1} ${y1} C ${x1} ${y1 + 50}, ${x2} ${y2 + 50}, ${x2} ${y2}`
+  };
+}
+
+// Render Vector Flow Connectors & Flowing Particles
+const P = {};
+E.forEach(([f, t, lb, st], i) => {
+  const route = getEdgeRoute(f, t);
+  if (!route) return;
+  const { x1, y1, x2, y2, d } = route;
+
+  // 1. Under-layer contrast track
+  const track = document.createElementNS(NS, 'path');
+  track.setAttribute('d', d);
+  track.setAttribute('class', 'e-track');
+  $('eg-tracks').appendChild(track);
+
+  // 2. Main animated dashed vector path
+  const p = document.createElementNS(NS, 'path');
+  p.setAttribute('d', d);
+  p.setAttribute('class', 'e ' + (st === 'bad' ? 'bad' : ''));
+  p.setAttribute('marker-end', st === 'bad' ? 'url(#arr-bad)' : 'url(#arr)');
+  $('eg').appendChild(p);
+  P[f + '>' + t] = p;
+  p._f = f;
+  p._t = t;
+  p._track = track;
+
+  // 3. Terminal port anchor dots
+  [ [x1, y1], [x2, y2] ].forEach(([px, py]) => {
+    const dot = document.createElementNS(NS, 'circle');
+    dot.setAttribute('cx', px);
+    dot.setAttribute('cy', py);
+    dot.setAttribute('r', 3.5);
+    dot.setAttribute('class', 'port ' + (st === 'bad' ? 'bad' : ''));
+    $('eg-ports').appendChild(dot);
+  });
+
+  // 4. Staggered continuous moving photon particles
+  [0, 1].forEach(j => {
+    const c = document.createElementNS(NS, 'circle');
+    c.setAttribute('r', 4.5);
+    c.setAttribute('class', 'p ' + (st === 'bad' ? 'bad' : ''));
+    c.innerHTML = `<animateMotion dur="${3.2 + (i % 3) * 0.6}s" begin="${-j * 1.6 - (i % 4) * 0.3}s" repeatCount="indefinite" path="${d}"/>`;
+    $('eg').appendChild(c);
+  });
+
+  // 5. Branch Decision Badge / Label (centered on true path midpoint)
+  if (lb) {
+    const len = p.getTotalLength();
+    const pt = p.getPointAtLength(len * 0.5);
+    const mx = pt.x, my = pt.y;
+    const w = lb.length * 7.2 + 20;
+
+    const bg = document.createElementNS(NS, 'rect');
+    bg.setAttribute('class', 'lbl-bg');
+    bg.setAttribute('x', mx - w / 2);
+    bg.setAttribute('y', my - 10);
+    bg.setAttribute('width', w);
+    bg.setAttribute('height', 20);
+    $('eg-labels').appendChild(bg);
+
+    const txt = document.createElementNS(NS, 'text');
+    txt.setAttribute('class', 'lbl ' + (st === 'bad' ? 'bad' : (lb.startsWith('✓') ? 'good' : '')));
+    txt.setAttribute('x', mx);
+    txt.setAttribute('y', my);
+    txt.textContent = lb;
+    $('eg-labels').appendChild(txt);
+  }
+});
+
+// Dynamic Vector Path Highlight for Clicked Node
+function highlightNodeEdges(id) {
+  Object.values(P).forEach(p => {
+    p.classList.remove('hl');
+    if (p._track) p._track.classList.remove('hl');
+    p.setAttribute('marker-end', p.classList.contains('bad') ? 'url(#arr-bad)' : 'url(#arr)');
+  });
+  if (!id) return;
+  E.forEach(([f, t]) => {
+    if (f === id || t === id) {
+      const p = P[f + '>' + t];
+      if (p) {
+        p.classList.add('hl');
+        p.setAttribute('marker-end', 'url(#arr-hl)');
+        if (p._track) p._track.classList.add('hl');
+      }
+    }
+  });
+}
+
+// Inspector Drawer (Enterprise Architecture Detail)
+function open(id) {
+  document.querySelectorAll('.n').forEach(n => n.classList.remove('sel'));
+  const o = by[id];
+  if (!o) return;
+  o.el.classList.add('sel');
+  highlightNodeEdges(id);
+
+  const [, l, , ic, t, ep, obj, tech, st, who, , db, rbac] = o.a;
+
+  const makeChips = arr => {
+    if (!arr || !arr.length) return '<span style="color:var(--mute);font-size:11px;">Initial pipeline origin or terminal boundary</span>';
+    return arr.map(e => `<button class="chip-link" onclick="open('${e}');focus('${e}')">${by[e].a[4]}</button>`).join('');
+  };
+
+  const nx = makeChips(E.filter(e => e[0] === id).map(e => e[1]));
+  const pv = makeChips(E.filter(e => e[1] === id).map(e => e[0]));
+
+  side.innerHTML = `
+    <button id="x" onclick="side.classList.remove('show');highlightNodeEdges(null);">✕</button>
+    <span class="tag" style="background:${L[l].c}">${L[l].n}</span>
+    <h2>${ic} ${t}</h2>
+
+    <dl>
+      <dt>📌 Functional Objective &amp; Operational Scope</dt>
+      <dd>${obj}</dd>
+
+      <dt>🏗️ Architecture &amp; Engineering Implementation</dt>
+      <dd>${tech}</dd>
+
+      <dt>🔌 REST API Route / Background Task Contract</dt>
+      <dd>
+        <code>${ep}</code>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText('${ep}').then(()=>this.textContent='Copied!').catch(()=>this.textContent='Error')">📋 Copy Route</button>
+      </dd>
+
+      <dt>💾 Database Mutations &amp; Storage Scope</dt>
+      <dd><code>${db || 'audit_logs table'}</code></dd>
+
+      <dt>⚡ Pipeline State Machine Enum</dt>
+      <dd><span style="font-family:var(--m);font-weight:700;color:var(--hot);">${st}</span></dd>
+
+      <dt>🛡️ Role-Based Access Control (RBAC) &amp; Actor</dt>
+      <dd><strong>${who}</strong> &nbsp;·&nbsp; <span style="font-family:var(--m);font-size:11px;color:var(--mute);">${rbac || 'Authenticated'}</span></dd>
+
+      <dt>⏪ Preceding Lifecycle Step(s)</dt>
+      <dd><div class="chips-row">${pv}</div></dd>
+
+      <dt>⏩ Subsequent Lifecycle Step(s)</dt>
+      <dd><div class="chips-row">${nx}</div></dd>
+    </dl>
+  `;
+  side.classList.add('show');
+}
+
+// Lane Filters & Dimming
+[['all', 'All Tracks', '#64748b'], ...Object.keys(L).map(k => [k, L[k].n, L[k].c])].forEach(([k, n, c], i) => {
+  const b = document.createElement('button');
+  b.innerHTML = `<span class="dot" style="background:${c}"></span>${n}`;
+  if (!i) b.className = 'on';
+
+  b.onclick = () => {
+    $('fl').querySelectorAll('button').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    Object.values(by).forEach(o => o.el.classList.toggle('dim', k !== 'all' && o.l !== k));
+    Object.values(P).forEach(p => {
+      p.style.opacity = (k === 'all' || by[p._f].l === k || by[p._t].l === k) ? 1 : 0.08;
+    });
+  };
+  $('fl').appendChild(b);
+});
+
+// Camera Pan & Focal-point Zoom
+const vp = $('vp'), board = $('board'), zval = $('zval');
+let s = 0.38, tx = 20, ty = 20, drag = null;
+
+const cam = () => {
+  board.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+  if (zval) zval.textContent = Math.round(s * 100) + '%';
+};
+
+function fit() {
+  s = Math.max(0.22, Math.min(vp.clientWidth / 6300, vp.clientHeight / 1140));
+  tx = 15;
+  ty = 15;
+  cam();
+}
+
+function adjustZoom(delta) {
+  const ns = Math.min(2.2, Math.max(0.20, s + delta));
+  const X = vp.clientWidth / 2;
+  const Y = vp.clientHeight / 2;
+  tx = X - (X - tx) * ns / s;
+  ty = Y - (Y - ty) * ns / s;
+  s = ns;
+  cam();
+}
+
+$('zin').onclick = () => adjustZoom(0.12);
+$('zout').onclick = () => adjustZoom(-0.12);
+
+function focus(id) {
+  const o = by[id];
+  if (!o) return;
+  // Gentle, comfortable focus zoom:
+  // Instead of blowing up to 0.88 (88%), use a gentle 0.46 to maintain surrounding context
+  const targetScale = s < 0.44 ? 0.46 : Math.min(s, 0.54);
+  s = targetScale;
+  const sideOffset = side.classList.contains('show') && innerWidth > 768 ? 160 : 0;
+  tx = vp.clientWidth / 2 - (o.x + NW / 2) * s - sideOffset;
+  ty = vp.clientHeight / 2 - (o.y + NH / 2) * s;
+  board.style.transition = 'transform 0.6s cubic-bezier(.16,1,.3,1)';
+  cam();
+  setTimeout(() => board.style.transition = '', 650);
+}
+
+vp.onpointerdown = e => {
+  if (e.target.closest('.n')) return;
+  drag = [e.clientX - tx, e.clientY - ty];
+  vp.setPointerCapture(e.pointerId);
+};
+
+vp.onpointermove = e => {
+  if (drag) {
+    tx = e.clientX - drag[0];
+    ty = e.clientY - drag[1];
+    cam();
+  }
+};
+
+vp.onpointerup = () => drag = null;
+
+vp.onwheel = e => {
+  e.preventDefault();
+  const r = vp.getBoundingClientRect();
+  const X = e.clientX - r.left;
+  const Y = e.clientY - r.top;
+  const ns = Math.min(2.2, Math.max(0.20, s * Math.exp(-e.deltaY * 0.0015)));
+  tx = X - (X - tx) * ns / s;
+  ty = Y - (Y - ty) * ns / s;
+  s = ns;
+  cam();
+};
+
+$('fit').onclick = fit;
+
+// Theme Toggle
+const R = document.documentElement;
+function setT(d) {
+  R.dataset.theme = d ? 'dark' : 'light';
+  $('th').textContent = d ? 'Light Mode' : 'Dark Mode';
+  try { localStorage.setItem('sa-flow-theme', d ? 'dark' : 'light'); } catch (e) {}
+}
+
+let savedTheme = null;
+try { savedTheme = localStorage.getItem('sa-flow-theme'); } catch (e) {}
+setT(savedTheme ? savedTheme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches);
+$('th').onclick = () => setT(R.dataset.theme !== 'dark');
+
+// Guided Lifecycle Tour
+const tour = $('tour'), pulse = $('pulse');
+let ti = -1, timer = null;
+
+function clr() {
+  document.querySelectorAll('.n').forEach(n => n.classList.remove('cur', 'seen'));
+  Object.values(P).forEach(p => {
+    p.classList.remove('hl');
+    if (p._track) p._track.classList.remove('hl');
+    p.setAttribute('marker-end', p.classList.contains('bad') ? 'url(#arr-bad)' : 'url(#arr)');
+  });
+  pulse.setAttribute('cx', -80);
+}
+
+function step(i) {
+  if (i < 0 || i >= TOUR.length) return stopTour();
+  ti = i;
+  const id = TOUR[i];
+  
+  document.querySelectorAll('.n').forEach(n => n.classList.remove('cur'));
+  TOUR.slice(0, i).forEach(x => by[x] && by[x].el.classList.add('seen'));
+  
+  if (by[id]) {
+    by[id].el.classList.add('cur');
+    Object.values(P).forEach(p => {
+      p.classList.remove('hl');
+      if (p._track) p._track.classList.remove('hl');
+      p.setAttribute('marker-end', p.classList.contains('bad') ? 'url(#arr-bad)' : 'url(#arr)');
+    });
+
+    // Highlight active connecting vector
+    const k = Object.keys(P).find(q => q.endsWith('>' + id) && TOUR.includes(q.split('>')[0]));
+    if (k) {
+      P[k].classList.add('hl');
+      P[k].setAttribute('marker-end', 'url(#arr-hl)');
+      if (P[k]._track) P[k]._track.classList.add('hl');
+      runTracer(P[k]);
+    }
+
+    $('ts').textContent = `Step ${i + 1} of ${TOUR.length} · ${L[by[id].l].n}`;
+    $('tt').textContent = by[id].a[4];
+    $('prog').style.width = ((i + 1) / TOUR.length * 100) + '%';
+    
+    open(id);
+    focus(id);
+  }
+}
+
+function runTracer(p) {
+  const len = p.getTotalLength();
+  const t0 = performance.now();
+  (function f(t) {
+    const q = Math.min(1, (t - t0) / 750);
+    const pt = p.getPointAtLength(len * q);
+    pulse.setAttribute('cx', pt.x);
+    pulse.setAttribute('cy', pt.y);
+    if (q < 1) requestAnimationFrame(f);
+  })(t0);
+}
+
+function stopTour() {
+  clearInterval(timer);
+  timer = null;
+  $('ps').textContent = 'Auto-play';
+}
+
+function endTour() {
+  tour.classList.remove('show');
+  stopTour();
+  clr();
+  side.classList.remove('show');
+  fit();
+}
+
+$('tb').onclick = () => {
+  if (tour.classList.contains('show')) return endTour();
+  tour.classList.add('show');
+  clr();
+  step(0);
+};
+
+$('tx').onclick = endTour;
+$('nx').onclick = () => step(Math.min(ti + 1, TOUR.length - 1));
+$('pv').onclick = () => { clr(); step(Math.max(ti - 1, 0)); };
+
+$('ps').onclick = () => {
+  if (timer) return stopTour();
+  $('ps').textContent = 'Pause';
+  if (ti >= TOUR.length - 1) {
+    clr();
+    step(0);
+  }
+  timer = setInterval(() => {
+    if (ti >= TOUR.length - 1) stopTour();
+    else step(ti + 1);
+  }, 3200);
+};
+
+// Keyboard Shortcuts
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    side.classList.remove('show');
+    highlightNodeEdges(null);
+    if (tour.classList.contains('show')) endTour();
+  }
+  if (tour.classList.contains('show')) {
+    if (e.key === 'ArrowRight') $('nx').click();
+    if (e.key === 'ArrowLeft') $('pv').click();
+    if (e.key === ' ') {
+      e.preventDefault();
+      $('ps').click();
+    }
+  }
+});
+
+// Docs & Help Dropdown
+const docBtn = $('docBtn'), docMenu = $('docMenu');
+if (docBtn && docMenu) {
+  docBtn.onclick = e => {
+    e.stopPropagation();
+    docMenu.classList.toggle('show');
+  };
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#docWrap')) docMenu.classList.remove('show');
+  });
+}
+
+function rs() {
+  R.style.setProperty('--h', $('hd').offsetHeight + 'px');
+}
+
+addEventListener('resize', rs);
+setTimeout(() => {
+  rs();
+  fit();
+}, 60);
+</script>
+</body>
+</html>

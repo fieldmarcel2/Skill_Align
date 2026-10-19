@@ -36,6 +36,7 @@ import {
   RefreshCw,
   Sparkles,
   Eye,
+  ExternalLink,
 } from "lucide-react";
 
 type SortField = "name" | "score" | "experience" | "status" | "job";
@@ -233,7 +234,7 @@ export const HRShortlistsPage: React.FC = () => {
             to="/hr"
             className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mb-3"
           >
-            <ArrowLeft className="h-3.5 w-3.5" /> Back to HR Dashboard
+            <ArrowLeft className="h-3.5 w-3.5" /> Back to HM Dashboard
           </Link>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
@@ -398,7 +399,7 @@ export const HRShortlistsPage: React.FC = () => {
             Try adjusting the search or clearing filters.
           </p>
           <Link to="/hr">
-            <Button variant="gradient" size="sm">Go to HR Dashboard</Button>
+            <Button variant="gradient" size="sm">Go to HM Dashboard</Button>
           </Link>
         </div>
       ) : viewMode === "table" ? (
@@ -493,8 +494,23 @@ export const HRShortlistsPage: React.FC = () => {
                               {match.candidate.full_name?.charAt(0)?.toUpperCase() || "?"}
                             </div>
                             <div>
-                              <div className="font-semibold text-foreground text-xs">
-                                {match.candidate.full_name}
+                              <div className="flex items-center gap-1.5">
+                                <Link
+                                  to={`/hr/jobs/${match.job_id}/matches`}
+                                  className="font-semibold text-foreground hover:text-primary hover:underline text-xs flex items-center gap-1 transition-colors group"
+                                  title={`Open matches for ${match.candidate.full_name}`}
+                                >
+                                  <span>{match.candidate.full_name}</span>
+                                  <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
+                                </Link>
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedRowId(isExpanded ? null : match.id)}
+                                  className="p-0.5 rounded text-muted-foreground/60 hover:text-primary transition-colors"
+                                  title="Quick inspect candidate preview"
+                                >
+                                  <Eye className="h-3 w-3" />
+                                </button>
                               </div>
                               {(match.candidate.city || match.candidate.state) && (
                                 <div className="text-[10px] text-muted-foreground flex items-center gap-0.5 mt-0.5">
@@ -508,9 +524,14 @@ export const HRShortlistsPage: React.FC = () => {
 
                         {/* Requisition */}
                         <td className="px-4 py-3">
-                          <span className="font-medium text-foreground/90 line-clamp-1">
-                            {match.job?.title || "—"}
-                          </span>
+                          <Link
+                            to={`/hr/jobs/${match.job_id}/matches`}
+                            className="font-medium text-foreground/90 hover:text-primary hover:underline line-clamp-1 transition-colors flex items-center gap-1 group"
+                            title={`Open Requisition: ${match.job?.title || "Requisition"}`}
+                          >
+                            <span>{match.job?.title || "—"}</span>
+                            <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 text-primary transition-opacity shrink-0" />
+                          </Link>
                         </td>
 
                         {/* Score */}
@@ -672,7 +693,13 @@ export const HRShortlistsPage: React.FC = () => {
                 <div className="space-y-2">
                   <div className="flex items-center gap-1.5">
                     <Briefcase className="h-3 w-3 text-muted-foreground shrink-0" />
-                    <span className="text-xs text-muted-foreground line-clamp-1">{match.job?.title || "—"}</span>
+                    <Link
+                      to={`/hr/jobs/${match.job_id}/matches`}
+                      className="text-xs text-muted-foreground hover:text-primary hover:underline line-clamp-1 transition-colors"
+                      title={`View Requisition: ${match.job?.title || "Requisition"}`}
+                    >
+                      {match.job?.title || "—"}
+                    </Link>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Clock className="h-3 w-3 text-muted-foreground shrink-0" />

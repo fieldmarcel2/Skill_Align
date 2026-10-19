@@ -6,6 +6,7 @@ import { useTheme } from "../context/ThemeContext";
 
 import { AnimatedCard } from "../components/effects/AnimatedCard";
 import { SkillAlignLogo } from "../components/common/SkillAlignLogo";
+import { HelpMenu } from "../components/common/HelpMenu";
 import { Footer } from "../components/layout/Footer";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -49,21 +50,21 @@ import {
 } from "lucide-react";
 
 const OPEN_TECH_JOBS = [
-  { id: 1, title: "Cloud Infrastructure Engineer", company: "NovaTech Solutions", category: "Cloud", exp: "0-1 yr", salary: "₹6L – ₹10L", mode: "Hybrid", skills: ["AWS", "Terraform", "Docker", "Linux"], score: 92, badge: "Hot" },
-  { id: 2, title: "Full-Stack Developer", company: "Zephyr Labs", category: "Backend", exp: "1-2 yrs", salary: "₹8L – ₹14L", mode: "WFO", skills: ["React", "Node.js", "PostgreSQL", "REST APIs"], score: 88, badge: "Featured" },
-  { id: 3, title: "Angular Frontend Developer", company: "FinEdge Technologies", category: "Frontend", exp: "0-2 yrs", salary: "₹6L – ₹11L", mode: "WFH", skills: ["Angular", "TypeScript", "RxJS", "SCSS"], score: 85, badge: null },
-  { id: 4, title: "Data Analyst", company: "DataPulse Analytics", category: "Data", exp: "0-1 yr", salary: "₹5L – ₹9L", mode: "Hybrid", skills: ["Python", "SQL", "Power BI", "Excel"], score: 90, badge: "Hot" },
-  { id: 5, title: "React Frontend Developer", company: "UXCraft Studio", category: "Frontend", exp: "1-2 yrs", salary: "₹7L – ₹12L", mode: "WFH", skills: ["React", "TypeScript", "Tailwind CSS", "Redux"], score: 87, badge: null },
-  { id: 6, title: "Backend Python Developer", company: "Scalar Systems", category: "Backend", exp: "0-2 yrs", salary: "₹7L – ₹13L", mode: "Hybrid", skills: ["Python", "FastAPI", "PostgreSQL", "Redis"], score: 83, badge: "Featured" },
-  { id: 7, title: "DevOps Engineer (Junior)", company: "CloudNest Platforms", category: "Cloud", exp: "0-1 yr", salary: "₹7L – ₹12L", mode: "WFO", skills: ["CI/CD", "Kubernetes", "Jenkins", "AWS"], score: 89, badge: null },
-  { id: 8, title: "Node.js API Developer", company: "Hyperbuild Tech", category: "Backend", exp: "1-2 yrs", salary: "₹8L – ₹13L", mode: "WFH", skills: ["Node.js", "Express", "MongoDB", "JWT"], score: 84, badge: null },
-  { id: 9, title: "ML Engineer (Entry Level)", company: "Cognify AI", category: "Data", exp: "0-1 yr", salary: "₹8L – ₹15L", mode: "Hybrid", skills: ["Python", "PyTorch", "TensorFlow", "Pandas"], score: 91, badge: "Hot" },
-  { id: 10, title: "iOS Developer", company: "SwiftApps Studio", category: "Mobile", exp: "0-2 yrs", salary: "₹7L – ₹13L", mode: "WFO", skills: ["Swift", "UIKit", "Xcode", "REST APIs"], score: 82, badge: null },
-  { id: 11, title: "Android Developer", company: "Droidify", category: "Mobile", exp: "1-2 yrs", salary: "₹7L – ₹12L", mode: "Hybrid", skills: ["Kotlin", "Jetpack Compose", "Room DB", "MVVM"], score: 86, badge: null },
-  { id: 12, title: "UI/UX Designer & Developer", company: "Pixelcraft Design", category: "Frontend", exp: "0-2 yrs", salary: "₹5L – ₹10L", mode: "WFH", skills: ["Figma", "React", "CSS", "Prototyping"], score: 80, badge: null },
-  { id: 13, title: "QA Automation Engineer", company: "TestGrid Technologies", category: "Backend", exp: "0-1 yr", salary: "₹5L – ₹9L", mode: "WFO", skills: ["Selenium", "Python", "Postman", "Cypress"], score: 78, badge: null },
-  { id: 14, title: "Java Developer (Spring Boot)", company: "Meridian Fintech", category: "Backend", exp: "0-2 yrs", salary: "₹6L – ₹11L", mode: "WFO", skills: ["Java", "Spring Boot", "MySQL", "Kafka"], score: 87, badge: "Featured" },
-  { id: 15, title: "Product & BI Analyst", company: "Insightful Corp", category: "Data", exp: "0-2 yrs", salary: "₹6L – ₹12L", mode: "Hybrid", skills: ["SQL", "Tableau", "Power BI", "Excel"], score: 85, badge: null },
+  { id: 1, title: "Cloud Infrastructure Engineer", company: "SkillAlign", category: "Cloud", exp: "0-1 yr", salary: "₹6L – ₹10L", mode: "Hybrid", skills: ["AWS", "Terraform", "Docker", "Linux"], score: 92, badge: "Hot" },
+  { id: 2, title: "Full-Stack Developer", company: "SkillAlign", category: "Backend", exp: "1-2 yrs", salary: "₹8L – ₹14L", mode: "WFO", skills: ["React", "Node.js", "PostgreSQL", "REST APIs"], score: 88, badge: "Featured" },
+  { id: 3, title: "Angular Frontend Developer", company: "SkillAlign", category: "Frontend", exp: "0-2 yrs", salary: "₹6L – ₹11L", mode: "WFH", skills: ["Angular", "TypeScript", "RxJS", "SCSS"], score: 85, badge: null },
+  { id: 4, title: "Data Analyst", company: "SkillAlign", category: "Data", exp: "0-1 yr", salary: "₹5L – ₹9L", mode: "Hybrid", skills: ["Python", "SQL", "Power BI", "Excel"], score: 90, badge: "Hot" },
+  { id: 5, title: "React Frontend Developer", company: "SkillAlign", category: "Frontend", exp: "1-2 yrs", salary: "₹7L – ₹12L", mode: "WFH", skills: ["React", "TypeScript", "Tailwind CSS", "Redux"], score: 87, badge: null },
+  { id: 6, title: "Backend Python Developer", company: "SkillAlign", category: "Backend", exp: "0-2 yrs", salary: "₹7L – ₹13L", mode: "Hybrid", skills: ["Python", "FastAPI", "PostgreSQL", "Redis"], score: 83, badge: "Featured" },
+  { id: 7, title: "DevOps Engineer (Junior)", company: "SkillAlign", category: "Cloud", exp: "0-1 yr", salary: "₹7L – ₹12L", mode: "WFO", skills: ["CI/CD", "Kubernetes", "Jenkins", "AWS"], score: 89, badge: null },
+  { id: 8, title: "Node.js API Developer", company: "SkillAlign", category: "Backend", exp: "1-2 yrs", salary: "₹8L – ₹13L", mode: "WFH", skills: ["Node.js", "Express", "MongoDB", "JWT"], score: 84, badge: null },
+  { id: 9, title: "ML Engineer (Entry Level)", company: "SkillAlign", category: "Data", exp: "0-1 yr", salary: "₹8L – ₹15L", mode: "Hybrid", skills: ["Python", "PyTorch", "TensorFlow", "Pandas"], score: 91, badge: "Hot" },
+  { id: 10, title: "iOS Developer", company: "SkillAlign", category: "Mobile", exp: "0-2 yrs", salary: "₹7L – ₹13L", mode: "WFO", skills: ["Swift", "UIKit", "Xcode", "REST APIs"], score: 82, badge: null },
+  { id: 11, title: "Android Developer", company: "SkillAlign", category: "Mobile", exp: "1-2 yrs", salary: "₹7L – ₹12L", mode: "Hybrid", skills: ["Kotlin", "Jetpack Compose", "Room DB", "MVVM"], score: 86, badge: null },
+  { id: 12, title: "UI/UX Designer & Developer", company: "SkillAlign", category: "Frontend", exp: "0-2 yrs", salary: "₹5L – ₹10L", mode: "WFH", skills: ["Figma", "React", "CSS", "Prototyping"], score: 80, badge: null },
+  { id: 13, title: "QA Automation Engineer", company: "SkillAlign", category: "Backend", exp: "0-1 yr", salary: "₹5L – ₹9L", mode: "WFO", skills: ["Selenium", "Python", "Postman", "Cypress"], score: 78, badge: null },
+  { id: 14, title: "Java Developer (Spring Boot)", company: "SkillAlign", category: "Backend", exp: "0-2 yrs", salary: "₹6L – ₹11L", mode: "WFO", skills: ["Java", "Spring Boot", "MySQL", "Kafka"], score: 87, badge: "Featured" },
+  { id: 15, title: "Product & BI Analyst", company: "SkillAlign", category: "Data", exp: "0-2 yrs", salary: "₹6L – ₹12L", mode: "Hybrid", skills: ["SQL", "Tableau", "Power BI", "Excel"], score: 85, badge: null },
 ];
 
 const MODE_COLORS: Record<string, string> = {
@@ -197,6 +198,9 @@ export const LandingPage: React.FC = () => {
 
           {/* Secure Public Authentication Navigation */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Help & Documentation Hub */}
+            <HelpMenu />
+
             {/* Dark / Light Mode Toggle */}
             <motion.button
               type="button"

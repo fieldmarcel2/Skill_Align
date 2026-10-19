@@ -131,9 +131,9 @@ export const PipelineStateBar: React.FC<PipelineStateBarProps> = ({
   const progressPercent = activeStepIndex / (WORKFLOW_STEPS.length - 1);
 
   return (
-    <div className={`w-full relative overflow-hidden rounded-2xl p-4 sm:p-6 shadow-md border transition-all ${stageColor.border} bg-gradient-to-r from-blue-50/50 via-indigo-50/30 to-purple-50/40 dark:from-slate-900/90 dark:via-indigo-950/40 dark:to-slate-900/80 backdrop-blur-md`}>
+    <div className={`w-full relative overflow-hidden rounded-2xl p-4 sm:p-6 shadow-sm border transition-all ${stageColor.border} bg-card/60 backdrop-blur-md`}>
       {/* Subtle ambient stage glow */}
-      <div className={`absolute -top-12 -right-12 w-72 h-72 ${stageColor.bg} rounded-full blur-3xl -z-0 opacity-40 pointer-events-none transition-colors duration-500`} />
+      <div className={`absolute -top-12 -right-12 w-72 h-72 ${stageColor.bg} rounded-full blur-3xl -z-0 opacity-30 pointer-events-none transition-colors duration-500`} />
 
       {/* Top Banner Status */}
       <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 mb-5">
@@ -196,12 +196,13 @@ export const PipelineStateBar: React.FC<PipelineStateBarProps> = ({
             const isCurrent = idx === activeStepIndex;
             const isFuture = idx > activeStepIndex;
 
-            let circleClass = "bg-muted text-muted-foreground border-border";
-            let labelClass = "text-muted-foreground";
+            // Default: future/unchecked step with crisp, high-contrast readable styling
+            let circleClass = "bg-secondary text-secondary-foreground border-border shadow-xs";
+            let labelClass = "text-muted-foreground font-semibold";
 
             if (isCompleted) {
-              circleClass = "bg-primary text-primary-foreground border-primary/40 shadow-sm shadow-primary/20";
-              labelClass = "text-foreground font-medium";
+              circleClass = "bg-primary text-primary-foreground border-primary/40 shadow-xs shadow-primary/20";
+              labelClass = "text-foreground font-bold";
             } else if (isCurrent) {
               if (isRejected) {
                 circleClass = "bg-rose-500 text-white border-rose-400 ring-4 ring-rose-500/20";
@@ -210,8 +211,8 @@ export const PipelineStateBar: React.FC<PipelineStateBarProps> = ({
                 circleClass = "bg-emerald-500 text-white border-emerald-400 ring-4 ring-emerald-500/20";
                 labelClass = "text-emerald-600 dark:text-emerald-400 font-bold";
               } else {
-                circleClass = "bg-primary text-primary-foreground border-primary/40 ring-4 ring-primary/20";
-                labelClass = "text-primary font-bold";
+                circleClass = "bg-primary text-primary-foreground border-primary/40 ring-4 ring-primary/20 shadow-md shadow-primary/30";
+                labelClass = "text-primary font-extrabold";
               }
             }
 

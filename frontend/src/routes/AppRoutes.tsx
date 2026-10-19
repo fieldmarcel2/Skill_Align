@@ -24,7 +24,6 @@ import { HRDashboard } from "../pages/hr/HRDashboard";
 import { HRDecisionDashboard } from "../pages/hr/HRDecisionDashboard";
 import { HRJobMatchesPage } from "../pages/hr/HRJobMatchesPage";
 import { HRShortlistsPage } from "../pages/hr/HRShortlistsPage";
-import { HiringPipelinePage } from "../pages/hr/HiringPipelinePage";
 import { HRCreateJobPage } from "../pages/hr/HRCreateJobPage";
 import { HMCandidateReviewPage } from "../pages/hr/HMCandidateReviewPage";
 import { HMFeedbackPage } from "../pages/hr/HMFeedbackPage";
@@ -76,6 +75,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="users" element={<UsersPage />} />
         <Route path="users/:id" element={<AdminUserDetailPage />} />
         <Route path="skills" element={<SkillsPage />} />
+        <Route path="jobs/:id" element={<JobDetailPage />} />
         <Route path="applications/:id/timeline" element={<ApplicationTimelinePage />} />
       </Route>
 
@@ -89,6 +89,7 @@ export const AppRoutes: React.FC = () => {
         }
       >
         <Route index element={<HRDashboard />} />
+        <Route path="interviews" element={<HRDashboard />} />
         <Route path="decisions" element={<HRDecisionDashboard />} />
         <Route path="jobs/create" element={<HRCreateJobPage />} />
         <Route path="jobs/:id/matches" element={<HRJobMatchesPage />} />
@@ -96,7 +97,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="interviews/:matchId/feedback" element={<HMFeedbackPage />} />
         <Route path="applications/:id/timeline" element={<ApplicationTimelinePage />} />
         <Route path="shortlists" element={<HRShortlistsPage />} />
-        <Route path="pipeline" element={<HiringPipelinePage />} />
+        <Route path="pipeline" element={<Navigate to="/hr" replace />} />
         <Route path="offers/:offerId" element={<HMOfferReviewPage />} />
       </Route>
 
@@ -104,7 +105,7 @@ export const AppRoutes: React.FC = () => {
       <Route
         path="/recruiter"
         element={
-          <ProtectedRoute allowedRoles={["Recruiter"]}>
+          <ProtectedRoute allowedRoles={["Recruiter", "Admin"]}>
             <DashboardLayout />
           </ProtectedRoute>
         }

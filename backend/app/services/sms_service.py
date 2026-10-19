@@ -40,9 +40,12 @@ class ConsoleSMSService(SMSService):
     """
 
     def send_otp(self, phone: str, otp: str) -> bool:
-        msg = f"[DEV OTP] Phone: {phone} | OTP: {otp}"
-        print(msg)
-        logger.info(msg)
+        logger.info(
+            "[DEV OTP] Phone: %s | OTP: %s",
+            phone,
+            otp,
+            extra={"event": "otp_sent", "category": "security", "phone": phone},
+        )
         return True
 
 

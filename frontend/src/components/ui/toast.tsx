@@ -50,32 +50,40 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  const toast = ({
-    title,
-    message,
-    type = "info",
-    duration = 4000,
-  }: {
-    title?: string;
-    message: any;
-    type?: ToastType;
-    duration?: number;
-  }) => {
-    const id = Math.random().toString(36).substring(2, 9);
-    const safeMessage = normalizeMessage(message);
-    setToasts((prev) => [...prev, { id, title, message: safeMessage, type }]);
+  const toast = React.useCallback(
+    ({
+      title,
+      message,
+      type = "info",
+      duration = 4000,
+    }: {
+      title?: string;
+      message: any;
+      type?: ToastType;
+      duration?: number;
+    }) => {
+      const id = Math.random().toString(36).substring(2, 9);
+      const safeMessage = normalizeMessage(message);
+      setToasts((prev) => [...prev, { id, title, message: safeMessage, type }]);
 
-    if (duration > 0) {
-      setTimeout(() => {
-        removeToast(id);
-      }, duration);
-    }
-  };
+      if (duration > 0) {
+        setTimeout(() => {
+          removeToast(id);
+        }, duration);
+      }
+    },
+    []
+  );
 
-  const success = (message: any, title?: string) => toast({ title, message, type: "success" });
-  const error = (message: any, title?: string) => toast({ title, message, type: "error" });
-  const warning = (message: any, title?: string) => toast({ title, message, type: "warning" });
-  const info = (message: any, title?: string) => toast({ title, message, type: "info" });
+  const success = React.useCallback((message: any, title?: string) => toast({ title, message, type: "success" }), [toast]);
+  const error = React.useCallback((message: any, title?: string) => toast({ title, message, type: "error" }), [toast]);
+  const warning = React.useCallback((message: any, title?: string) => toast({ title, message, type: "warning" }), [toast]);
+  const info = React.useCallback((message: any, title?: string) => toast({ title, message, type: "info" }), [toast]);
+
+  const contextValue = React.useMemo(
+    () => ({ toast, success, error, warning, info }),
+    [toast, success, error, warning, info]
+  );
 
   const getIcon = (type: ToastType) => {
     switch (type) {
@@ -104,7 +112,7 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   return (
-    <ToastContext.Provider value={{ toast, success, error, warning, info }}>
+    <ToastContext.Provider value={contextValue}>
       {children}
       {/* Toast viewport */}
       <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-md w-full px-4 pointer-events-none">

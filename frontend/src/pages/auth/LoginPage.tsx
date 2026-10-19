@@ -14,6 +14,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../..
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import { HeroBackground } from "../../components/effects/HeroBackground";
 import { SkillAlignLogo } from "../../components/common/SkillAlignLogo";
+import { HelpMenu } from "../../components/common/HelpMenu";
 import {
   Sparkles,
   Loader2,
@@ -236,7 +237,8 @@ export const LoginPage: React.FC = () => {
 
   return (
     <HeroBackground>
-      <div className="absolute top-4 right-4 z-50">
+      <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
+        <HelpMenu />
         <motion.button
           type="button"
           onClick={toggleTheme}
@@ -536,11 +538,13 @@ export const LoginPage: React.FC = () => {
                   size="sm"
                   disabled={isLoading}
                   onClick={() => handleQuickRoleLogin("admin@skillaign.dev", "Admin@123")}
-                  className="h-auto py-2 px-1.5 flex flex-col items-center gap-1 border-purple-500/40 bg-purple-950/20 hover:border-purple-500 hover:bg-purple-500/15 text-purple-300 rounded-xl transition-all shadow-sm"
+                  className="h-auto py-2.5 px-2 flex flex-col items-center gap-1.5 border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 hover:border-purple-500/60 dark:bg-purple-500/15 dark:hover:bg-purple-500/25 rounded-xl transition-all shadow-xs hover:shadow-md hover:shadow-purple-500/15 group cursor-pointer"
                 >
-                  <Shield className="h-4 w-4 text-purple-400" />
-                  <span className="text-xs font-bold text-white">Admin</span>
-                  <span className="text-[9px] text-purple-300/70 truncate max-w-full font-mono">admin@...</span>
+                  <div className="w-8 h-8 rounded-lg bg-purple-500/20 text-purple-600 dark:text-purple-300 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Shield className="h-4 w-4" />
+                  </div>
+                  <span className="text-xs font-bold text-foreground group-hover:text-purple-600 dark:group-hover:text-purple-300 transition-colors">Admin</span>
+                  <span className="text-[10px] text-muted-foreground group-hover:text-foreground/80 truncate max-w-full font-mono">admin@...</span>
                 </Button>
 
                 <Button
@@ -549,11 +553,13 @@ export const LoginPage: React.FC = () => {
                   size="sm"
                   disabled={isLoading}
                   onClick={() => handleQuickRoleLogin("hr@skillaign.dev", "HR@12345")}
-                  className="h-auto py-2 px-1.5 flex flex-col items-center gap-1 border-blue-500/40 bg-blue-950/20 hover:border-blue-500 hover:bg-blue-500/15 text-blue-300 rounded-xl transition-all shadow-sm"
+                  className="h-auto py-2.5 px-2 flex flex-col items-center gap-1.5 border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 hover:border-blue-500/60 dark:bg-blue-500/15 dark:hover:bg-blue-500/25 rounded-xl transition-all shadow-xs hover:shadow-md hover:shadow-blue-500/15 group cursor-pointer"
                 >
-                  <Users className="h-4 w-4 text-blue-400" />
-                  <span className="text-xs font-bold text-white">HR Manager</span>
-                  <span className="text-[9px] text-blue-300/70 truncate max-w-full font-mono">hr@...</span>
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-600 dark:text-blue-300 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Users className="h-4 w-4" />
+                  </div>
+                  <span className="text-xs font-bold text-foreground group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors">Hiring Manager</span>
+                  <span className="text-[10px] text-muted-foreground group-hover:text-foreground/80 truncate max-w-full font-mono">hr@...</span>
                 </Button>
 
                 <Button
@@ -562,11 +568,13 @@ export const LoginPage: React.FC = () => {
                   size="sm"
                   disabled={isLoading}
                   onClick={() => handleQuickRoleLogin("recruiter@skillalign.dev", "Pass@123")}
-                  className="h-auto py-2 px-1.5 flex flex-col items-center gap-1 border-emerald-500/40 bg-emerald-950/20 hover:border-emerald-500 hover:bg-emerald-500/15 text-emerald-300 rounded-xl transition-all shadow-sm"
+                  className="h-auto py-2.5 px-2 flex flex-col items-center gap-1.5 border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 hover:border-emerald-500/60 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25 rounded-xl transition-all shadow-xs hover:shadow-md hover:shadow-emerald-500/15 group cursor-pointer"
                 >
-                  <Briefcase className="h-4 w-4 text-emerald-400" />
-                  <span className="text-xs font-bold text-white">Recruiter</span>
-                  <span className="text-[9px] text-emerald-300/70 truncate max-w-full font-mono">recruiter@...</span>
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Briefcase className="h-4 w-4" />
+                  </div>
+                  <span className="text-xs font-bold text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-300 transition-colors">Recruiter</span>
+                  <span className="text-[10px] text-muted-foreground group-hover:text-foreground/80 truncate max-w-full font-mono">recruiter@...</span>
                 </Button>
 
                 <Button
@@ -575,11 +583,13 @@ export const LoginPage: React.FC = () => {
                   size="sm"
                   disabled={isLoading}
                   onClick={() => handleQuickRoleLogin("shiva4850t@gmail.com", "Password123!")}
-                  className="h-auto py-2 px-1.5 flex flex-col items-center gap-1 border-amber-500/40 bg-amber-950/20 hover:border-amber-500 hover:bg-amber-500/15 text-amber-300 rounded-xl transition-all shadow-sm"
+                  className="h-auto py-2.5 px-2 flex flex-col items-center gap-1.5 border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 hover:border-amber-500/60 dark:bg-amber-500/15 dark:hover:bg-amber-500/25 rounded-xl transition-all shadow-xs hover:shadow-md hover:shadow-amber-500/15 group cursor-pointer"
                 >
-                  <UserCheck className="h-4 w-4 text-amber-400" />
-                  <span className="text-xs font-bold text-white">Candidate</span>
-                  <span className="text-[9px] text-amber-300/70 truncate max-w-full font-mono">shiva@...</span>
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-300 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <UserCheck className="h-4 w-4" />
+                  </div>
+                  <span className="text-xs font-bold text-foreground group-hover:text-amber-600 dark:group-hover:text-amber-300 transition-colors">Candidate</span>
+                  <span className="text-[10px] text-muted-foreground group-hover:text-foreground/80 truncate max-w-full font-mono">shiva@...</span>
                 </Button>
               </div>
             </div>

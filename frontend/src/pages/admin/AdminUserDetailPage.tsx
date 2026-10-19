@@ -41,6 +41,9 @@ import {
   Code2,
   Trash2,
   AlertTriangle,
+  Eye,
+  ArrowRight,
+  Activity,
 } from "lucide-react";
 
 export const AdminUserDetailPage: React.FC = () => {
@@ -148,7 +151,7 @@ export const AdminUserDetailPage: React.FC = () => {
   const getRoleIcon = (role: string) => {
     switch (role) {
       case "Admin": return <Shield className="h-4 w-4 text-purple-400" />;
-      case "HR": return <UserCheck className="h-4 w-4 text-blue-400" />;
+      case "HR": return <Sparkles className="h-4 w-4 text-blue-400" />;
       case "Recruiter": return <Briefcase className="h-4 w-4 text-emerald-400" />;
       default: return <User className="h-4 w-4 text-amber-400" />;
     }
@@ -157,7 +160,7 @@ export const AdminUserDetailPage: React.FC = () => {
   const getRoleBadge = (role: string) => {
     switch (role) {
       case "Admin": return <Badge variant="purple" className="gap-1"><Shield className="w-3 h-3" /> Admin</Badge>;
-      case "HR": return <Badge variant="info" className="gap-1"><UserCheck className="w-3 h-3" /> HR</Badge>;
+      case "HR": return <Badge variant="info" className="gap-1"><Sparkles className="w-3 h-3" /> HM (Hiring Manager)</Badge>;
       case "Recruiter": return <Badge variant="success" className="gap-1"><Briefcase className="w-3 h-3" /> Recruiter</Badge>;
       case "Candidate": return <Badge variant="warning" className="gap-1"><User className="w-3 h-3" /> Candidate</Badge>;
       default: return <Badge variant="secondary">{role}</Badge>;
@@ -311,7 +314,7 @@ export const AdminUserDetailPage: React.FC = () => {
               {getRoleIcon(detail.role)}
               <div>
                 <p className="text-xs text-muted-foreground">Role</p>
-                <p className="font-medium text-foreground">{detail.role}</p>
+                <p className="font-medium text-foreground">{detail.role === "HR" ? "HM (Hiring Manager)" : detail.role}</p>
               </div>
             </div>
           </CardContent>
@@ -401,14 +404,77 @@ export const AdminUserDetailPage: React.FC = () => {
           </Card>
         )}
 
-        {(detail.role === "Admin" || detail.role === "HR") && (
+        {detail.role === "Recruiter" && (
+          <Card className="border-border/80 bg-card/70 backdrop-blur-xl">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center justify-between text-base">
+                <span className="flex items-center gap-2">
+                  <Briefcase className="h-4 w-4 text-emerald-400" /> Recruiter Portfolio & Workload
+                </span>
+                <Badge variant="success" className="text-[10px]">Talent Sourcing</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3.5 rounded-xl bg-secondary/40 border border-border/60">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Assigned Requisitions</span>
+                  <span className="text-2xl font-extrabold font-outfit text-foreground">
+                    {detail.recruiter_profile?.assigned_jobs_count ?? 0}
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-secondary/40 border border-border/60">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Claimed Candidates</span>
+                  <span className="text-2xl font-extrabold font-outfit text-foreground">
+                    {detail.recruiter_profile?.claimed_candidates_count ?? 0}
+                  </span>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Active recruitment partner managing candidate pipelines, claiming matching profiles, and conducting structured screenings.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {detail.role === "HR" && (
+          <Card className="border-border/80 bg-card/70 backdrop-blur-xl">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center justify-between text-base">
+                <span className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-blue-400" /> Hiring Manager (HM) Governance
+                </span>
+                <Badge variant="info" className="text-[10px]">HM Authority</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3.5 rounded-xl bg-secondary/40 border border-border/60">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Supervised Requisitions</span>
+                  <span className="text-2xl font-extrabold font-outfit text-foreground">
+                    {detail.hm_profile?.owned_jobs_count ?? 0}
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-xl bg-secondary/40 border border-border/60">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Shortlist Reviews</span>
+                  <span className="text-2xl font-extrabold font-outfit text-foreground">
+                    {detail.hm_profile?.reviews_conducted ?? 0}
+                  </span>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Hiring Manager responsible for requisition requirements, evaluating shortlisted talent, conducting interviews, and submitting scorecards.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {detail.role === "Admin" && (
           <Card className="border-border/80 bg-card/70 backdrop-blur-xl">
             <CardContent className="py-10 text-center flex flex-col items-center gap-3">
-              {getRoleIcon(detail.role)}
-              <p className="text-sm text-muted-foreground">
-                {detail.role === "Admin"
-                  ? "System administrator account with full platform access."
-                  : "HR Manager with strategic candidate review and interview scheduling privileges."}
+              <Shield className="h-8 w-8 text-purple-400 opacity-80" />
+              <p className="text-sm font-semibold text-foreground">System Administrator</p>
+              <p className="text-xs text-muted-foreground max-w-xs">
+                Platform administrator with root governance access across directories, role provisioning, and hiring audit logs.
               </p>
             </CardContent>
           </Card>
@@ -556,68 +622,260 @@ export const AdminUserDetailPage: React.FC = () => {
         </Card>
       )}
 
-      {/* Recruiter Jobs */}
+      {/* Recruiter Details: Assigned Requisitions & Actions */}
       {detail.role === "Recruiter" && (
-        <Card className="border-border/80 bg-card/70 backdrop-blur-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Briefcase className="h-4 w-4 text-emerald-400" /> Jobs Created ({detail.jobs_created.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {detail.jobs_created.length === 0 ? (
-              <div className="py-8 text-center">
-                <Briefcase className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-40" />
-                <p className="text-sm text-muted-foreground">No jobs posted yet.</p>
+        <div className="space-y-6">
+          {/* Assigned Requisitions */}
+          <Card className="border-border/80 bg-card/70 backdrop-blur-xl">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-4">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base font-bold font-outfit">
+                  <Briefcase className="h-4 w-4 text-emerald-400" /> Assigned Job Requisitions ({detail.recruiter_profile?.assigned_jobs?.length || 0})
+                </CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Job requisitions actively assigned to this recruiter's sourcing queue
+                </p>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {detail.jobs_created.map((job: any) => (
-                  <div
-                    key={job.id}
-                    className="flex items-start justify-between gap-3 p-3.5 rounded-xl border border-border/70 bg-card/50 hover:bg-card/70 transition-colors"
-                  >
-                    <div className="space-y-1 flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-foreground truncate">{job.title}</p>
-                      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                        {job.department && (
-                          <span className="flex items-center gap-1">
-                            <Building className="h-3 w-3" /> {job.department}
+              <span className="text-xs font-mono font-medium px-2.5 py-1 rounded-md bg-secondary text-secondary-foreground border border-border">
+                {detail.recruiter_profile?.assigned_jobs_count || 0} Total Active Assignments
+              </span>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {!detail.recruiter_profile?.assigned_jobs || detail.recruiter_profile.assigned_jobs.length === 0 ? (
+                <div className="py-10 text-center space-y-2">
+                  <Briefcase className="h-8 w-8 text-muted-foreground mx-auto opacity-40" />
+                  <p className="text-sm font-semibold text-foreground">No Job Requisitions Assigned</p>
+                  <p className="text-xs text-muted-foreground">This recruiter has not been assigned to any open job queues yet.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {detail.recruiter_profile.assigned_jobs.map((job: any) => (
+                    <div
+                      key={job.id}
+                      className="p-4 rounded-xl border border-border/80 bg-card/60 hover:bg-card/90 hover:border-primary/40 transition-all flex items-start justify-between gap-3 group"
+                    >
+                      <div className="space-y-1.5 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Link
+                            to={`/admin/jobs/${job.id}`}
+                            className="text-sm font-bold text-foreground hover:text-primary hover:underline transition-colors line-clamp-1 font-outfit cursor-pointer"
+                            title={`Inspect ${job.title}`}
+                          >
+                            {job.title}
+                          </Link>
+                          <Badge variant="outline" className="text-[10px] font-mono uppercase shrink-0">
+                            ID #{job.id}
+                          </Badge>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          {job.department && (
+                            <span className="inline-flex items-center gap-1 bg-secondary/60 px-2 py-0.5 rounded text-[11px] font-medium text-foreground">
+                              <Building className="h-3 w-3 text-indigo-400" /> {job.department}
+                            </span>
+                          )}
+                          <span className="inline-flex items-center gap-1 text-[11px]">
+                            <Clock className="h-3 w-3 text-amber-400" /> Min {job.min_experience_years}y exp
                           </span>
-                        )}
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" /> Min {job.min_experience_years} yrs exp
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Layers className="h-3 w-3" /> {job.skills_count} skills
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {job.created_at
-                            ? new Date(job.created_at).toLocaleDateString(undefined, {
-                                year: "numeric", month: "short", day: "numeric",
-                              })
-                            : "-"}
-                        </span>
+                          <span className="inline-flex items-center gap-1 text-[11px]">
+                            <Layers className="h-3 w-3 text-cyan-400" /> {job.work_mode || "Hybrid"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge
+                          variant={
+                            job.status?.toLowerCase() === "active"
+                              ? "success"
+                              : job.status?.toLowerCase() === "closed"
+                              ? "destructive"
+                              : "secondary"
+                          }
+                          className="text-[10px] uppercase font-bold"
+                        >
+                          {job.status || "ACTIVE"}
+                        </Badge>
+                        <Link to={`/admin/jobs/${job.id}`}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer"
+                            title={`Inspect ${job.title}`}
+                            aria-label={`Inspect ${job.title}`}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </Link>
                       </div>
                     </div>
-                    <Badge
-                      variant={
-                        job.status === "active"
-                          ? "success"
-                          : job.status === "closed"
-                          ? "destructive"
-                          : "secondary"
-                      }
-                    >
-                      {job.status}
-                    </Badge>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recruiter Activity & Workflow Actions */}
+          {detail.recruiter_profile?.recent_actions && detail.recruiter_profile.recent_actions.length > 0 && (
+            <Card className="border-border/80 bg-card/70 backdrop-blur-xl">
+              <CardHeader className="border-b border-border/60 pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm font-bold font-outfit">
+                  <Activity className="h-4 w-4 text-emerald-400" /> Recent Recruiter Workflow Actions
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-3">
+                <div className="divide-y divide-border/50 text-xs">
+                  {detail.recruiter_profile.recent_actions.map((act: any) => (
+                    <div key={act.id} className="py-2.5 flex items-center justify-between gap-2">
+                      <div className="space-y-0.5">
+                        <span className="font-semibold text-foreground">
+                          {act.action?.replace(/_/g, " ") || "Workflow Action"}
+                        </span>
+                        {(act.from_state || act.to_state) && (
+                          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            {act.from_state && <span>{act.from_state}</span>}
+                            {act.from_state && <ArrowRight className="h-3 w-3" />}
+                            {act.to_state && <span className="font-semibold text-primary">{act.to_state}</span>}
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-muted-foreground font-mono">
+                        {act.created_at ? new Date(act.created_at).toLocaleDateString() : ""}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* HM Details: Supervised Requisitions & Decisions */}
+      {detail.role === "HR" && (
+        <div className="space-y-6">
+          {/* Supervised Requisitions */}
+          <Card className="border-border/80 bg-card/70 backdrop-blur-xl">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-4">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base font-bold font-outfit">
+                  <Sparkles className="h-4 w-4 text-blue-400" /> Supervised Job Requisitions ({detail.hm_profile?.owned_jobs?.length || 0})
+                </CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Job requisitions under this Hiring Manager's review and approval governance
+                </p>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <span className="text-xs font-mono font-medium px-2.5 py-1 rounded-md bg-secondary text-secondary-foreground border border-border">
+                {detail.hm_profile?.owned_jobs_count || 0} Supervised Requisitions
+              </span>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {!detail.hm_profile?.owned_jobs || detail.hm_profile.owned_jobs.length === 0 ? (
+                <div className="py-10 text-center space-y-2">
+                  <Building className="h-8 w-8 text-muted-foreground mx-auto opacity-40" />
+                  <p className="text-sm font-semibold text-foreground">No Supervised Requisitions</p>
+                  <p className="text-xs text-muted-foreground">No job requisitions are linked to this Hiring Manager yet.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {detail.hm_profile.owned_jobs.map((job: any) => (
+                    <div
+                      key={job.id}
+                      className="p-4 rounded-xl border border-border/80 bg-card/60 hover:bg-card/90 hover:border-primary/40 transition-all flex items-start justify-between gap-3 group"
+                    >
+                      <div className="space-y-1.5 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Link
+                            to={`/admin/jobs/${job.id}`}
+                            className="text-sm font-bold text-foreground hover:text-primary hover:underline transition-colors line-clamp-1 font-outfit cursor-pointer"
+                            title={`Inspect ${job.title}`}
+                          >
+                            {job.title}
+                          </Link>
+                          <Badge variant="outline" className="text-[10px] font-mono uppercase shrink-0">
+                            ID #{job.id}
+                          </Badge>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          {job.department && (
+                            <span className="inline-flex items-center gap-1 bg-secondary/60 px-2 py-0.5 rounded text-[11px] font-medium text-foreground">
+                              <Building className="h-3 w-3 text-blue-400" /> {job.department}
+                            </span>
+                          )}
+                          <span className="inline-flex items-center gap-1 text-[11px]">
+                            <Clock className="h-3 w-3 text-amber-400" /> Min {job.min_experience_years}y exp
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-[11px]">
+                            <Layers className="h-3 w-3 text-cyan-400" /> {job.work_mode || "Hybrid"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge
+                          variant={
+                            job.status?.toLowerCase() === "active"
+                              ? "success"
+                              : job.status?.toLowerCase() === "closed"
+                              ? "destructive"
+                              : "secondary"
+                          }
+                          className="text-[10px] uppercase font-bold"
+                        >
+                          {job.status || "ACTIVE"}
+                        </Badge>
+                        <Link to={`/admin/jobs/${job.id}`}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer"
+                            title={`Inspect ${job.title}`}
+                            aria-label={`Inspect ${job.title}`}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* HM Activity & Workflow Actions */}
+          {detail.hm_profile?.recent_actions && detail.hm_profile.recent_actions.length > 0 && (
+            <Card className="border-border/80 bg-card/70 backdrop-blur-xl">
+              <CardHeader className="border-b border-border/60 pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm font-bold font-outfit">
+                  <Activity className="h-4 w-4 text-blue-400" /> Recent Hiring Manager Reviews & Decisions
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-3">
+                <div className="divide-y divide-border/50 text-xs">
+                  {detail.hm_profile.recent_actions.map((act: any) => (
+                    <div key={act.id} className="py-2.5 flex items-center justify-between gap-2">
+                      <div className="space-y-0.5">
+                        <span className="font-semibold text-foreground">
+                          {act.action?.replace(/_/g, " ") || "Workflow Action"}
+                        </span>
+                        {(act.from_state || act.to_state) && (
+                          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            {act.from_state && <span>{act.from_state}</span>}
+                            {act.from_state && <ArrowRight className="h-3 w-3" />}
+                            {act.to_state && <span className="font-semibold text-primary">{act.to_state}</span>}
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-muted-foreground font-mono">
+                        {act.created_at ? new Date(act.created_at).toLocaleDateString() : ""}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
 
       {/* Extracted Resume Plain Text (.txt) Modal */}
@@ -680,7 +938,7 @@ export const AdminUserDetailPage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <span className="font-bold text-foreground text-sm">{detail.name}</span>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border border-border">
-                  {detail.role}
+                  {detail.role === "HR" ? "HM" : detail.role}
                 </span>
               </div>
               <div className="text-[11px] text-muted-foreground space-y-0.5">
@@ -690,7 +948,7 @@ export const AdminUserDetailPage: React.FC = () => {
               <div className="flex items-start gap-2 pt-2 border-t border-rose-500/20 text-rose-300 text-[11px] leading-relaxed">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-rose-400" />
                 <span>
-                  All job assignments, collaboration tasks, candidate claims, evaluations, and activity associated with this {detail.role} will be permanently removed.
+                  All job assignments, collaboration tasks, candidate claims, evaluations, and activity associated with this {detail.role === "HR" ? "Hiring Manager (HM)" : detail.role} will be permanently removed.
                 </span>
               </div>
             </div>

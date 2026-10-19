@@ -233,6 +233,7 @@ export interface Interview {
   id: number;
   match_result_id: number;
   scheduled_by: number;
+  candidate_id?: number | null;
   job_id?: number | null;
   interview_date?: string | null;
   interview_type: string;
@@ -782,13 +783,13 @@ export const PIPELINE_STATE_CONFIG: Record<
 };
 
 // ─── Admin Hiring Audit Logs Types ──────────────────────────────────────────
-export type HiringLogCategory = "ALL" | "OFFERS" | "INTERVIEWS" | "REVIEWS" | "SOURCING" | "TASKS";
+export type HiringLogCategory = "ALL" | "OFFERS" | "INTERVIEWS" | "REVIEWS" | "SOURCING" | "TASKS" | "JOBS" | "SECURITY";
 
 export interface HiringAuditLogEntry {
   id: number;
   action: string;
   action_label: string;
-  category: "OFFERS" | "INTERVIEWS" | "REVIEWS" | "SOURCING" | "TASKS" | string;
+  category: "OFFERS" | "INTERVIEWS" | "REVIEWS" | "SOURCING" | "TASKS" | "JOBS" | "SECURITY" | string;
   actor_id?: number | null;
   actor_name?: string | null;
   actor_email?: string | null;
@@ -800,9 +801,12 @@ export interface HiringAuditLogEntry {
   candidate_name?: string | null;
   match_result_id?: number | null;
   interview_id?: number | null;
+  entity_type?: string | null;
+  entity_id?: number | null;
   from_state?: string | null;
   to_state?: string | null;
   details?: Record<string, any> | null;
+  request_id?: string | null;
   created_at: string;
   relative_time: string;
 }
@@ -829,6 +833,7 @@ export interface HiringLogsQueryParams {
   page_size?: number;
   category?: string;
   action?: string;
+  request_id?: string;
   search?: string;
 }
 

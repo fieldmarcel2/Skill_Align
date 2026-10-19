@@ -30,6 +30,9 @@ import {
   Layers,
   Sparkles,
   Search,
+  Eye,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { HiringAuditCenter } from "../../components/admin/HiringAuditCenter";
 import {
@@ -86,7 +89,7 @@ export const AdminDashboard: React.FC = () => {
     if (!stats) return [];
     return [
       { name: "Candidates", value: stats.candidates || 0, color: "#f59e0b" },
-      { name: "HR Managers", value: stats.hr_users || 0, color: "#3b82f6" },
+      { name: "Hiring Managers (HM)", value: stats.hr_users || 0, color: "#3b82f6" },
       { name: "Recruiters", value: stats.recruiters || 0, color: "#10b981" },
       {
         name: "Administrators",
@@ -125,41 +128,14 @@ export const AdminDashboard: React.FC = () => {
     ];
   }, []);
 
-  // System Infrastructure Health Status
-  const infrastructureNodes = [
-    {
-      name: "API Gateway (FastAPI)",
-      status: "Operational",
-      latency: "12ms",
-      icon: Server,
-      color: "emerald",
-      details: "HTTP/2, rate limiting active",
-    },
-    {
-      name: "Database (PostgreSQL)",
-      status: "Healthy",
-      latency: "4ms",
-      icon: Database,
-      color: "emerald",
-      details: "Pool capacity 98% idle",
-    },
-    {
-      name: "Resume Vector Matcher",
-      status: "Active",
-      latency: "45ms",
-      icon: Cpu,
-      color: "emerald",
-      details: "Embeddings model v2.4",
-    },
-    {
-      name: "Document & PDF Engine",
-      status: "Operational",
-      latency: "28ms",
-      icon: FileText,
-      color: "emerald",
-      details: "Annexure builder & watermarking",
-    },
-  ];
+  // Requisitions table pagination
+  const [jobsPage, setJobsPage] = useState(1);
+  const JOBS_PAGE_SIZE = 6;
+  const totalJobsPages = Math.ceil(jobs.length / JOBS_PAGE_SIZE) || 1;
+  const paginatedJobs = useMemo(() => {
+    const start = (jobsPage - 1) * JOBS_PAGE_SIZE;
+    return jobs.slice(start, start + JOBS_PAGE_SIZE);
+  }, [jobs, jobsPage]);
 
   if (isLoading) {
     return (
@@ -247,7 +223,7 @@ export const AdminDashboard: React.FC = () => {
               description={`${stats?.active_users || 0} active accounts`}
             />
             <StatCard
-              title="HR Managers"
+              title="Hiring Managers (HM)"
               value={stats?.hr_users || 0}
               icon={ShieldCheck}
               color="blue"
@@ -274,38 +250,6 @@ export const AdminDashboard: React.FC = () => {
               color="purple"
               description="Taxonomy entries"
             />
-          </div>
-
-          {/* Infrastructure Health Status Matrix */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            {infrastructureNodes.map((node) => {
-              const Icon = node.icon;
-              return (
-                <div
-                  key={node.name}
-                  className="bg-card border border-border/80 rounded-2xl p-4 shadow-xs flex items-center justify-between gap-3"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shrink-0">
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-bold text-foreground truncate">{node.name}</div>
-                      <div className="text-[11px] text-muted-foreground truncate">{node.details}</div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end shrink-0">
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      {node.status}
-                    </span>
-                    <span className="text-[10px] font-mono text-muted-foreground mt-0.5">
-                      {node.latency}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
           </div>
 
           {/* Dynamic Visual Graphs (Recharts) */}
@@ -496,13 +440,6 @@ export const AdminDashboard: React.FC = () => {
                   Cross-functional requisitions under active sourcing and evaluation across company teams
                 </CardDescription>
               </div>
-
-              <Link to="/recruiter/candidates">
-                <Button variant="outline" size="sm" className="text-xs font-semibold gap-1.5">
-                  <Users className="w-3.5 h-3.5 text-primary" />
-                  Global Candidate Pool
-                </Button>
-              </Link>
             </CardHeader>
 
             <CardContent className="p-0">
@@ -524,10 +461,16 @@ export const AdminDashboard: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60">
-                      {jobs.slice(0, 6).map((job) => (
+                      {paginatedJobs.map((job) => (
                         <tr key={job.id} className="hover:bg-secondary/20 transition-colors">
                           <td className="py-3.5 px-4">
-                            <div className="font-bold text-foreground">{job.title}</div>
+                            <Link
+                              to={`/admin/jobs/${job.id}`}
+                              className="font-bold text-foreground hover:text-primary hover:underline transition-colors block text-sm"
+                              title={`Inspect ${job.title}`}
+                            >
+                              {job.title}
+                            </Link>
                             <div className="text-[10px] text-muted-foreground font-mono">REQ #{job.id}</div>
                           </td>
                           <td className="py-3.5 px-4 text-muted-foreground">
@@ -548,9 +491,15 @@ export const AdminDashboard: React.FC = () => {
                             </span>
                           </td>
                           <td className="py-3.5 px-4 text-right">
-                            <Link to={`/recruiter/jobs/${job.id}`}>
-                              <Button variant="ghost" size="sm" className="h-7 text-xs font-semibold gap-1 text-primary">
-                                Inspect <ArrowUpRight className="w-3.5 h-3.5" />
+                            <Link to={`/admin/jobs/${job.id}`}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer"
+                                title={`Inspect ${job.title}`}
+                                aria-label={`Inspect ${job.title}`}
+                              >
+                                <Eye className="w-4 h-4" />
                               </Button>
                             </Link>
                           </td>
@@ -558,6 +507,53 @@ export const AdminDashboard: React.FC = () => {
                       ))}
                     </tbody>
                   </table>
+
+                  {/* Requisitions Pagination Footer */}
+                  {totalJobsPages > 1 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-border/80 bg-secondary/10 gap-3">
+                      <p className="text-xs text-muted-foreground font-medium">
+                        Showing {(jobsPage - 1) * JOBS_PAGE_SIZE + 1} to {Math.min(jobsPage * JOBS_PAGE_SIZE, jobs.length)} of {jobs.length} requisitions
+                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-2.5 text-xs gap-1 cursor-pointer"
+                          disabled={jobsPage <= 1}
+                          onClick={() => setJobsPage((p) => p - 1)}
+                        >
+                          <ChevronLeft className="h-3.5 w-3.5" /> Previous
+                        </Button>
+
+                        <div className="flex items-center gap-1">
+                          {Array.from({ length: totalJobsPages }, (_, i) => i + 1).map((pageNum) => (
+                            <button
+                              key={pageNum}
+                              type="button"
+                              onClick={() => setJobsPage(pageNum)}
+                              className={`h-8 w-8 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                                jobsPage === pageNum
+                                  ? "bg-primary text-primary-foreground shadow-xs font-bold"
+                                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          ))}
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-2.5 text-xs gap-1 cursor-pointer"
+                          disabled={jobsPage >= totalJobsPages}
+                          onClick={() => setJobsPage((p) => p + 1)}
+                        >
+                          Next <ChevronRight className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -659,31 +655,57 @@ export const AdminDashboard: React.FC = () => {
                   </div>
                 ) : (
                   <div className="divide-y divide-border/60 text-xs">
-                    {recentUsers.slice(0, 5).map((u) => (
-                      <div key={u.id} className="p-3.5 sm:p-4 hover:bg-secondary/20 transition-colors flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/20 to-indigo-500/20 text-primary font-bold flex items-center justify-center shrink-0 border border-primary/20">
-                            {u.name?.charAt(0) || "U"}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-bold text-foreground truncate">{u.name}</div>
-                            <div className="text-[11px] text-muted-foreground truncate">{u.email}</div>
-                          </div>
-                        </div>
+                    {recentUsers.slice(0, 5).map((u) => {
+                      const roleName = typeof u.role === "object" && u.role ? u.role.name : String(u.role || "");
+                      const displayRole = roleName === "HR" ? "HM" : roleName.replace(/_/g, " ");
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground border border-border text-[10px] font-bold uppercase">
-                            {String(u.role).replace(/_/g, " ")}
-                          </span>
-                          <span
-                            className={`w-2 h-2 rounded-full ${
-                              u.is_active ? "bg-emerald-500" : "bg-rose-500"
-                            }`}
-                            title={u.is_active ? "Active" : "Deactivated"}
-                          />
+                      return (
+                        <div key={u.id} className="p-3.5 sm:p-4 hover:bg-secondary/20 transition-colors flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <Link
+                              to={`/admin/users/${u.id}`}
+                              className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/20 to-indigo-500/20 text-primary font-bold flex items-center justify-center shrink-0 border border-primary/20 hover:border-primary/50 transition-colors"
+                              title={`View ${u.name}`}
+                            >
+                              {u.name?.charAt(0) || "U"}
+                            </Link>
+                            <div className="min-w-0">
+                              <Link
+                                to={`/admin/users/${u.id}`}
+                                className="font-bold text-foreground hover:text-primary hover:underline truncate block"
+                                title={`View ${u.name}`}
+                              >
+                                {u.name}
+                              </Link>
+                              <div className="text-[11px] text-muted-foreground truncate">{u.email}</div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground border border-border text-[10px] font-bold uppercase">
+                              {displayRole}
+                            </span>
+                            <span
+                              className={`w-2 h-2 rounded-full ${
+                                u.is_active ? "bg-emerald-500" : "bg-rose-500"
+                              }`}
+                              title={u.is_active ? "Active" : "Deactivated"}
+                            />
+                            <Link to={`/admin/users/${u.id}`}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-primary hover:text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer"
+                                title={`Inspect ${u.name}`}
+                                aria-label={`Inspect ${u.name}`}
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </Button>
+                            </Link>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
@@ -699,7 +721,7 @@ export const AdminDashboard: React.FC = () => {
                   Account Identity & RBAC Management
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Create privileged HR and Recruiter accounts, inspect candidate registrations, or toggle access.
+                  Create privileged Hiring Manager (HM) and Recruiter accounts, inspect candidate registrations, or toggle access.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">

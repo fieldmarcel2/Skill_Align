@@ -12,10 +12,9 @@ For production (multiple workers per queue):
     celery -A worker.celery_app worker --loglevel=info -Q matching --concurrency=4
 """
 
-from app.celery_app import celery_app  # noqa: F401
+from app.celery_app import celery_app  
 
-# Explicitly import task modules to ensure they are registered
-import app.tasks.resume_tasks  # noqa: F401
+import app.tasks.resume_tasks  # noqa: F401 no quality assurance
 import app.tasks.matching_tasks  # noqa: F401
 
 

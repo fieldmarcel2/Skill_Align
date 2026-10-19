@@ -451,20 +451,20 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
       )}
 
       {/* Interactive Pipeline State Machine */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-lg">
+      <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
         {/* Basic state bar */}
         <PipelineStateBar currentState={(match.pipeline_state || "CANDIDATE_MATCHED") as PipelineState} />
 
         {/* Next valid state transitions + Action Center link */}
         {(() => {
           const stateTransitions: Record<string, { label: string; color: string; desc: string }[]> = {
-            CANDIDATE_MATCHED:         [{ label: "→ Shortlist", color: "border-blue-500/40 text-blue-300 bg-blue-500/10", desc: "Shortlist this candidate" }],
-            CANDIDATE_SHORTLISTED:     [{ label: "→ Submit to HM", color: "border-sky-500/40 text-sky-300 bg-sky-500/10", desc: "Send to Hiring Manager" }],
-            INTERVIEW_SLOTS_PROPOSED:  [{ label: "→ Send Slots to Candidate", color: "border-cyan-500/40 text-cyan-300 bg-cyan-500/10", desc: "Recruiter action in Action Center" }],
-            CANDIDATE_SLOT_SELECTED:   [{ label: "→ Confirm Interview", color: "border-emerald-500/40 text-emerald-300 bg-emerald-500/10", desc: "Confirm selected slot" }],
-            INTERVIEW_CONFIRMED:       [{ label: "→ Complete & Evaluate", color: "border-amber-500/40 text-amber-300 bg-amber-500/10", desc: "Rate competencies post-interview" }],
-            INTERVIEW_GO:              [{ label: "→ Create Compensation Offer", color: "border-lime-500/40 text-lime-300 bg-lime-500/10", desc: "Draft and submit offer" }],
-            OFFER_CREATED:             [{ label: "→ Send Offer Letter", color: "border-purple-500/40 text-purple-300 bg-purple-500/10", desc: "Send offer to candidate" }],
+            CANDIDATE_MATCHED:         [{ label: "→ Shortlist", color: "border-blue-500/40 text-blue-600 dark:text-blue-300 bg-blue-500/10", desc: "Shortlist this candidate" }],
+            CANDIDATE_SHORTLISTED:     [{ label: "→ Submit to HM", color: "border-sky-500/40 text-sky-600 dark:text-sky-300 bg-sky-500/10", desc: "Send to Hiring Manager" }],
+            INTERVIEW_SLOTS_PROPOSED:  [{ label: "→ Send Slots to Candidate", color: "border-cyan-500/40 text-cyan-600 dark:text-cyan-300 bg-cyan-500/10", desc: "Recruiter action in Action Center" }],
+            CANDIDATE_SLOT_SELECTED:   [{ label: "→ Confirm Interview", color: "border-emerald-500/40 text-emerald-600 dark:text-emerald-300 bg-emerald-500/10", desc: "Confirm selected slot" }],
+            INTERVIEW_CONFIRMED:       [{ label: "→ Complete & Evaluate", color: "border-amber-500/40 text-amber-600 dark:text-amber-300 bg-amber-500/10", desc: "Rate competencies post-interview" }],
+            INTERVIEW_GO:              [{ label: "→ Create Compensation Offer", color: "border-lime-500/40 text-lime-600 dark:text-lime-300 bg-lime-500/10", desc: "Draft and submit offer" }],
+            OFFER_CREATED:             [{ label: "→ Send Offer Letter", color: "border-purple-500/40 text-purple-600 dark:text-purple-300 bg-purple-500/10", desc: "Send offer to candidate" }],
           };
 
           const currentTransitions = stateTransitions[match.pipeline_state || ""];
@@ -473,8 +473,8 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
           if (!currentTransitions && !hasActionCenterTask) return null;
 
           return (
-            <div className="mt-4 pt-4 border-t border-slate-800 flex flex-wrap items-center gap-3">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Next Actions:</span>
+            <div className="mt-4 pt-4 border-t border-border flex flex-wrap items-center gap-3">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Next Actions:</span>
               {currentTransitions?.map((t) => (
                 <span key={t.label} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold ${t.color}`} title={t.desc}>
                   {t.label}
@@ -587,7 +587,7 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
               {/* Enterprise Workflow Specific Actions */}
               {job && ["CANDIDATE_MATCHED", "CANDIDATE_SHORTLISTED"].includes(match.pipeline_state || "") && (
                 <Link
-                  to={`/recruiter/jobs/${job.id}/shortlist`}
+                  to={`/recruiter/jobs/${job.id}/shortlist?match_id=${match.id}&candidate_id=${match.candidate_id || candidateId || ""}`}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition shadow-sm"
                 >
                   <Send className="w-3.5 h-3.5" />

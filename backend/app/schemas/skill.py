@@ -28,13 +28,31 @@ class SkillCreate(BaseModel):
 
     @field_validator("category")
     @classmethod
-    def valid_category(cls, v: str) -> str:
+    def valid_category(cls, v: Optional[str]) -> str:
+        if not v:
+            return "Other"
         v = v.strip()
-        if v not in VALID_CATEGORIES:
-            raise ValueError(
-                f"Category must be one of: {', '.join(sorted(VALID_CATEGORIES))}"
-            )
-        return v
+        for cat in VALID_CATEGORIES:
+            if v.lower() == cat.lower():
+                return cat
+        lower = v.lower()
+        if "cloud" in lower:
+            return "Cloud"
+        if "devops" in lower:
+            return "DevOps"
+        if "data" in lower or "ml" in lower or "ai" in lower:
+            return "Data Science"
+        if "db" in lower or "database" in lower or "storage" in lower:
+            return "Database"
+        if "test" in lower or "tool" in lower or "qa" in lower:
+            return "Testing"
+        if "front" in lower or "ui" in lower or "ux" in lower:
+            return "Frontend"
+        if "back" in lower or "core" in lower or "tech" in lower:
+            return "Backend"
+        if "program" in lower or "language" in lower or "code" in lower:
+            return "Programming"
+        return "Other"
 
 
 class SkillUpdate(BaseModel):
@@ -53,13 +71,30 @@ class SkillUpdate(BaseModel):
     @field_validator("category")
     @classmethod
     def valid_category(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None:
-            v = v.strip()
-            if v not in VALID_CATEGORIES:
-                raise ValueError(
-                    f"Category must be one of: {', '.join(sorted(VALID_CATEGORIES))}"
-                )
-        return v
+        if v is None:
+            return None
+        v = v.strip()
+        for cat in VALID_CATEGORIES:
+            if v.lower() == cat.lower():
+                return cat
+        lower = v.lower()
+        if "cloud" in lower:
+            return "Cloud"
+        if "devops" in lower:
+            return "DevOps"
+        if "data" in lower or "ml" in lower or "ai" in lower:
+            return "Data Science"
+        if "db" in lower or "database" in lower or "storage" in lower:
+            return "Database"
+        if "test" in lower or "tool" in lower or "qa" in lower:
+            return "Testing"
+        if "front" in lower or "ui" in lower or "ux" in lower:
+            return "Frontend"
+        if "back" in lower or "core" in lower or "tech" in lower:
+            return "Backend"
+        if "program" in lower or "language" in lower or "code" in lower:
+            return "Programming"
+        return "Other"
 
 
 class SkillOut(BaseModel):

@@ -11,9 +11,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
 from functools import lru_cache
 import json
+from dotenv import load_dotenv
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 ENV_FILE_PATH = BACKEND_DIR / ".env"
+load_dotenv(ENV_FILE_PATH, override=True)
 
 
 class Settings(BaseSettings):
@@ -63,6 +65,13 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
         "http://localhost:4173",
         "http://127.0.0.1:4173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:5500",
+        "http://127.0.0.1:5500",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+        "null",
         "https://skill-align-tau.vercel.app",
         "https://skillalign.vercel.app",
     ]
@@ -110,14 +119,22 @@ class Settings(BaseSettings):
     SENDGRID_API_KEY: str = ""
     SENDGRID_FROM_EMAIL: str = "noreply@skilalign.com"
 
-    # ── Google Calendar Integration ──────────────────────────────────────────
-    GOOGLE_CALENDAR_CLIENT_ID: str = ""
-    GOOGLE_CALENDAR_API_KEY: str = ""
 
     # ── Redis / Celery ──────────────────────────────────────────────────────
     REDIS_URL: str = "redis://localhost:6379/0"
     CELERY_BROKER_URL: str = ""     # defaults to REDIS_URL if blank
     CELERY_RESULT_BACKEND: str = "" # defaults to REDIS_URL if blank
+
+    # ── Application Logging ──────────────────────────────────────────────────
+    LOG_LEVEL: str = "INFO"
+    LOG_DIRECTORY: str = "logs"
+    LOG_TIMEZONE: str = "Asia/Kolkata"
+    LOG_CONSOLE_ENABLED: bool = True
+    LOG_FILE_ENABLED: bool = True
+    LOG_RETENTION_DAYS: int = 30
+    LOG_MAX_FILE_SIZE_MB: int = 50
+    LOG_SLOW_REQUEST_THRESHOLD_MS: int = 1000
+
 
     @property
     def effective_celery_broker(self) -> str:

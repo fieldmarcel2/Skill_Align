@@ -1,4 +1,5 @@
 """
+
 SkillAlign — Jobs Reset Script
 ==============================
 Cleans ALL existing jobs and seeds exactly 15 genuine tech roles
@@ -40,7 +41,7 @@ FIFTEEN_JOBS = [
     {
         "title": "Cloud Engineer",
         "department": "Infrastructure",
-        "client_name": "NovaTech Solutions",
+        "client_name": "SkillAlign",
         "description": (
             "Design and manage scalable cloud infrastructure on AWS. "
             "You will provision EC2 instances, design VPC networks, set up CI/CD pipelines using GitHub Actions, "
@@ -65,7 +66,7 @@ FIFTEEN_JOBS = [
     {
         "title": "Full Stack Developer",
         "department": "Engineering",
-        "client_name": "Zephyr Labs",
+        "client_name": "SkillAlign",
         "description": (
             "Build end-to-end features on our SaaS product using React and Node.js. "
             "You will own complete features from database schema design to pixel-perfect UI. "
@@ -90,7 +91,7 @@ FIFTEEN_JOBS = [
     {
         "title": "Angular Developer",
         "department": "Product",
-        "client_name": "FinEdge Technologies",
+        "client_name": "SkillAlign",
         "description": (
             "Develop responsive, high-performance Angular applications for our fintech dashboard. "
             "You will implement complex data visualisations using D3.js and NgRx state management. "
@@ -114,7 +115,7 @@ FIFTEEN_JOBS = [
     {
         "title": "Data Analyst",
         "department": "Business Intelligence",
-        "client_name": "DataPulse Analytics",
+        "client_name": "SkillAlign",
         "description": (
             "Transform raw business data into actionable insights using Python and SQL. "
             "Build dashboards in Power BI, run A/B tests, and present findings to senior leadership. "
@@ -138,7 +139,7 @@ FIFTEEN_JOBS = [
     {
         "title": "Backend Developer (Python)",
         "department": "Engineering",
-        "client_name": "Scalar Systems",
+        "client_name": "SkillAlign",
         "description": (
             "Build high-throughput RESTful APIs using Python and FastAPI. "
             "Design PostgreSQL schemas, implement Redis caching strategies, "
@@ -163,7 +164,7 @@ FIFTEEN_JOBS = [
     {
         "title": "DevOps Engineer",
         "department": "Infrastructure",
-        "client_name": "CloudNest Platforms",
+        "client_name": "SkillAlign",
         "description": (
             "Own CI/CD pipelines across our multi-cloud Kubernetes environment. "
             "Build and maintain GitOps workflows using ArgoCD, "
@@ -188,7 +189,7 @@ FIFTEEN_JOBS = [
     {
         "title": "React Native Developer",
         "department": "Mobile Engineering",
-        "client_name": "AppSprint Studio",
+        "client_name": "SkillAlign",
         "description": (
             "Build cross-platform iOS and Android mobile apps using React Native. "
             "Implement native modules where needed, integrate with REST/GraphQL backends, "
@@ -213,7 +214,7 @@ FIFTEEN_JOBS = [
     {
         "title": "Machine Learning Engineer",
         "department": "AI / Research",
-        "client_name": "Cognify AI",
+        "client_name": "SkillAlign",
         "description": (
             "Train and deploy production-grade ML models using Python and PyTorch. "
             "Work on NLP-based document classification pipelines, "
@@ -238,7 +239,7 @@ FIFTEEN_JOBS = [
     {
         "title": "QA Automation Engineer",
         "department": "Quality Assurance",
-        "client_name": "TestGrid Technologies",
+        "client_name": "SkillAlign",
         "description": (
             "Design and maintain automated test suites using Selenium and Cypress. "
             "Write API tests with Postman and pytest, "
@@ -263,7 +264,7 @@ FIFTEEN_JOBS = [
     {
         "title": "Java Developer (Spring Boot)",
         "department": "Engineering",
-        "client_name": "Meridian Fintech",
+        "client_name": "SkillAlign",
         "description": (
             "Develop enterprise-grade microservices using Java 17 and Spring Boot. "
             "Design RESTful APIs, integrate with Kafka message queues, "
@@ -288,7 +289,7 @@ FIFTEEN_JOBS = [
     {
         "title": "Business Intelligence Analyst",
         "department": "Analytics",
-        "client_name": "Insightful Corp",
+        "client_name": "SkillAlign",
         "description": (
             "Build and maintain BI dashboards and data pipelines. "
             "Query large datasets using SQL, transform data with dbt, "
@@ -313,7 +314,7 @@ FIFTEEN_JOBS = [
     {
         "title": "Security Engineer (Fresher)",
         "department": "Cybersecurity",
-        "client_name": "ShieldNet Security",
+        "client_name": "SkillAlign",
         "description": (
             "Assist in conducting vulnerability assessments and penetration testing. "
             "Monitor SIEM dashboards, respond to security incidents, "
@@ -337,7 +338,7 @@ FIFTEEN_JOBS = [
     {
         "title": "Frontend Developer (React)",
         "department": "Product",
-        "client_name": "UXCraft Studio",
+        "client_name": "SkillAlign",
         "description": (
             "Build stunning, accessible, and responsive web interfaces using React and Tailwind CSS. "
             "Own the component library, implement animations using Framer Motion, "
@@ -362,7 +363,7 @@ FIFTEEN_JOBS = [
     {
         "title": "Database Administrator (DBA)",
         "department": "Infrastructure",
-        "client_name": "DataVault Systems",
+        "client_name": "SkillAlign",
         "description": (
             "Manage and optimise PostgreSQL and MongoDB databases for high-volume applications. "
             "Perform query tuning, backup/recovery planning, index optimisation, "
@@ -387,7 +388,7 @@ FIFTEEN_JOBS = [
     {
         "title": "Go (Golang) Backend Developer",
         "department": "Platform Engineering",
-        "client_name": "StreamLine Networks",
+        "client_name": "SkillAlign",
         "description": (
             "Build high-performance microservices in Go for our real-time event streaming platform. "
             "Design gRPC service contracts, implement protobuf-based APIs, "

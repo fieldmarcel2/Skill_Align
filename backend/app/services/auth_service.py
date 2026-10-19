@@ -28,7 +28,7 @@ from app.services import otp_service
 from app.services.sms_service import get_sms_service
 from app.services.email_service import send_password_reset_email
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("skillalign.auth")
 
 
 # ── Registration ──────────────────────────────────────────────────────────────
@@ -122,7 +122,15 @@ def login(db: Session, data: LoginRequest) -> TokenResponse:
                 pass
 
     if user is None:
-        logger.warning(f"Login failed: User not found for identifier '{clean_identifier}'")
+        logger.warning(
+            "Login failed: User not found for identifier '%s'",
+            clean_identifier,
+            extra={
+                "event": "login_failed",
+                "category": "security",
+                "reason": "user_not_found",
+            },
+        )
         detail_msg = f"User '{clean_identifier}' not found. Please check spelling or register." if settings.DEBUG else "Incorrect email or password."
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -131,7 +139,16 @@ def login(db: Session, data: LoginRequest) -> TokenResponse:
         )
 
     if not user.password_hash:
-        logger.warning(f"Login failed: User '{user.email}' has no password set (OTP-only account)")
+        logger.warning(
+            "Login failed: User '%s' has no password set (OTP-only account)",
+            user.email,
+            extra={
+                "event": "login_failed",
+                "category": "security",
+                "user_id": user.id,
+                "reason": "otp_only_account",
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="This account was registered via Phone OTP. Please use the 'Phone OTP' tab to sign in.",
@@ -161,7 +178,16 @@ def login(db: Session, data: LoginRequest) -> TokenResponse:
                     break
 
     if not is_valid:
-        logger.warning(f"Login failed: Incorrect password for user '{user.email}'")
+        logger.warning(
+            "Login failed: Incorrect password for user '%s'",
+            user.email,
+            extra={
+                "event": "login_failed",
+                "category": "security",
+                "user_id": user.id,
+                "reason": "invalid_password",
+            },
+        )
         detail_msg = f"Incorrect password for '{user.email}'." if settings.DEBUG else "Incorrect email or password."
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -170,12 +196,35 @@ def login(db: Session, data: LoginRequest) -> TokenResponse:
         )
 
     if not user.is_active:
+        logger.warning(
+            "Login failed: Account deactivated for user '%s'",
+            user.email,
+            extra={
+                "event": "login_failed",
+                "category": "security",
+                "user_id": user.id,
+                "reason": "account_deactivated",
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Your account has been deactivated. Contact an administrator.",
         )
 
-    token = create_access_token({"sub": str(user.id), "role": user.role.name})
+    user_role = user.role.name if user.role else "Candidate"
+    logger.info(
+        "Login successful for user %s (role=%s)",
+        user.email,
+        user_role,
+        extra={
+            "event": "login_success",
+            "category": "security",
+            "user_id": user.id,
+            "user_role": user_role,
+        },
+    )
+
+    token = create_access_token({"sub": str(user.id), "role": user_role})
     return TokenResponse(
         access_token=token,
         token_type="bearer",
@@ -397,13 +446,12 @@ def request_password_reset(db: Session, data: ForgotPasswordRequest) -> ForgotPa
         logger.error(f"Failed to dispatch password reset email to {clean_email}: {e}")
 
     logger.info(f"Password reset token generated for user {user.id} ({user.email}). Email sent: {email_sent}")
-
-    # In dev or when email is not configured, provide dev_reset_url
-    dev_url = reset_url if (settings.DEBUG or not settings.SENDGRID_API_KEY) else None
+    if not email_sent:
+        logger.warning(f"[EMAIL DELIVERY FAILED] Fallback reset URL for terminal: {reset_url}")
 
     return ForgotPasswordResponse(
         message=generic_msg,
-        dev_reset_url=dev_url,
+        dev_reset_url=None,
     )
 
 

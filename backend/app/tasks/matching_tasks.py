@@ -166,7 +166,7 @@ def _find_active_jobs_for_candidate(db: Session, candidate_id: int) -> List[Job]
 def _find_relevant_candidates_for_job(db: Session, job_id: int) -> List[Candidate]:
     """
     STAGE 1 — Two-stage filter: find candidates that share at least one skill
-    with the job's requirements. Avoids scoring every candidate.
+    with the job's requirements.
     """
     job_skill_ids = [
         row[0]

@@ -70,6 +70,24 @@ def create_user(db: Session, data: UserCreate) -> UserOut:
         is_active=True,
     )
     db.add(user)
+    db.flush()
+
+    from app.services.audit_service import log_audit
+    log_audit(
+        db=db,
+        actor_id=None,
+        action="USER_CREATED",
+        entity_type="user",
+        entity_id=user.id,
+        details={
+            "name": user.name,
+            "email": user.email,
+            "role": role.name,
+            "phone_number": norm_phone,
+        },
+        commit=False,
+    )
+
     db.commit()
     db.refresh(user)
     return UserOut.model_validate(user)
@@ -169,7 +187,27 @@ def toggle_user_status(db: Session, user_id: int) -> UserOut:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin accounts cannot be deactivated via this endpoint."
         )
+    old_active = user.is_active
     user.is_active = not user.is_active
+
+    from app.services.audit_service import log_audit
+    log_audit(
+        db=db,
+        actor_id=None,
+        action="USER_STATUS_TOGGLED",
+        entity_type="user",
+        entity_id=user.id,
+        from_state="active" if old_active else "deactivated",
+        to_state="active" if user.is_active else "deactivated",
+        details={
+            "user_id": user.id,
+            "user_name": user.name,
+            "user_email": user.email,
+            "is_active": user.is_active,
+        },
+        commit=False,
+    )
+
     db.commit()
     db.refresh(user)
     return UserOut.model_validate(user)
@@ -228,6 +266,7 @@ def delete_user(db: Session, user_id: int, current_admin_id: Optional[int] = Non
         )
 
     user_name = user.name
+    role_name = user.role.name if user.role else "Unknown"
 
     # 1. Cascade Candidate profile and evaluations
     candidate = db.query(Candidate).filter(Candidate.user_id == user.id).first()
@@ -297,7 +336,24 @@ def delete_user(db: Session, user_id: int, current_admin_id: Optional[int] = Non
     # Commit child cascading deletions to release foreign keys
     db.commit()
 
-    # 6. Delete User record
+    # 6. Record Audit Log before final deletion
+    from app.services.audit_service import log_audit
+    log_audit(
+        db=db,
+        actor_id=current_admin_id,
+        action="USER_DELETED",
+        entity_type="user",
+        entity_id=user_id,
+        details={
+            "deleted_user_id": user_id,
+            "deleted_user_name": user_name,
+            "deleted_user_role": role_name,
+            "deleted_by_admin_id": current_admin_id,
+        },
+        commit=False,
+    )
+
+    # Delete User record
     user = db.query(User).filter(User.id == user_id).first()
     if user:
         db.delete(user)

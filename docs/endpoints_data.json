@@ -1,0 +1,1526 @@
+{
+  "Authentication": [
+    {
+      "method": "POST",
+      "path": "/api/auth/register",
+      "summary": "Candidate self-registration",
+      "description": "Allows public users to register as a Candidate. Privileged roles cannot be created here.",
+      "body": true,
+      "responses": [
+        "201",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "summary": "User login",
+      "description": "Authenticates credentials and returns a signed JWT access token.",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "summary": "Get current user profile",
+      "description": "Returns the profile information and role of the currently authenticated user.",
+      "body": false,
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/auth/me",
+      "summary": "Update current user profile",
+      "description": "Updates the profile information (name, phone, email) of the authenticated user.",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/send-otp",
+      "summary": "Request OTP for phone login",
+      "description": "Sends a 6-digit OTP to the provided phone number. Valid for 5 minutes.",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/verify-otp",
+      "summary": "Verify OTP and login",
+      "description": "Verifies the OTP. If the phone is new, creates a Candidate account. Returns a JWT.",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/resend-otp",
+      "summary": "Resend OTP",
+      "description": "Resends OTP to the phone number. Subject to cooldown period.",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/forgot-password",
+      "summary": "Request password reset",
+      "description": "Generates a cryptographically secure reset token, saves its SHA-256 hash in DB, and dispatches a reset email.",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/reset-password",
+      "summary": "Reset password with token",
+      "description": "Verifies the token hash, enforces token expiration, and updates the user's password.",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/logout",
+      "summary": "User logout",
+      "description": "Revokes and blacklists current JWT access token.",
+      "body": false,
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/refresh",
+      "summary": "Refresh access token",
+      "description": "Issues a fresh JWT access token and revokes the existing one.",
+      "body": false,
+      "responses": [
+        "200"
+      ]
+    }
+  ],
+  "Users": [
+    {
+      "method": "POST",
+      "path": "/api/users",
+      "summary": "Create HR or Recruiter user",
+      "description": "Admin creates a new privileged account (HR or Recruiter). Role must be 2 (HR) or 3 (Recruiter).",
+      "body": true,
+      "responses": [
+        "201",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/users",
+      "summary": "List all users",
+      "description": "Returns all registered users with optional role filtering. HR and Admin accessible.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/users/stats",
+      "summary": "Admin dashboard statistics",
+      "description": "Returns aggregate counts of total users, active users, HRs, recruiters, candidates, and skills.",
+      "body": false,
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/users/recruiters",
+      "summary": "List active recruiters (HR & Admin)",
+      "description": "Returns all active recruiters available for assignment to job requisitions.",
+      "body": false,
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/users/{user_id}",
+      "summary": "Get user by ID",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/users/{user_id}",
+      "summary": "Update user",
+      "description": "Update user name or toggle is_active status (activate/deactivate).",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    }
+  ],
+  "Skills": [
+    {
+      "method": "POST",
+      "path": "/api/skills",
+      "summary": "Create skill (Admin only)",
+      "description": "",
+      "body": true,
+      "responses": [
+        "201",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/skills",
+      "summary": "List all skills (All authenticated roles)",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/skills/categories",
+      "summary": "List all distinct skill categories",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/skills/{skill_id}",
+      "summary": "Get skill by ID (All authenticated roles)",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/skills/{skill_id}",
+      "summary": "Update skill (Admin only)",
+      "description": "",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/skills/{skill_id}",
+      "summary": "Delete skill (Admin only)",
+      "description": "",
+      "body": false,
+      "responses": [
+        "204",
+        "422"
+      ]
+    }
+  ],
+  "Jobs": [
+    {
+      "method": "POST",
+      "path": "/api/jobs",
+      "summary": "Create a new job requisition (HR / Admin only)",
+      "description": "HR creates a job with title, min experience, description, and required/preferred skills with weights. If status is 'active', automatic candidate matching is queued in the background. Recruiters cannot",
+      "body": true,
+      "responses": [
+        "201",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs",
+      "summary": "List jobs",
+      "description": "List jobs. HR can filter by their own jobs. Recruiters see assigned jobs.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/pipeline-summary",
+      "summary": "Get pipeline candidate summaries for all jobs",
+      "description": "Provides real-time candidate counts and status breakdown per job for HRM and Recruiters.",
+      "body": false,
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/{job_id}",
+      "summary": "Get job by ID",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/jobs/{job_id}",
+      "summary": "Update job requisition (HR / Admin only)",
+      "description": "HR updates job specifications and associated skills. If matching-relevant fields change (skills, experience, work mode, status), existing match results are marked stale and re-matching is queued autom",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/jobs/{job_id}",
+      "summary": "Delete a job requisition (HR / Admin only)",
+      "description": "HR deletes a job requisition. This will also cascade-remove all associated job skills and match results. Recruiters cannot delete jobs.",
+      "body": false,
+      "responses": [
+        "204",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/jobs/{job_id}/recruiters",
+      "summary": "Assign a recruiter to a job (HR / Admin only)",
+      "description": "",
+      "body": true,
+      "responses": [
+        "201",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/{job_id}/recruiters",
+      "summary": "List recruiters assigned to a job requisition",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/jobs/{job_id}/recruiters/{recruiter_id}",
+      "summary": "Remove a recruiter from a job (HR / Admin only)",
+      "description": "",
+      "body": false,
+      "responses": [
+        "204",
+        "422"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/jobs/{job_id}/recruiters/{recruiter_id}",
+      "summary": "Update a recruiter's role on a job (HR / Admin only)",
+      "description": "",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    }
+  ],
+  "Candidates": [
+    {
+      "method": "GET",
+      "path": "/api/candidates/me",
+      "summary": "Get own candidate profile",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/candidates/me",
+      "summary": "Update candidate profile",
+      "description": "",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/candidates/me",
+      "summary": "Create candidate profile",
+      "description": "",
+      "body": true,
+      "responses": [
+        "201",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/candidates/me/pipeline",
+      "summary": "Get candidate's job matches and pipeline statuses",
+      "description": "Returns all job matches, current pipeline stage (Matched -> Screened -> HR Approved -> Interview Scheduled), and interview details for the logged-in candidate.",
+      "body": false,
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/candidates/me/hiring",
+      "summary": "Get candidate hiring details, journey timeline, and onboarding status",
+      "description": "Returns the comprehensive hiring state, accepted offer details,\nrecruitment journey timeline, and pre-onboarding checklist.",
+      "body": false,
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/candidates/me/resume",
+      "summary": "Upload resume (PDF/DOC/DOCX)",
+      "description": "Secure resume upload outside database. Validates type and size limits.",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/candidates/me/skills",
+      "summary": "Add skill to profile",
+      "description": "Add a skill with proficiency (Beginner, Intermediate, Expert) and years of experience.",
+      "body": true,
+      "responses": [
+        "201",
+        "422"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/candidates/me/skills/{skill_id}",
+      "summary": "Update skill proficiency or years",
+      "description": "",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/candidates/me/skills/{skill_id}",
+      "summary": "Remove skill from profile",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/candidates/{candidate_id}",
+      "summary": "View candidate profile by ID (HR & Recruiter)",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    }
+  ],
+  "Candidate Resumes": [
+    {
+      "method": "POST",
+      "path": "/api/candidates/{candidate_id}/resume",
+      "summary": "Upload Candidate Resume (PDF, DOCX, TXT) â€” Async Processing",
+      "description": "Stores the original resume to S3 immediately, then queues async processing (text extraction, parsing, skill sync, auto-matching). Returns a task_id for status polling via GET /{id}/resume/status. Proc",
+      "body": true,
+      "responses": [
+        "202",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/candidates/{candidate_id}/resume",
+      "summary": "Get Pre-signed S3 URL to View/Download Original Resume",
+      "description": "Generates a secure, temporary pre-signed URL with ExpiresIn=300 (5 minutes).\nAccessible by Candidate (own profile), Recruiter, HR, and Admin.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/candidates/{candidate_id}/resume",
+      "summary": "Delete Candidate Resume & Extracted Documents from Storage",
+      "description": "Deletes original file and extracted TXT from storage and clears database columns.\nAccessible only by the Candidate owner or Admin.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/candidates/{candidate_id}/resume/status",
+      "summary": "Get Resume Processing Status",
+      "description": "Poll this endpoint to check if async resume processing has completed.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/candidates/{candidate_id}/resume/text",
+      "summary": "Get Extracted Plain Text (.txt) of Candidate Resume",
+      "description": "Returns the clean extracted plain text representation of the resume.\nAccessible by Candidate (own profile), Recruiter, HR, and Admin.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/candidates/{candidate_id}/resume/parsed",
+      "summary": "Get Structured Parsed Data (Skills, Experience, Education, Certifications)",
+      "description": "Returns structured parsed fields extracted deterministically from resume text.\nAccessible by Candidate (own profile), Recruiter, HR, and Admin.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/candidates/{candidate_id}/resume/reparse",
+      "summary": "Reparse Existing Resume Text with Enhanced Deterministic Extractor",
+      "description": "Re-runs deterministic parsing on candidate's existing resume text and refreshes extracted structured data.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    }
+  ],
+  "Matching Engine": [
+    {
+      "method": "POST",
+      "path": "/api/matching/jobs/{job_id}/run",
+      "summary": "Queue matching engine for a job (Recruiter/HR/Admin)",
+      "description": "Queues an async background matching task. Returns immediately with task status. Normal matching is triggered automatically when HR publishes/updates a job or a candidate uploads a resume. Use this end",
+      "body": false,
+      "responses": [
+        "202",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/matching/jobs/{job_id}/status",
+      "summary": "Get matching processing status for a job (Recruiter/HR/Admin)",
+      "description": "Returns the current processing status of match results for a job.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/matching/jobs/{job_id}",
+      "summary": "Get ranked match results for a job (HR & Recruiter)",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/matching/screened",
+      "summary": "List screened candidates ready for HR approval (HR)",
+      "description": "Returns all candidate matches that have been screened by recruiters and awaiting HR review.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/matching/{match_id}/status",
+      "summary": "Update candidate pipeline status (Role-enforced)",
+      "description": "Recruiter: can update to 'screened' or 'rejected'. HR: can approve, schedule interviews, make offers, hire, or reject. Recruiters are no longer restricted to jobs they created.",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/matching/shortlists",
+      "summary": "List active pipeline candidates (Recruiter & HR)",
+      "description": "Returns candidates advancing through the hiring pipeline.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/matching/{match_id}/scorecard",
+      "summary": "Add feedback scorecard for a candidate (HR & Recruiter)",
+      "description": "",
+      "body": true,
+      "responses": [
+        "201",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/matching/{match_id}/scorecards",
+      "summary": "Get all scorecards for a match result (HR & Recruiter)",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/matching/{match_id}/ai-analysis",
+      "summary": "Get Gemini AI candidate fit analysis & tailored interview questions (HR & Recruiter)",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/matching/jobs/{job_id}/shortlist-candidates",
+      "summary": "Get ranked candidates for shortlisting with filters (Recruiter/HR)",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    }
+  ],
+  "Match Results": [
+    {
+      "method": "GET",
+      "path": "/api/match_results/screened",
+      "summary": "List screened candidates for HR",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/match_results/{match_id}",
+      "summary": "Get match result by ID",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/match_results/{match_id}/status",
+      "summary": "Update candidate pipeline status (Role-checked)",
+      "description": "",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    }
+  ],
+  "Interviews": [
+    {
+      "method": "POST",
+      "path": "/api/interviews",
+      "summary": "Schedule an interview (HR Only)",
+      "description": "HR schedules an interview for a candidate, transitions match status to 'interview_scheduled', and dispatches candidate notification via SendGrid and in-app alert.",
+      "body": true,
+      "responses": [
+        "201",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/interviews",
+      "summary": "List all interviews (HR, Recruiter & Admin)",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/interviews/my",
+      "summary": "List candidate's scheduled and pending interviews (Candidate)",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/interviews/{interview_id}",
+      "summary": "Get interview by ID",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/interviews/{interview_id}",
+      "summary": "Update interview status or feedback (HR & Admin)",
+      "description": "",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    }
+  ],
+  "Notifications": [
+    {
+      "method": "POST",
+      "path": "/api/notifications",
+      "summary": "Create and dispatch notification (HR Only)",
+      "description": "HR dispatches email notifications to candidates regarding interview schedules, status updates, or rejections.",
+      "body": true,
+      "responses": [
+        "201",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications",
+      "summary": "List all notifications (HR & Admin)",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications/my",
+      "summary": "Get current user's notifications",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/notifications/{notification_id}/read",
+      "summary": "Mark notification as read",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/notifications/mark-all-read",
+      "summary": "Mark all current user notifications as read",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/notifications/{notification_id}",
+      "summary": "Dismiss or delete notification",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    }
+  ],
+  "Admin Management": [
+    {
+      "method": "GET",
+      "path": "/api/admin/users",
+      "summary": "List all users with pagination, search, and filters (Admin only)",
+      "description": "Returns a paginated list of all users. Supports server-side filtering by role, status (active/deactivated), and search by name or email. Response includes pagination metadata.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/users/{user_id}/detail",
+      "summary": "Get extended user detail (Admin only)",
+      "description": "Returns full user profile including candidate resume info, recruiter jobs, skills.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/users/{user_id}/toggle-status",
+      "summary": "Toggle user active/deactivated status (Admin only)",
+      "description": "Quickly activates or deactivates a user account. Admin accounts cannot be toggled.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/users/{user_id}",
+      "summary": "Permanently delete a user (Admin only)",
+      "description": "Permanently deletes a user account and cascades all related candidate data, skills, and applications.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/hiring-logs",
+      "summary": "Get comprehensive recruitment and hiring audit logs (Admin only)",
+      "description": "Returns system-wide hiring activity logs, including stage transitions, offers, interview scheduling, HM reviews, and sourcing assignments with metrics and filtering.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    }
+  ],
+  "Recruiter Operations": [
+    {
+      "method": "GET",
+      "path": "/api/recruiter/dashboard-stats",
+      "summary": "Get recruiter dashboard overview metrics",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/recruiter/jobs",
+      "summary": "List all jobs actively assigned to the current recruiter",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/recruiter/jobs/{job_id}/candidates",
+      "summary": "Get candidate match results for a specific assigned job",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/recruiter/candidates",
+      "summary": "Global candidate search across all assigned jobs for the recruiter",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/recruiter/jobs/{job_id}/candidates/{candidate_id}",
+      "summary": "Get full candidate review profile and match breakdown for a job",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/recruiter/jobs/{job_id}/candidates/{candidate_id}/claim",
+      "summary": "Claim candidate for screening ('Assign to Me')",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/recruiter/jobs/{job_id}/candidates/{candidate_id}/assign",
+      "summary": "Assign candidate to a recruiter (HR or Primary Recruiter)",
+      "description": "",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/recruiter/jobs/{job_id}/candidates/{candidate_id}/assignment",
+      "summary": "Unassign candidate from current recruiter",
+      "description": "",
+      "body": false,
+      "responses": [
+        "204",
+        "422"
+      ]
+    }
+  ],
+  "Candidate Claiming": [
+    {
+      "method": "POST",
+      "path": "/api/jobs/{job_id}/candidates/{candidate_id}/claim",
+      "summary": "Claim candidate for screening ('Assign to Me')",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/jobs/{job_id}/candidates/{candidate_id}/assign",
+      "summary": "Assign candidate to a recruiter (HR or Primary Recruiter)",
+      "description": "",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/jobs/{job_id}/candidates/{candidate_id}/assignment",
+      "summary": "Unassign candidate from current recruiter",
+      "description": "",
+      "body": false,
+      "responses": [
+        "204",
+        "422"
+      ]
+    }
+  ],
+  "Recruitment Communication": [
+    {
+      "method": "GET",
+      "path": "/api/jobs/{job_id}/messages",
+      "summary": "List job-level recruitment collaboration messages",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/jobs/{job_id}/messages",
+      "summary": "Send a job-level recruitment message",
+      "description": "",
+      "body": true,
+      "responses": [
+        "201",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/{job_id}/candidates/{candidate_id}/messages",
+      "summary": "List candidate-specific discussion messages for this job requisition",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/jobs/{job_id}/candidates/{candidate_id}/messages",
+      "summary": "Send a candidate review note or recommendation for this job requisition",
+      "description": "",
+      "body": true,
+      "responses": [
+        "201",
+        "422"
+      ]
+    }
+  ],
+  "Recruitment Tasks": [
+    {
+      "method": "GET",
+      "path": "/api/recruiter/tasks",
+      "summary": "List all recruitment tasks assigned to current recruiter",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/{job_id}/tasks",
+      "summary": "List tasks associated with a job requisition or candidate",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/jobs/{job_id}/tasks",
+      "summary": "Create a recruitment task for an assigned recruiter (HR / Admin)",
+      "description": "",
+      "body": true,
+      "responses": [
+        "201",
+        "422"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/tasks/{task_id}",
+      "summary": "Update recruitment task status or notes",
+      "description": "",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    }
+  ],
+  "Workflow": [
+    {
+      "method": "POST",
+      "path": "/api/workflow/tasks/{task_id}/complete",
+      "summary": "Mark an Action Center task as completed",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow/{match_id}/shortlist",
+      "summary": "Recruiter: Shortlist a candidate",
+      "description": "Recruiter shortlists a matched candidate. Transition: CANDIDATE_MATCHED â†’ CANDIDATE_SHORTLISTED.",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow/{match_id}/submit-to-hm",
+      "summary": "Recruiter: Submit candidate to Hiring Manager",
+      "description": "Recruiter submits a shortlisted candidate to the HM for review.",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow/{match_id}/send-slots-to-candidate",
+      "summary": "Recruiter: Forward interview slots to candidate",
+      "description": "Recruiter forwards the HM-proposed slots to candidate via email. Generates secure token.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow/{match_id}/confirm-interview",
+      "summary": "Recruiter: Confirm the candidate's selected slot",
+      "description": "Recruiter confirms the interview after candidate selects a slot.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow/{match_id}/complete-interview",
+      "summary": "Recruiter: Mark interview as completed and submit competency ratings",
+      "description": "Mark the interview as completed with structured competency ratings. Triggers HM feedback request.",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow/{match_id}/interviewer-evaluation",
+      "summary": "Recruiter/Interviewer: Save structured competency evaluation",
+      "description": "Save or update structured competency ratings for an interview.",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow/{match_id}/create-offer",
+      "summary": "Recruiter: Create a compensation offer (DRAFT)",
+      "description": "Recruiter creates a draft offer after GO decision.",
+      "body": true,
+      "responses": [
+        "201",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow/{match_id}/hm-review",
+      "summary": "Hiring Manager: Start reviewing a candidate",
+      "description": "HM marks a submitted candidate as 'in review'.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow/{match_id}/hm-reject",
+      "summary": "Hiring Manager: Reject a candidate",
+      "description": "HM rejects a candidate. Transition: HIRING_MANAGER_REVIEW â†’ REJECTED.",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow/{match_id}/request-interview",
+      "summary": "Hiring Manager: Request interview with slot proposals (min 2 slots)",
+      "description": "HM requests an interview and proposes >= 2 time slots. Notifies recruiter.",
+      "body": true,
+      "responses": [
+        "201",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow/{match_id}/hm-feedback",
+      "summary": "Hiring Manager: Submit GO/NO-GO interview feedback",
+      "description": "HM submits structured feedback after interview completion.",
+      "body": true,
+      "responses": [
+        "201",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow/interviews/{interview_id}/select-slot",
+      "summary": "Candidate: Select an interview slot (token-authenticated or logged-in candidate)",
+      "description": "Candidate selects a time slot using either the secure token received via email/dashboard\nor their active logged-in candidate session.",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workflow/{match_id}/timeline",
+      "summary": "Get full application timeline (audit trail)",
+      "description": "Full chronological audit trail for an application.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workflow/action-center",
+      "summary": "Recruiter: Get Action Center â€” all pending workflow actions",
+      "description": "Returns all open workflow action tasks for the recruiter or assigned jobs, ordered by priority.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workflow/action-center/count",
+      "summary": "Recruiter: Get Action Center item counts for badge polling",
+      "description": "Returns lightweight count of pending actions for efficient sidebar polling without fetching the entire list.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workflow/recent-activity",
+      "summary": "Recruiter: Get recent recruitment activity logs",
+      "description": "Returns recent recruitment pipeline transitions and audit events.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workflow/hm-dashboard",
+      "summary": "Hiring Manager: Get dashboard items (pending reviews, feedback required)",
+      "description": "Returns all candidates awaiting HM action.",
+      "body": false,
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workflow/{match_id}/interview",
+      "summary": "Get interview details with slots and feedback for an application",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workflow/{match_id}/state",
+      "summary": "Get current workflow state for an application",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workflow/public/slots/{interview_id}",
+      "summary": "Public: Get interview slots for candidate selection (token required)",
+      "description": "Public endpoint for candidate to view slots before selecting. Token validates access.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workflow/{match_id}/interviews",
+      "summary": "Get all interview rounds for an application",
+      "description": "Returns all interview rounds for an application ordered by round number.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow/{match_id}/interviews/add-round",
+      "summary": "Add an on-demand additional interview round",
+      "description": "Append an on-demand additional interview round to an existing application.\nAllowed when the candidate has passed at least one round.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow/interviews/{interview_id}/round-feedback",
+      "summary": "HM: Submit per-round feedback and GO/PASS/NO-GO decision",
+      "description": "HM submits per-round feedback with PASS/GO/NO_GO recommendation.\n- PASS: Intermediate round passed, next round to be scheduled.\n- GO: Final round approved, pipeline advances to COMPENSATION_DISCUSSION",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    }
+  ],
+  "Offers": [
+    {
+      "method": "GET",
+      "path": "/api/offers/stats",
+      "summary": "Get count of offers across states",
+      "description": "Returns real-time offer counts by workflow state for dashboard metrics.",
+      "body": false,
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/offers/pending-review",
+      "summary": "HM: List offers pending HM review",
+      "description": "Returns offers that have been submitted to HM for review.",
+      "body": false,
+      "responses": [
+        "200"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/offers",
+      "summary": "List offers filtered by workflow state/status",
+      "description": "Returns offers filtered by status for interactive dashboard drill-down.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/offers/{offer_id}",
+      "summary": "Get offer details",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/offers/{offer_id}",
+      "summary": "Recruiter: Update a DRAFT or approved offer",
+      "description": "",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/offers/by-match/{match_id}",
+      "summary": "Get offer details for a match result",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/offers/{offer_id}/hm-edit",
+      "summary": "HM: Edit permitted offer fields during review",
+      "description": "Hiring Manager updates permitted offer terms before approving or requesting changes.",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/offers/{offer_id}/send",
+      "summary": "Recruiter: Send offer to candidate",
+      "description": "",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/offers/{offer_id}/respond",
+      "summary": "Candidate: Accept or reject offer (public, token-authenticated)",
+      "description": "Candidate accepts or rejects an offer using the secure token.",
+      "body": true,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/offers/{offer_id}/submit-review",
+      "summary": "Recruiter: Submit offer to HM for approval",
+      "description": "Recruiter submits a DRAFT offer to the Hiring Manager for review.\nTransitions: DRAFT â†’ PENDING_HM_REVIEW.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/offers/{offer_id}/hm-review",
+      "summary": "HM: Approve or request changes to an offer",
+      "description": "HM reviews a submitted offer and either approves or requests changes.\n- APPROVE â†’ HM_APPROVED (recruiter can now generate PDF)\n- REQUEST_CHANGES â†’ HM_CHANGES_REQUESTED (recruiter edits and resubmi",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/offers/{offer_id}/generate-pdf",
+      "summary": "Recruiter: Generate official PDF offer letter",
+      "description": "Generate the official PDF offer letter for an HM-approved offer.\nRequires workflow_state == HM_APPROVED.\nTransitions: HM_APPROVED â†’ OFFER_READY.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/offers/{offer_id}/pdf",
+      "summary": "Download or view generated offer PDF (Candidate, Recruiter, HR, Admin, or via token)",
+      "description": "View/Download the official offer letter PDF with S3 persistence and role authorization.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/offers/candidate/{token}/pdf",
+      "summary": "Candidate: Download secure offer PDF using secure token",
+      "description": "Public endpoint â€” candidate views their offer PDF using the secure offer token.",
+      "body": false,
+      "responses": [
+        "200",
+        "422"
+      ]
+    }
+  ],
+  "System": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "summary": "Health Check",
+      "description": "Liveness probe â€” returns service status and version.",
+      "body": false,
+      "responses": [
+        "200"
+      ]
+    }
+  ]
+}

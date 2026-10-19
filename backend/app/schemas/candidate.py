@@ -15,7 +15,7 @@ from app.schemas.skill import SkillOut
 VALID_PROFICIENCY = {"Beginner", "Intermediate", "Expert"}
 
 
-# ── Candidate skills ──────────────────────────────────────────────────────────
+# ── Candidate skills ─────
 
 class CandidateSkillIn(BaseModel):
     skill_id: int

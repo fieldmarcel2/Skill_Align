@@ -1,520 +1,645 @@
-<!DOCTYPE html>
-<html lang="en">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>SkillAlign — Official Documentation</title>
+<title>SkillAlign — Official Documentation &amp; Architecture Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
 <style>
-:root{
-  --primary:#0f2a4f;
-  --primary2:#1a4a8a;
-  --accent:#3b82f6;
-  --accent2:#60a5fa;
-  --navy:#0b1e3a;
-  --ink:#000000;
-  --ink2:#111827;
-  --muted:#374151;
-  --light:#f4f8fd;
-  --light2:#eaf0fb;
-  --border:#d1dce8;
-  --border2:#b8cbe0;
-  --white:#ffffff;
-  --green:#14532d;
-  --green-bg:#d1fae5;
-  --amber:#92400e;
-  --amber-bg:#fef3c7;
-  --red:#7f1d1d;
-  --red-bg:#fee2e2;
-  --blue-bg:#eff6ff;
-  --radius:14px;
-  --radius-sm:9px;
-  --shadow:0 4px 20px rgba(15,42,79,.08);
-  --shadow-md:0 8px 32px rgba(15,42,79,.12);
+:root {
+  --primary: #4f46e5;
+  --primary-dark: #3730a3;
+  --primary-light: #6366f1;
+  --accent-purple: #7c3aed;
+  --accent-blue: #2563eb;
+  --accent-cyan: #0284c7;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --bg-page: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-subtle: #f1f5f9;
+  --border: #e2e8f0;
+  --border-bright: #cbd5e1;
+  --green: #059669;
+  --green-bg: #ecfdf5;
+  --green-border: #a7f3d0;
+  --amber: #d97706;
+  --amber-bg: #fffbeb;
+  --amber-border: #fde68a;
+  --red: #dc2626;
+  --red-bg: #fef2f2;
+  --red-border: #fca5a5;
+  --blue-bg: #eff6ff;
+  --blue-border: #bfdbfe;
+  --purple-bg: #f5f3ff;
+  --purple-border: #ddd6fe;
+  --sidebar-w: 280px;
+  --header-h: 64px;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --radius-xs: 6px;
+  --shadow-sm: 0 1px 3px rgba(15,23,42,0.05), 0 1px 2px rgba(15,23,42,0.03);
+  --shadow: 0 4px 20px -4px rgba(15,23,42,0.06), 0 2px 6px -2px rgba(15,23,42,0.04);
+  --shadow-md: 0 12px 32px -6px rgba(79,70,229,0.12), 0 4px 12px -2px rgba(15,23,42,0.06);
+  --gradient-brand: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #2563eb 100%);
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: 'Outfit', 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
-*{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth;scroll-padding-top:30px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--header-h) + 20px)}
 body{
-  font-family:'Segoe UI','Inter',system-ui,-apple-system,sans-serif;
-  font-size:16px;line-height:1.75;
-  background:var(--light);color:var(--ink);
+  font-family:var(--font-sans);
+  font-size:15px;line-height:1.75;
+  background:var(--bg-page);color:var(--text-secondary);
   -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
 }
-.page{max-width:1100px;margin:0 auto;padding:0 28px 120px}
 
-/* HERO */
+/* Top Sticky Navigation Bar */
+.top-nav{
+  position:fixed;top:0;left:0;right:0;height:var(--header-h);
+  background:rgba(255,255,255,0.96);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 24px;z-index:100;gap:14px;
+  box-shadow:var(--shadow-sm);
+}
+.sidebar-toggle-btn{
+  display:none;background:none;border:1px solid var(--border);border-radius:8px;
+  padding:6px 10px;font-size:16px;color:var(--text-primary);cursor:pointer;
+  transition:all .15s;
+}
+.sidebar-toggle-btn:hover{background:var(--bg-subtle);border-color:var(--primary)}
+.nav-brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-family:var(--font-heading);font-weight:800;font-size:18px;color:var(--text-primary)}
+.nav-logo-icon{
+  width:32px;height:32px;background:var(--gradient-brand);border-radius:8px;
+  color:#fff;display:flex;align-items:center;justify-content:center;
+  font-weight:900;font-size:13px;letter-spacing:-.5px;box-shadow:0 2px 8px rgba(79,70,229,0.3);
+}
+.nav-brand span{background:var(--gradient-brand);-webkit-background-clip:text;background-clip:text;color:transparent}
+.nav-badge{
+  font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;
+  background:#eef2ff;border:1px solid #c7d2fe;color:var(--primary);
+  letter-spacing:.3px;
+}
+.nav-search-wrap{margin-left:auto;position:relative;width:240px}
+.nav-search{
+  width:100%;padding:7px 12px 7px 32px;background:#f1f5f9;border:1px solid var(--border);
+  border-radius:20px;font-size:12.5px;color:var(--text-primary);outline:none;
+  font-family:var(--font-sans);transition:all .15s;
+}
+.nav-search:focus{background:#fff;border-color:var(--primary);box-shadow:0 0 0 3px rgba(79,70,229,0.1);width:270px}
+.nav-search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--text-muted);pointer-events:none}
+.nav-actions{display:flex;align-items:center;gap:10px}
+.nav-btn-tool{
+  display:inline-flex;align-items:center;gap:5px;padding:6px 12px;
+  background:#fff;border:1px solid var(--border);border-radius:8px;
+  font-size:12px;font-weight:600;color:var(--text-secondary);cursor:pointer;
+  transition:all .15s;font-family:var(--font-sans);
+}
+.nav-btn-tool:hover{border-color:var(--primary);color:var(--primary);background:#eef2ff}
+.nav-btn-api{
+  display:inline-flex;align-items:center;gap:6px;padding:7px 14px;
+  background:var(--gradient-brand);color:#fff;border-radius:8px;
+  font-size:12.5px;font-weight:700;text-decoration:none;
+  box-shadow:0 2px 8px rgba(79,70,229,0.25);transition:all .15s;
+}
+.nav-btn-api:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(79,70,229,0.35)}
+
+/* Documentation Layout with Fixed Sidebar */
+.doc-layout{display:flex;padding-top:var(--header-h);min-height:100vh}
+
+/* Left Sidebar Navigation Panel */
+.doc-sidebar{
+  width:var(--sidebar-w);
+  position:fixed;top:var(--header-h);left:0;bottom:0;
+  background:#ffffff;border-right:1px solid var(--border);
+  overflow-y:auto;padding:16px 0 40px;z-index:90;
+  transition:transform .22s ease;
+}
+.doc-sidebar-search{margin:0 14px 12px;position:relative}
+.doc-sidebar-search input{
+  width:100%;padding:7px 28px 7px 30px;background:#f8fafc;border:1px solid var(--border);
+  border-radius:8px;color:var(--text-primary);font-family:var(--font-sans);font-size:12px;outline:none;
+  transition:all .15s;
+}
+.doc-sidebar-search input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(79,70,229,0.08);background:#fff}
+.doc-sb-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:11px;pointer-events:none}
+.doc-sb-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;display:none;padding:0}
+.doc-sb-clear:hover{color:var(--text-primary)}
+
+.doc-sb-group-label{
+  font-size:10.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;
+  color:var(--text-muted);padding:12px 18px 5px;margin-top:4px;display:flex;align-items:center;justify-content:space-between;
+}
+.doc-sb-item{
+  display:flex;align-items:center;gap:8px;padding:7px 14px;margin:2px 10px;
+  border-radius:8px;cursor:pointer;transition:all .12s;text-decoration:none;
+  color:var(--text-secondary);font-size:12.5px;font-weight:500;position:relative;
+}
+.doc-sb-item:hover{background:var(--bg-subtle);color:var(--primary)}
+.doc-sb-item.active{
+  background:#eef2ff;color:var(--primary);font-weight:700;
+}
+.doc-sb-item.active::before{
+  content:'';position:absolute;left:0;top:4px;bottom:4px;width:3px;
+  background:var(--primary);border-radius:0 3px 3px 0;
+}
+.doc-sb-num{
+  font-family:var(--font-mono);font-size:10.5px;font-weight:700;
+  color:var(--text-muted);min-width:18px;
+}
+.doc-sb-item.active .doc-sb-num{color:var(--primary)}
+.doc-sb-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Quick Tools Box in Sidebar */
+.doc-sb-tools{
+  margin:18px 12px 0;padding:12px;background:#f8fafc;
+  border:1px solid var(--border);border-radius:10px;
+}
+.doc-sb-tools-title{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);margin-bottom:8px}
+.doc-sb-tools-btn{
+  width:100%;padding:6px 10px;background:#fff;border:1px solid var(--border);
+  border-radius:6px;font-size:11.5px;font-weight:600;color:var(--text-secondary);
+  cursor:pointer;font-family:var(--font-sans);text-align:left;display:flex;align-items:center;gap:6px;
+  margin-bottom:6px;transition:all .12s;
+}
+.doc-sb-tools-btn:hover{border-color:var(--primary);color:var(--primary);background:#eef2ff}
+
+/* Mobile Sidebar Backdrop */
+.doc-sidebar-backdrop{
+  position:fixed;inset:0;background:rgba(15,23,42,0.45);backdrop-filter:blur(3px);
+  z-index:85;display:none;
+}
+.doc-sidebar-backdrop.open{display:block}
+
+/* Main Content Area */
+.doc-main{
+  margin-left:var(--sidebar-w);
+  flex:1;min-width:0;
+  padding:28px 48px 120px;
+  max-width:1120px;
+}
+
+/* HERO - Clean, Professional Light Version */
 .hero{
-  background:linear-gradient(145deg,#0a1e38 0%,#0f2a4f 40%,#1a4a8a 75%,#2563ba 100%);
-  color:#fff;border-radius:0 0 24px 24px;
-  padding:80px 60px 70px;margin:0 -28px 40px;
+  background:linear-gradient(135deg, #ffffff 0%, #f5f3ff 45%, #eff6ff 100%);
+  color:var(--text-primary);border-radius:24px;border:1px solid var(--border);
+  padding:54px 48px 48px;margin:0 0 32px;
   position:relative;overflow:hidden;
-  box-shadow:0 20px 60px rgba(10,30,56,.35);
+  box-shadow:var(--shadow);
 }
 .hero::before{
-  content:'';position:absolute;top:-80px;right:-60px;
-  width:420px;height:420px;border-radius:50%;
-  background:radial-gradient(circle,rgba(96,165,250,.22),transparent 68%);
+  content:'';position:absolute;top:-60px;right:-60px;
+  width:360px;height:360px;border-radius:50%;
+  background:radial-gradient(circle, rgba(99,102,241,0.08), transparent 70%);
   pointer-events:none;
 }
 .hero::after{
-  content:'';position:absolute;bottom:-100px;left:-80px;
-  width:340px;height:340px;border-radius:50%;
-  background:radial-gradient(circle,rgba(59,130,246,.14),transparent 68%);
+  content:'';position:absolute;bottom:-80px;left:-60px;
+  width:320px;height:320px;border-radius:50%;
+  background:radial-gradient(circle, rgba(37,99,235,0.06), transparent 70%);
   pointer-events:none;
 }
-.hero-inner{position:relative;z-index:1;max-width:860px}
+.hero-inner{position:relative;z-index:1;max-width:880px}
 .hero-badge{
-  display:inline-block;
-  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);
-  color:#bfdbfe;font-size:11.5px;font-weight:700;
-  letter-spacing:1.6px;text-transform:uppercase;
-  padding:5px 14px;border-radius:99px;margin-bottom:22px;
+  display:inline-flex;align-items:center;gap:7px;
+  background:#eef2ff;border:1px solid #c7d2fe;
+  color:var(--primary);font-size:11.5px;font-weight:700;
+  letter-spacing:1px;text-transform:uppercase;
+  padding:4px 13px;border-radius:99px;margin-bottom:18px;
 }
+.hero-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:#10b981;box-shadow:0 0 0 2px rgba(16,185,129,0.25)}
 .hero h1{
-  font-size:54px;line-height:1.06;
-  letter-spacing:-1.5px;font-weight:900;margin-bottom:16px;
+  font-family:var(--font-heading);font-size:42px;line-height:1.12;
+  letter-spacing:-1.2px;font-weight:900;margin-bottom:12px;color:var(--text-primary);
 }
-.hero h1 em{
-  font-style:normal;
-  background:linear-gradient(90deg,#93c5fd,#c7d2fe);
-  -webkit-background-clip:text;background-clip:text;color:transparent;
+.hero h1 span{
+  background:var(--gradient-brand);-webkit-background-clip:text;background-clip:text;color:transparent;
 }
-.hero-sub{font-size:21px;color:#cbd5e1;font-weight:500;margin-bottom:12px}
-.hero-desc{font-size:16px;color:#94a3b8;max-width:700px;line-height:1.7}
+.hero-sub{font-size:17.5px;color:var(--text-secondary);font-weight:600;margin-bottom:12px;line-height:1.5}
+.hero-desc{font-size:14.5px;color:var(--text-secondary);max-width:720px;line-height:1.7}
+.hero-actions{display:flex;gap:12px;margin-top:24px;flex-wrap:wrap}
+.hero-btn-primary{
+  display:inline-flex;align-items:center;gap:8px;padding:9px 20px;
+  background:var(--gradient-brand);color:#ffffff;border-radius:8px;
+  font-size:13px;font-weight:700;text-decoration:none;
+  box-shadow:0 2px 8px rgba(79,70,229,0.25);transition:all .15s;border:none;cursor:pointer;
+}
+.hero-btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(79,70,229,0.35)}
+.hero-btn-secondary{
+  display:inline-flex;align-items:center;gap:8px;padding:9px 18px;
+  background:#ffffff;border:1px solid var(--border);
+  color:var(--text-secondary);border-radius:8px;font-size:13px;font-weight:600;
+  text-decoration:none;transition:all .15s;cursor:pointer;
+}
+.hero-btn-secondary:hover{border-color:var(--primary);color:var(--primary);background:#eef2ff;transform:translateY(-1px)}
 .hero-meta{
-  display:flex;flex-wrap:wrap;gap:32px;
-  margin-top:38px;padding-top:28px;
-  border-top:1px solid rgba(255,255,255,.12);
+  display:flex;flex-wrap:wrap;gap:20px;
+  margin-top:26px;padding-top:20px;
+  border-top:1px solid var(--border);
 }
-.hero-meta div{font-size:13.5px;color:#94a3b8}
-.hero-meta strong{display:block;color:#fff;font-size:15px;font-weight:700;margin-bottom:2px}
+.hero-meta div{
+  font-size:12.5px;color:var(--text-secondary);background:#ffffff;
+  padding:8px 14px;border:1px solid var(--border);border-radius:8px;
+}
+.hero-meta strong{display:block;color:var(--text-primary);font-size:13px;font-weight:700;margin-bottom:1px}
 .hero-stamp{
-  margin-top:30px;
-  display:inline-flex;align-items:center;gap:10px;
-  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);
-  border-radius:10px;padding:10px 18px;font-size:13px;color:#94a3b8;
+  margin-top:18px;
+  display:inline-flex;align-items:center;gap:8px;
+  background:#ffffff;border:1px solid var(--border);
+  border-radius:8px;padding:7px 14px;font-size:12px;color:var(--text-muted);
 }
-.hero-stamp strong{color:#e2e8f0}
+.hero-stamp strong{color:var(--text-primary)}
 
 /* SECTION */
 .section{
-  background:var(--white);border:1px solid var(--border);
-  border-radius:var(--radius);padding:42px 46px;
-  margin:22px 0;box-shadow:var(--shadow);
-  scroll-margin-top:30px;
+  background:var(--bg-card);border:1px solid var(--border);
+  border-radius:var(--radius);padding:36px 40px;
+  margin:24px 0;box-shadow:var(--shadow);
+  scroll-margin-top:calc(var(--header-h) + 16px);position:relative;
 }
-.sec-header{display:flex;align-items:center;gap:16px;margin-bottom:24px}
+.sec-header{display:flex;align-items:center;gap:16px;margin-bottom:20px}
 .sec-num{
-  flex-shrink:0;width:46px;height:46px;border-radius:13px;
-  background:linear-gradient(135deg,var(--light2),#dbeafe);
-  border:1px solid #bfdbfe;
-  color:var(--primary2);font-weight:900;font-size:15px;
+  flex-shrink:0;width:42px;height:42px;border-radius:10px;
+  background:linear-gradient(135deg, #eef2ff, #e0e7ff);
+  border:1px solid #c7d2fe;
+  color:var(--primary);font-weight:900;font-size:14.5px;
   display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-heading);
 }
 .section h2{
-  font-size:28px;line-height:1.2;
-  color:var(--primary);font-weight:800;letter-spacing:-.4px;
+  font-family:var(--font-heading);
+  font-size:24px;line-height:1.2;
+  color:var(--text-primary);font-weight:800;letter-spacing:-.4px;
 }
 .section h3{
-  font-size:19px;color:var(--primary2);
-  font-weight:700;margin:30px 0 10px;letter-spacing:-.2px;
+  font-family:var(--font-heading);
+  font-size:18px;color:var(--primary);
+  font-weight:700;margin:26px 0 10px;letter-spacing:-.2px;
 }
-.section h4{font-size:15.5px;color:#000000;font-weight:700;margin:18px 0 6px}
-.section p{color:#000000;margin:10px 0}
+.section h4{font-size:14.5px;color:var(--text-primary);font-weight:700;margin:16px 0 6px}
+.section p{color:var(--text-secondary);margin:10px 0;line-height:1.75}
 .section ul,.section ol{padding-left:22px;margin:10px 0}
-.section li{color:#000000;margin:7px 0}
-.section strong{color:#000000;font-weight:700}
-.back-toc{
-  display:inline-flex;align-items:center;gap:6px;
-  margin-top:28px;font-size:13px;color:var(--muted);
-  text-decoration:none;border:1px solid var(--border);
-  border-radius:8px;padding:5px 13px;
-  transition:color .15s,border-color .15s;
-}
-.back-toc:hover{color:var(--accent);border-color:var(--accent)}
+.section li{color:var(--text-secondary);margin:7px 0}
+.section strong{color:var(--text-primary);font-weight:700}
+
 
 /* CALLOUTS */
 .callout{
-  padding:18px 22px;border-radius:var(--radius-sm);margin:18px 0;
-  font-size:14.5px;line-height:1.7;
+  padding:16px 20px;border-radius:var(--radius-sm);margin:18px 0;
+  font-size:14px;line-height:1.68;
 }
-.callout-info{background:#eff6ff;border:1px solid #bfdbfe;border-left:5px solid #2563eb;color:#000000}
-.callout-info strong{color:#000000;font-weight:700}
-.callout-success{background:var(--green-bg);border:1px solid #a7f3d0;border-left:5px solid #16a34a;color:#064e3b}
-.callout-success strong{color:#022c22;font-weight:700}
-.callout-warning{background:var(--amber-bg);border:1px solid #fde68a;border-left:5px solid #d97706;color:#78350f}
-.callout-warning strong{color:#451a03;font-weight:700}
-.callout strong{color:#000000;font-weight:700}
+.callout-info{background:#eff6ff;border:1px solid #bfdbfe;border-left:4px solid #3b82f6;color:#1e3a8a}
+.callout-info strong{color:#1e40af;font-weight:700}
+.callout-success{background:var(--green-bg);border:1px solid var(--green-border);border-left:4px solid #10b981;color:#065f46}
+.callout-success strong{color:#064e3b;font-weight:700}
+.callout-warning{background:var(--amber-bg);border:1px solid var(--amber-border);border-left:4px solid #f59e0b;color:#92400e}
+.callout-warning strong{color:#78350f;font-weight:700}
 
-/* CARDS */
+/* INTERACTIVE CLICKABLE CARDS */
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:20px 0}
 .card{
   border:1px solid var(--border);border-radius:var(--radius-sm);
-  padding:22px 20px;background:#fbfdff;
-  transition:transform .15s,box-shadow .15s;
+  padding:18px 16px;background:#ffffff;box-shadow:var(--shadow-sm);
+  transition:all .15s;cursor:pointer;position:relative;display:flex;flex-direction:column;
 }
-.card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
+.card:hover{
+  transform:translateY(-3px);box-shadow:var(--shadow-md);border-color:var(--primary-light);
+  background:#fbfcfe;
+}
 .card-icon{
-  width:40px;height:40px;border-radius:10px;margin-bottom:12px;
-  display:flex;align-items:center;justify-content:center;font-size:19px;
+  width:36px;height:36px;border-radius:8px;margin-bottom:10px;
+  display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;
 }
-.card-icon.blue{background:var(--blue-bg)}
-.card-icon.green{background:var(--green-bg)}
-.card-icon.amber{background:var(--amber-bg)}
-.card-icon.red{background:var(--red-bg)}
-.card-icon.purple{background:#f3e8ff}
-.card h4{margin:0 0 6px;color:#000000;font-size:15px;font-weight:700}
-.card p{margin:0;font-size:13.5px;color:#000000;line-height:1.6}
+.card-icon.blue{background:var(--blue-bg);color:#2563eb}
+.card-icon.green{background:var(--green-bg);color:#059669}
+.card-icon.amber{background:var(--amber-bg);color:#d97706}
+.card-icon.red{background:var(--red-bg);color:#dc2626}
+.card-icon.purple{background:var(--purple-bg);color:#7c3aed}
+.card h4{margin:0 0 6px;color:var(--text-primary);font-size:14.5px;font-weight:700;font-family:var(--font-heading);display:flex;align-items:center;justify-content:space-between}
+.card p{margin:0;font-size:13px;color:var(--text-secondary);line-height:1.6}
+.card-badge-hint{
+  font-size:10.5px;color:var(--primary);font-weight:600;margin-top:auto;padding-top:10px;
+  display:flex;align-items:center;gap:4px;opacity:0.85;
+}
+.card:hover .card-badge-hint{opacity:1;text-decoration:underline}
 
 /* ROLE CARDS */
-.roles{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px;margin:22px 0}
-.role-card{border-radius:var(--radius);padding:26px 24px;border:1px solid var(--border);}
-.role-card.admin{background:linear-gradient(180deg,#f8f5ff,#f0ebff);border-color:#c4b5fd}
-.role-card.hr{background:linear-gradient(180deg,#eff6ff,#e0eeff);border-color:#bfdbfe}
-.role-card.rec{background:linear-gradient(180deg,#ecfdf5,#d1fae5);border-color:#6ee7b7}
-.role-card.cand{background:linear-gradient(180deg,#fffbeb,#fef3c7);border-color:#fcd34d}
-.role-card h3{margin:0 0 4px;font-size:17px;font-weight:800}
-.role-card.admin h3{color:#5b21b6}
-.role-card.hr h3{color:#1d4ed8}
+.roles{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;margin:22px 0}
+.role-card{border-radius:var(--radius);padding:22px 20px;border:1px solid var(--border);background:#ffffff;box-shadow:var(--shadow-sm);position:relative;cursor:pointer;transition:all .15s}
+.role-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);border-color:var(--primary-light)}
+.role-card.admin{background:linear-gradient(180deg,#faf5ff,#ffffff);border-color:#e9d5ff}
+.role-card.hr{background:linear-gradient(180deg,#eff6ff,#ffffff);border-color:#bfdbfe}
+.role-card.rec{background:linear-gradient(180deg,#f0fdf4,#ffffff);border-color:#bbf7d0}
+.role-card.cand{background:linear-gradient(180deg,#fffbeb,#ffffff);border-color:#fef08a}
+.role-card h3{margin:0 0 4px;font-size:16.5px;font-weight:800;font-family:var(--font-heading)}
+.role-card.admin h3{color:#6b21a8}
+.role-card.hr h3{color:#1e40af}
 .role-card.rec h3{color:#065f46}
 .role-card.cand h3{color:#92400e}
 .role-tag{
-  display:inline-block;font-size:11px;font-weight:700;
+  display:inline-block;font-size:10px;font-weight:700;
   letter-spacing:.8px;text-transform:uppercase;
-  padding:2px 9px;border-radius:99px;margin-bottom:12px;
+  padding:2px 8px;border-radius:99px;margin-bottom:10px;
 }
-.role-card.admin .role-tag{background:#ede9fe;color:#5b21b6}
+.role-card.admin .role-tag{background:#f3e8ff;color:#7e22ce}
 .role-card.hr .role-tag{background:#dbeafe;color:#1d4ed8}
-.role-card.rec .role-tag{background:#d1fae5;color:#065f46}
-.role-card.cand .role-tag{background:#fef3c7;color:#92400e}
+.role-card.rec .role-tag{background:#dcfce7;color:#15803d}
+.role-card.cand .role-tag{background:#fef3c7;color:#b45309}
 .role-card ul{padding-left:18px;margin:0}
-.role-card li{font-size:13.5px;color:var(--ink2);margin:5px 0}
+.role-card li{font-size:12.5px;color:var(--text-secondary);margin:5px 0}
+.role-inspect-btn{
+  margin-top:12px;padding:4px 9px;background:#fff;border:1px solid var(--border);
+  border-radius:6px;font-size:11px;font-weight:600;color:var(--primary);
+  display:inline-flex;align-items:center;gap:4px;transition:all .12s;
+}
+.role-inspect-btn:hover{background:#eef2ff;border-color:var(--primary)}
 
 /* TABLES */
-.tbl-wrap{overflow-x:auto;margin:18px 0;border-radius:var(--radius-sm);border:1px solid var(--border)}
-table{width:100%;border-collapse:collapse;background:#fff;min-width:420px}
-th,td{padding:13px 16px;text-align:left;vertical-align:middle;border-bottom:1px solid var(--border)}
+.tbl-wrap{overflow-x:auto;margin:18px 0;border-radius:var(--radius-sm);border:1px solid var(--border);box-shadow:var(--shadow-sm)}
+table{width:100%;border-collapse:collapse;background:#fff;min-width:440px}
+th,td{padding:11px 15px;text-align:left;vertical-align:middle;border-bottom:1px solid var(--border)}
 th{
-  background:linear-gradient(180deg,#eef4fd,#e6eefb);
-  color:var(--primary);font-weight:700;font-size:12.5px;
-  letter-spacing:.4px;text-transform:uppercase;
-  border-bottom:2px solid var(--border2);white-space:nowrap;
+  background:#f8fafc;
+  color:var(--text-primary);font-weight:700;font-size:11.5px;
+  letter-spacing:.5px;text-transform:uppercase;
+  border-bottom:2px solid var(--border);white-space:nowrap;
 }
 tr:last-child td{border-bottom:none}
-tbody tr:nth-child(even){background:#fafcff}
-tbody tr:hover{background:var(--light2)}
-td strong{color:var(--primary)}
-/* Fix tag alignment in table cells */
-td .tag{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}
+tbody tr:nth-child(even){background:#fbfcfe}
+tbody tr:hover{background:#f1f5f9}
+td strong{color:var(--text-primary)}
 
-/* TAGS */
+/* TAGS & BADGES */
 .tag{
-  display:inline-block;padding:3px 11px;border-radius:99px;
-  font-size:11.5px;font-weight:700;margin:2px;
+  display:inline-block;padding:2px 9px;border-radius:99px;
+  font-size:11px;font-weight:700;margin:2px;
   vertical-align:middle;
 }
-.tag-blue{background:var(--blue-bg);color:#1d4ed8}
-.tag-green{background:var(--green-bg);color:#065f46}
-.tag-amber{background:var(--amber-bg);color:#92400e}
-.tag-red{background:var(--red-bg);color:#991b1b}
-.tag-purple{background:#f3e8ff;color:#6d28d9}
-.tag-grey{background:#f1f5f9;color:#475569}
+.tag-blue{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+.tag-green{background:#ecfdf5;color:#047857;border:1px solid #a7f3d0}
+.tag-amber{background:#fffbeb;color:#b45309;border:1px solid #fde68a}
+.tag-red{background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5}
+.tag-purple{background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe}
+.tag-grey{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0}
 
-/* FLOW */
-.flow{
-  display:flex;flex-wrap:wrap;align-items:center;
-  gap:0;margin:22px 0;
-}
+/* FLOW & PIPELINE */
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:0;margin:22px 0}
 .flow-step{
-  background:linear-gradient(135deg,var(--light2),#dbeafe);
-  border:1px solid #bfdbfe;border-radius:10px;
-  padding:10px 16px;font-size:13.5px;font-weight:600;
+  background:#ffffff;border:1px solid var(--border);border-radius:10px;
+  padding:9px 15px;font-size:12.5px;font-weight:600;
   color:var(--primary);text-align:center;min-width:100px;
+  box-shadow:var(--shadow-sm);transition:all .12s;cursor:pointer;
 }
-.flow-arr{
-  width:28px;text-align:center;font-size:15px;
-  color:#64748b;font-weight:800;flex-shrink:0;
-}
+.flow-step:hover{border-color:var(--primary);transform:translateY(-2px);box-shadow:var(--shadow-md)}
+.flow-arr{width:28px;text-align:center;font-size:15px;color:#94a3b8;font-weight:800;flex-shrink:0}
 
-/* PIPELINE */
-.pipeline{display:flex;flex-direction:column;gap:8px;margin:18px 0}
-.pipe-group{margin:0 0 10px}
+.pipeline{display:flex;flex-direction:column;gap:10px;margin:18px 0}
 .pipe-group-title{
-  font-size:11.5px;font-weight:700;text-transform:uppercase;
-  letter-spacing:.9px;color:var(--muted);margin-bottom:6px;padding-left:4px;
+  font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:1px;color:var(--text-muted);margin-bottom:6px;padding-left:4px;
 }
 .pipe-states{display:flex;flex-wrap:wrap;gap:8px}
 .pipe-state{
-  border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;border:1px solid;
+  border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;
+  border:1px solid;cursor:pointer;transition:all .12s;
 }
+.pipe-state:hover{transform:translateY(-2px);box-shadow:var(--shadow-sm)}
 .ps-match{background:#eff6ff;border-color:#bfdbfe;color:#1e40af}
-.ps-review{background:#f3e8ff;border-color:#d8b4fe;color:#6d28d9}
-.ps-interview{background:#ecfdf5;border-color:#6ee7b7;color:#065f46}
-.ps-offer{background:#fffbeb;border-color:#fde68a;color:#92400e}
-.ps-terminal-ok{background:#d1fae5;border-color:#34d399;color:#064e3b;font-weight:800}
-.ps-terminal-ko{background:#fee2e2;border-color:#fca5a5;color:#7f1d1d;font-weight:800}
-
-/* SCORE */
-.score-bar-wrap{margin:20px 0}
-.score-bar{
-  display:flex;height:42px;border-radius:10px;
-  overflow:hidden;border:1px solid var(--border);
-  box-shadow:inset 0 2px 4px rgba(0,0,0,.04);
-}
-.sb{display:flex;align-items:center;justify-content:center;
-  color:#fff;font-weight:800;font-size:13px;letter-spacing:.2px;}
-.sb1{background:linear-gradient(135deg,#1d4ed8,#3b82f6);flex:60}
-.sb2{background:linear-gradient(135deg,#0891b2,#22d3ee);flex:20}
-.sb3{background:linear-gradient(135deg,#7c3aed,#a855f7);flex:10}
-.sb4{background:linear-gradient(135deg,#d97706,#f59e0b);flex:10}
-.score-legend{display:flex;flex-wrap:wrap;gap:20px;margin-top:12px}
-.sl{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--ink2)}
-.sl-dot{width:13px;height:13px;border-radius:4px}
-.d1{background:#3b82f6}.d2{background:#22d3ee}
-.d3{background:#a855f7}.d4{background:#f59e0b}
-
-/* STEPS */
-.steps{display:flex;flex-direction:column;gap:14px;margin:18px 0}
-.step{
-  display:flex;gap:16px;align-items:flex-start;
-  background:linear-gradient(135deg,#fafcff,#f4f8fd);
-  border:1px solid var(--border);border-radius:var(--radius-sm);
-  padding:16px 20px;
-}
-.step-n{
-  flex-shrink:0;width:34px;height:34px;border-radius:9px;
-  background:linear-gradient(135deg,var(--primary2),var(--accent));
-  color:#fff;font-weight:800;font-size:14px;
-  display:flex;align-items:center;justify-content:center;
-}
-.step-body h4{margin:0 0 4px;color:var(--primary);font-size:15px;font-weight:700}
-.step-body p{margin:0;font-size:14px;color:var(--ink2)}
-
-/* SWIMLANE */
-.swimlane{
-  border:1px solid var(--border);border-radius:var(--radius);
-  overflow:hidden;margin:22px 0;
-}
-.swim-header{
-  background:linear-gradient(135deg,var(--primary),var(--primary2));
-  color:#fff;padding:14px 20px;
-  font-size:14px;font-weight:700;letter-spacing:.3px;
-}
-.swim-body{display:grid;grid-template-columns:repeat(4,1fr)}
-.swim-col{border-right:1px solid var(--border);padding:0}
-.swim-col:last-child{border-right:none}
-.swim-col-title{
-  background:linear-gradient(180deg,var(--light2),#dbeafe);
-  padding:10px 14px;font-size:12.5px;font-weight:700;
-  color:var(--primary);text-transform:uppercase;letter-spacing:.5px;
-  border-bottom:1px solid var(--border);text-align:center;
-}
-.swim-items{padding:12px}
-.swim-item{
-  background:#fff;border:1px solid var(--border);
-  border-radius:8px;padding:9px 12px;margin-bottom:8px;
-  font-size:12.5px;color:var(--ink2);line-height:1.5;
-}
-.swim-item:last-child{margin-bottom:0}
-
-/* FIGURE */
-.figure{
-  border:1px solid var(--border);border-radius:var(--radius-sm);
-  padding:24px;margin:22px 0;background:linear-gradient(180deg,#fafcff,#f4f8fd);
-}
-.figure-title{
-  font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;
-  color:var(--muted);margin-bottom:16px;display:flex;align-items:center;gap:8px;
-}
-.figure-title::before{
-  content:'';width:16px;height:3px;border-radius:2px;
-  background:linear-gradient(90deg,var(--primary2),var(--accent));
-  display:inline-block;
-}
-.figure-cap{font-size:13px;color:var(--muted);margin-top:12px;font-style:italic}
-.diag-container{width:100%;overflow-x:auto;text-align:center}
-.diag-container svg{max-width:100%;height:auto}
-
-/* TOC */
-.toc-section{
-  background:#fff;border:1px solid var(--border);
-  border-radius:var(--radius);padding:34px 40px;
-  margin:22px 0;box-shadow:var(--shadow);
-}
-.toc-title{
-  font-size:22px;font-weight:800;color:var(--primary);
-  margin-bottom:18px;display:flex;align-items:center;gap:12px;
-}
-.toc-title::before{
-  content:'';width:5px;height:22px;border-radius:3px;
-  background:linear-gradient(180deg,var(--accent),var(--primary2));
-  display:inline-block;
-}
-.toc-grid{columns:2;column-gap:40px;padding:0}
-.toc-item{
-  break-inside:avoid;padding:7px 0;
-  border-bottom:1px dashed var(--border);
-  display:flex;align-items:baseline;gap:10px;
-  list-style:none;
-}
-.toc-item span.n{
-  color:var(--accent);font-weight:700;
-  font-size:12px;min-width:26px;font-variant-numeric:tabular-nums;
-}
-.toc-item a{
-  color:var(--ink2);text-decoration:none;
-  font-size:14.5px;font-weight:500;transition:color .15s;
-}
-.toc-item a:hover{color:var(--accent)}
+.ps-review{background:#f5f3ff;border-color:#ddd6fe;color:#6d28d9}
+.ps-interview{background:#f0fdf4;border-color:#bbf7d0;color:#15803d}
+.ps-offer{background:#fffbeb;border-color:#fef08a;color:#854d0e}
+.ps-terminal{background:#fef2f2;border-color:#fecaca;color:#991b1b}
 
 /* TECH BADGE & INLINE CODE */
 .tech-badge{
   display:inline-block;
-  background:#edf4fe;
-  color:#1a4a8a;
-  font-family:'SF Mono','Consolas','Fira Code',monospace;
-  font-size:12px;
-  font-weight:600;
-  padding:2px 8px;
-  border-radius:6px;
-  margin:1px 2px;
-  border:1px solid #c7d9f2;
-  letter-spacing:.2px;
-  vertical-align:baseline;
+  background:#f1f5f9;color:#334155;
+  font-family:var(--font-mono);font-size:11.5px;
+  font-weight:600;padding:2px 7px;border-radius:5px;
+  margin:1px 2px;border:1px solid #e2e8f0;
+  letter-spacing:.2px;vertical-align:baseline;
 }
 code{
-  font-family:'SF Mono','Consolas','Fira Code',monospace;
-  font-size:12.5px;
-  background:#edf4fe;
-  color:#1a4a8a;
-  padding:2px 6px;
-  border-radius:5px;
-  border:1px solid #c7d9f2;
+  font-family:var(--font-mono);font-size:12px;
+  background:#f1f5f9;color:#4f46e5;
+  padding:2px 6px;border-radius:5px;
+  border:1px solid #e2e8f0;
 }
 
-/* TABLE CENTER ALIGNMENT HELPERS */
-th.c, td.c{
-  text-align:center !important;
-}
-td.c .tag{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  min-width:52px;
-  margin:0 auto;
-}
-
-/* RULES GRID */
-.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:20px 0}
+/* RULES */
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin:20px 0}
 .rule{
-  border-radius:var(--radius-sm);padding:18px 20px;
-  border-left:4px solid;background:#fafcff;
+  border-radius:var(--radius-sm);padding:16px 18px;
+  border-left:4px solid;background:#ffffff;
   border-top:1px solid var(--border);border-right:1px solid var(--border);border-bottom:1px solid var(--border);
+  box-shadow:var(--shadow-sm);cursor:pointer;transition:all .15s;
 }
-.rule.blue{border-left-color:var(--accent)}
-.rule.green{border-left-color:#16a34a}
-.rule.amber{border-left-color:#d97706}
-.rule.red{border-left-color:#dc2626}
-.rule.purple{border-left-color:#7c3aed}
-.rule h5{font-size:14.5px;color:var(--primary);font-weight:700;margin-bottom:5px}
-.rule p{font-size:13.5px;color:var(--ink2);margin:0;line-height:1.6}
+.rule:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
+.rule.blue{border-left-color:var(--primary)}
+.rule.green{border-left-color:#10b981}
+.rule.amber{border-left-color:#f59e0b}
+.rule.red{border-left-color:#ef4444}
+.rule.purple{border-left-color:#8b5cf6}
+.rule h5{font-size:14px;color:var(--text-primary);font-weight:700;margin-bottom:4px;font-family:var(--font-heading)}
+.rule p{font-size:12.5px;color:var(--text-secondary);margin:0;line-height:1.6}
+
+/* STEPS */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:20px 0}
+.step{
+  display:flex;gap:14px;padding:16px 18px;background:#fff;border:1px solid var(--border);
+  border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);cursor:pointer;transition:all .15s;
+}
+.step:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);border-color:var(--primary-light)}
+.step-n{
+  width:28px;height:28px;border-radius:50%;background:var(--primary);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0;
+}
+.step-body h4{font-size:13.5px;font-weight:700;color:var(--text-primary);margin-bottom:3px;font-family:var(--font-heading)}
+.step-body p{font-size:12px;color:var(--text-secondary);margin:0;line-height:1.55}
+
+/* SWIMLANE */
+.swimlane{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin:22px 0;box-shadow:var(--shadow-sm)}
+.swim-header{background:#f8fafc;padding:12px 18px;border-bottom:1px solid var(--border);font-family:var(--font-heading);font-size:13.5px;font-weight:700;color:var(--text-primary)}
+.swim-body{display:grid;grid-template-columns:repeat(4,1fr)}
+.swim-col{border-right:1px solid var(--border);padding:0}
+.swim-col:last-child{border-right:none}
+.swim-col-title{
+  background:#f1f5f9;padding:9px 12px;font-size:11.5px;font-weight:700;
+  color:var(--text-primary);text-transform:uppercase;letter-spacing:.5px;
+  border-bottom:1px solid var(--border);text-align:center;
+}
+.swim-items{padding:10px}
+.swim-item{
+  background:#ffffff;border:1px solid var(--border);
+  border-radius:6px;padding:8px 10px;margin-bottom:7px;
+  font-size:12px;color:var(--text-secondary);line-height:1.5;box-shadow:0 1px 2px rgba(0,0,0,0.02);
+  cursor:pointer;transition:all .12s;
+}
+.swim-item:hover{border-color:var(--primary);background:#eef2ff}
+
+/* MODALS */
+.doc-modal-overlay{
+  position:fixed;inset:0;background:rgba(15,23,42,0.45);backdrop-filter:blur(6px);
+  z-index:300;display:none;align-items:center;justify-content:center;padding:20px;
+}
+.doc-modal-overlay.open{display:flex;animation:modalIn .18s ease}
+@keyframes modalIn{from{opacity:0;transform:scale(0.97)}to{opacity:1;transform:scale(1)}}
+.doc-modal{
+  background:#fff;border:1px solid var(--border);border-radius:18px;
+  padding:26px 30px;width:min(680px,94vw);max-height:86vh;overflow-y:auto;
+  position:relative;box-shadow:0 24px 60px rgba(15,23,42,0.18);
+}
+.doc-modal-close{
+  position:absolute;top:18px;right:20px;background:none;border:none;
+  font-size:22px;color:var(--text-muted);cursor:pointer;line-height:1;transition:color .12s;
+}
+.doc-modal-close:hover{color:var(--text-primary)}
+.doc-modal-title{font-family:var(--font-heading);font-size:19px;font-weight:800;color:var(--text-primary);margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.doc-modal-sub{font-size:12.5px;color:var(--text-secondary);margin-bottom:16px}
+.doc-modal-tabs{display:flex;gap:6px;background:#f1f5f9;padding:4px;border-radius:10px;margin-bottom:16px}
+.doc-modal-tab{
+  flex:1;padding:7px;background:none;border:none;border-radius:8px;
+  font-size:12px;font-weight:600;color:var(--text-secondary);cursor:pointer;
+  font-family:var(--font-sans);text-align:center;transition:all .12s;
+}
+.doc-modal-tab.active{background:#fff;color:var(--primary);box-shadow:var(--shadow-sm)}
+.doc-modal-pane{display:none}
+.doc-modal-pane.active{display:block}
 
 /* FOOTER */
 footer{
-  background:var(--primary);color:rgba(255,255,255,.6);
-  text-align:center;padding:36px 28px;
-  border-radius:16px;margin:40px 0 0;font-size:13.5px;
+  background:#ffffff;border:1px solid var(--border);color:var(--text-muted);
+  text-align:center;padding:32px 24px;border-radius:16px;margin:40px 0 0;
+  font-size:12.5px;box-shadow:var(--shadow-sm);
 }
-footer strong{color:#fff}
+footer strong{color:var(--text-primary)}
 
-/* BACK TO TOP */
-.btn-top{
-  position:fixed;right:24px;bottom:24px;z-index:50;
-  background:linear-gradient(135deg,var(--primary2),var(--accent));
-  color:#fff;padding:10px 16px;border-radius:99px;
-  text-decoration:none;font-size:13px;font-weight:700;
-  box-shadow:0 8px 24px rgba(30,90,168,.4);
-  transition:transform .15s;
-}
-.btn-top:hover{transform:translateY(-3px)}
 
-/* PRINT */
-@media print{
-  .btn-top{display:none}
-  .section,.toc-section{box-shadow:none;break-inside:avoid}
-  body{font-size:12pt}
-  .hero{border-radius:0;margin:0}
-}
 
-/* RESPONSIVE */
-@media(max-width:880px){
-  .section{padding:30px 24px}
-  .hero{padding:56px 28px 50px;margin:0 -28px 28px}
-  .hero h1{font-size:40px}
-  .swim-body{grid-template-columns:1fr 1fr}
+/* RESPONSIVE BREAKPOINTS */
+@media(max-width:1024px){
+  .sidebar-toggle-btn{display:flex}
+  .doc-sidebar{transform:translateX(-100%)}
+  .doc-sidebar.open{transform:translateX(0);box-shadow:0 0 50px rgba(0,0,0,0.25)}
+  .doc-main{margin-left:0;padding:24px 20px 100px}
+  .nav-search-wrap{display:none}
+  .hero{padding:36px 24px}
+  .hero h1{font-size:30px}
+  .section{padding:26px 20px}
   .toc-grid{columns:1}
-}
-@media(max-width:620px){
-  .page{padding:0 16px 80px}
-  .hero{padding:44px 20px 38px;margin:0 -16px 22px;border-radius:0 0 16px 16px}
-  .hero h1{font-size:32px}
-  .section{padding:24px 18px;border-radius:12px}
-  .section h2{font-size:22px}
   .swim-body{grid-template-columns:1fr}
-  .score-bar{height:34px}
-  .sb{font-size:10px}
+  .swim-col{border-right:none;border-bottom:1px solid var(--border)}
 }
 </style>
 </head>
 <body id="top">
-<div class="page">
-
-<!-- HERO -->
-<header class="hero" id="cover">
-  <div class="hero-inner">
-    <span class="hero-badge">Official Documentation</span>
-    <h1>Skill<em>Align</em></h1>
-    <p class="hero-sub">Intelligent Recruitment &amp; Candidate-Job Matching Platform</p>
-    <p class="hero-desc">
-      A full-stack recruitment platform that matches candidates to jobs using a transparent, rule-based scoring engine and manages the complete hiring lifecycle — from resume upload to signed offer.
-    </p>
-    <div class="hero-meta">
-      <div><strong>Stack</strong>FastAPI · React 18 · PostgreSQL · Redis · Celery</div>
-      <div><strong>User Roles</strong>Admin · HR/Hiring Manager · Recruiter · Candidate</div>
-      <div><strong>Pipeline</strong>21-state controlled hiring lifecycle</div>
-      <div><strong>Score Model</strong>Skills 60% · Experience 20% · Education 10% · Work Mode 10%</div>
-    </div>
-    <div class="hero-stamp"><strong>Version:</strong>&nbsp; 3.0 Production Baseline &nbsp;|&nbsp; <strong>Date:</strong>&nbsp; September 2026</div>
+<!-- Top Header Navigation Bar -->
+<header class="top-nav">
+  <button class="sidebar-toggle-btn" onclick="toggleSidebar()" aria-label="Toggle Navigation Sidebar">☰</button>
+  <a href="#" class="nav-brand">
+    <div class="nav-logo-icon">SA</div>
+    Skill<span>Align</span>
+  </a>
+  <span class="nav-badge">Docs v3.0</span>
+  
+  <div class="nav-search-wrap">
+    <span class="nav-search-icon">🔍</span>
+    <input type="text" class="nav-search" id="docSearchInput" placeholder="Search documentation… (/)" oninput="filterDocContent(this.value)"/>
+  </div>
+  
+  <div class="nav-actions" style="margin-left:auto;">
+    <a href="SkillAlign_End_to_End_Flow_Diagram.html" target="_blank" class="nav-btn-tool" title="View Interactive End-to-End Flow Diagram Slide" style="text-decoration:none;color:var(--primary);font-weight:700;">🗺️ E2E Flow Diagram</a>
+    <button class="nav-btn-tool" onclick="openDocModal('role')" title="Inspect Role Permissions">🛡️ Roles</button>
+    <button class="nav-btn-tool" onclick="openDocModal('calc')" title="Interactive Score Calculator">⚡ Simulator</button>
+    <a href="docs/SkillAlign-API-Reference.html" target="_blank" class="nav-btn-api">⚡ API Try It</a>
   </div>
 </header>
 
-<!-- TOC -->
-<nav class="toc-section" id="contents">
-  <div class="toc-title">Table of Contents</div>
-  <ul class="toc-grid">
-    <li class="toc-item"><span class="n">01</span><a href="#overview">Executive Overview</a></li>
-    <li class="toc-item"><span class="n">02</span><a href="#problem">The Problem SkillAlign Solves</a></li>
-    <li class="toc-item"><span class="n">03</span><a href="#objectives">Project Objectives</a></li>
-    <li class="toc-item"><span class="n">04</span><a href="#how-it-works">How SkillAlign Works</a></li>
-    <li class="toc-item"><span class="n">05</span><a href="#roles">User Roles &amp; Responsibilities</a></li>
-    <li class="toc-item"><span class="n">06</span><a href="#techref">Technical Reference</a></li>
-    <li class="toc-item"><span class="n">07</span><a href="#auth">Authentication</a></li>
-    <li class="toc-item"><span class="n">08</span><a href="#candidate-journey">Candidate Journey</a></li>
-    <li class="toc-item"><span class="n">09</span><a href="#resume">Resume Upload &amp; Processing</a></li>
-    <li class="toc-item"><span class="n">10</span><a href="#jobs">Job Creation &amp; Requirements</a></li>
-    <li class="toc-item"><span class="n">11</span><a href="#skills">Skill Taxonomy</a></li>
-    <li class="toc-item"><span class="n">12</span><a href="#matching">Matching Engine &amp; Fit Score</a></li>
-    <li class="toc-item"><span class="n">13</span><a href="#recruiter">Recruiter Workflow</a></li>
-    <li class="toc-item"><span class="n">14</span><a href="#hm">HR / Hiring Manager Workflow</a></li>
-    <li class="toc-item"><span class="n">15</span><a href="#workflow">21-Stage Recruitment Pipeline</a></li>
-    <li class="toc-item"><span class="n">16</span><a href="#interview">Interview Management &amp; Evaluation</a></li>
-    <li class="toc-item"><span class="n">17</span><a href="#offer">Offer Management &amp; Candidate Response</a></li>
-    <li class="toc-item"><span class="n">18</span><a href="#notifications">Notifications &amp; Communication</a></li>
-    <li class="toc-item"><span class="n">19</span><a href="#audit">Audit Trail</a></li>
-    <li class="toc-item"><span class="n">20</span><a href="#security">Security &amp; Access Control</a></li>
-    <li class="toc-item"><span class="n">21</span><a href="#e2e">End-to-End Journey &amp; Test Verification</a></li>
-    <li class="toc-item"><span class="n">22</span><a href="#future">Future Enhancements</a></li>
-  </ul>
+<div class="doc-layout">
+
+<!-- Left Sidebar Navigation Panel (Side Menu Bar) -->
+<div class="doc-sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar()"></div>
+
+<nav class="doc-sidebar" id="docSidebar">
+  <div class="doc-sidebar-search">
+    <span class="doc-sb-icon">🔍</span>
+    <input type="text" id="sbDocSearch" placeholder="Filter sections… (/)" oninput="filterSidebarItems(this.value)" autocomplete="off"/>
+    <button class="doc-sb-clear" id="sbClearBtn" onclick="clearSidebarSearch()" title="Clear">×</button>
+  </div>
+
+  <div class="doc-sb-group-label">Getting Started</div>
+  <a href="#overview" class="doc-sb-item active" onclick="handleNavClick(this)"><span class="doc-sb-num">01</span><span class="doc-sb-title">Executive Overview</span></a>
+  <a href="#problem" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">02</span><span class="doc-sb-title">The Problem Solved</span></a>
+  <a href="#objectives" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">03</span><span class="doc-sb-title">Project Objectives</span></a>
+  <a href="#how-it-works" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">04</span><span class="doc-sb-title">How SkillAlign Works</span></a>
+
+  <div class="doc-sb-group-label">Architecture &amp; RBAC</div>
+  <a href="#roles" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">05</span><span class="doc-sb-title">Roles &amp; Responsibilities</span></a>
+  <a href="#techref" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">06</span><span class="doc-sb-title">Technical Reference</span></a>
+  <a href="#auth" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">07</span><span class="doc-sb-title">Authentication &amp; JWT</span></a>
+  <a href="#security" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">20</span><span class="doc-sb-title">Security &amp; Access Control</span></a>
+
+  <div class="doc-sb-group-label">Talent &amp; Match Engine</div>
+  <a href="#candidate-journey" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">08</span><span class="doc-sb-title">Candidate Journey</span></a>
+  <a href="#resume" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">09</span><span class="doc-sb-title">Resume Parsing &amp; S3</span></a>
+  <a href="#jobs" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">10</span><span class="doc-sb-title">Job Creation &amp; Weights</span></a>
+  <a href="#skills" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">11</span><span class="doc-sb-title">Skill Taxonomy</span></a>
+  <a href="#matching" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">12</span><span class="doc-sb-title">Matching Engine &amp; Fit Score</span></a>
+
+  <div class="doc-sb-group-label">Hiring Lifecycle</div>
+  <a href="#recruiter" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">13</span><span class="doc-sb-title">Recruiter Workflow</span></a>
+  <a href="#hm" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">14</span><span class="doc-sb-title">HR &amp; Hiring Manager</span></a>
+  <a href="#workflow" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">15</span><span class="doc-sb-title">21-Stage Pipeline</span></a>
+  <a href="#interview" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">16</span><span class="doc-sb-title">Interview Management</span></a>
+  <a href="#offer" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">17</span><span class="doc-sb-title">Offer Management</span></a>
+
+  <div class="doc-sb-group-label">Platform Governance</div>
+  <a href="#notifications" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">18</span><span class="doc-sb-title">Notifications &amp; Twilio</span></a>
+  <a href="#audit" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">19</span><span class="doc-sb-title">Audit Trail &amp; Logging</span></a>
+  <a href="#e2e" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">21</span><span class="doc-sb-title">E2E Verification Trace</span></a>
+  <a href="#future" class="doc-sb-item" onclick="handleNavClick(this)"><span class="doc-sb-num">22</span><span class="doc-sb-title">Future Enhancements</span></a>
+
+  <div class="doc-sb-tools">
+    <div class="doc-sb-tools-title">Interactive Tools</div>
+    <a href="SkillAlign_End_to_End_Flow_Diagram.html" target="_blank" class="doc-sb-tools-btn" style="text-decoration:none;color:var(--primary);font-weight:700;">🗺️ Interactive E2E Flow Slide</a>
+    <button type="button" class="doc-sb-tools-btn" onclick="openDocModal('calc')">⚡ Fit-Score Simulator</button>
+    <button type="button" class="doc-sb-tools-btn" onclick="openDocModal('role')">🛡️ Roles Matrix Inspector</button>
+    <a href="docs/SkillAlign-API-Reference.html" target="_blank" class="doc-sb-tools-btn" style="text-decoration:none;">🔑 Live API Try It Console</a>
+  </div>
 </nav>
+
+<main class="doc-main">
+
+
+
+<!-- HERO - Light Corporate Aesthetic -->
+<header class="hero" id="cover">
+  <div class="hero-inner">
+    <span class="hero-badge">Official Documentation v3.0</span>
+    <h1>Skill<span>Align</span> Platform</h1>
+    <p class="hero-sub">Intelligent Talent Matching &amp; 21-Stage Recruitment Automation System</p>
+    <p class="hero-desc">
+      A comprehensive production platform combining an explainable 4-pillar deterministic candidate scoring engine, automated multi-slot scheduling, role-governed offer lifecycle, and immutable audit logs.
+    </p>
+    <div class="hero-actions">
+      <a href="#overview" class="hero-btn-primary">📖 Explore Documentation</a>
+      <a href="SkillAlign_End_to_End_Flow_Diagram.html" target="_blank" class="hero-btn-secondary" style="background:#eef2ff;border-color:#c7d2fe;color:var(--primary);font-weight:700;">🗺️ Interactive E2E Flow Slide</a>
+      <button class="hero-btn-secondary" onclick="openDocModal('role')">🛡️ Roles &amp; Permissions</button>
+      <button class="hero-btn-secondary" onclick="openDocModal('calc')">⚡ Fit-Score Simulator</button>
+      <a href="docs/SkillAlign-API-Reference.html" target="_blank" class="hero-btn-secondary">🔑 Interactive API Try It</a>
+    </div>
+    <div class="hero-meta">
+      <div><strong>Architecture</strong>FastAPI · PostgreSQL 16 · Celery · Redis · React 18</div>
+      <div><strong>Security &amp; RBAC</strong>Candidate · Recruiter · HR Manager · Super Admin</div>
+      <div><strong>Pipeline Flow</strong>21-State Controlled State Machine</div>
+      <div><strong>Match Engine</strong>Skills (50%) · Exp (25%) · Edu (15%) · Location (10%)</div>
+    </div>
+    <div class="hero-stamp"><strong>Status:</strong> Production Baseline v3.0 &nbsp;|&nbsp; <strong>Edition:</strong> Enterprise Architecture</div>
+  </div>
+</header>
 
 <!-- 01 EXECUTIVE OVERVIEW -->
 <section class="section" id="overview">
@@ -530,7 +655,6 @@ footer strong{color:#fff}
     <div class="card"><div class="card-icon green">📊</div><h4>Complete Audit Trail</h4><p>Every state transition, actor, and timestamp is permanently logged in the <span class="tech-badge">audit_logs</span> table.</p></div>
     <div class="card"><div class="card-icon blue">📨</div><h4>Automated Communication</h4><p>Interview invitations and offer letters dispatched via <span class="tech-badge">SendGrid</span> with secure token links.</p></div>
   </div>
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 02 PROBLEM -->
@@ -548,7 +672,6 @@ footer strong{color:#fff}
   <div class="callout callout-info" style="margin-top:16px">
     <strong>SkillAlign's Solution:</strong> A unified, evidence-based matching engine paired with a 21-stage state-machine workflow that enforces accountability, transparency, and seamless collaboration from resume upload to signed offer.
   </div>
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 03 OBJECTIVES -->
@@ -562,7 +685,6 @@ footer strong{color:#fff}
     <div class="step"><div class="step-n">5</div><div class="step-body"><h4>Govern Offer Approvals</h4><p>Recruiter drafts, HR reviews against salary bands, <span class="tech-badge">ReportLab</span> generates S3-backed PDF, candidate responds via token.</p></div></div>
     <div class="step"><div class="step-n">6</div><div class="step-body"><h4>Maintain Complete Auditability</h4><p>Immutable logging in <span class="tech-badge">PostgreSQL</span> tracking actor, action, timestamp, and previous/next states.</p></div></div>
   </div>
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 04 HOW IT WORKS -->
@@ -654,7 +776,6 @@ footer strong{color:#fff}
     </div>
     <p class="figure-cap">Figure 1. The hiring team's workflow (top) and candidate's journey (bottom) run in parallel and connect at interview scheduling and offer response.</p>
   </div>
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 05 ROLES -->
@@ -730,7 +851,6 @@ footer strong{color:#fff}
     </tbody>
   </table>
   </div>
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 06 TECH REF -->
@@ -770,7 +890,6 @@ footer strong{color:#fff}
     <div class="card"><h4>Admin &amp; Audit</h4><p>11 endpoints — user management, hiring logs, statistics</p></div>
   </div>
   <p style="margin-top:14px"><strong>Total: 115+ REST endpoints</strong> across 16 domain-focused <span class="tech-badge">FastAPI</span> routers.</p>
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 07 AUTH -->
@@ -786,7 +905,6 @@ footer strong{color:#fff}
   <div class="callout callout-info">
     <strong>Candidate self-registration:</strong> Candidates register via a public <span class="tech-badge">POST /api/auth/register</span> endpoint. HR and Recruiter accounts are provisioned by the Administrator only.
   </div>
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 08 CANDIDATE JOURNEY -->
@@ -802,7 +920,6 @@ footer strong{color:#fff}
     <div class="step"><div class="step-n">7</div><div class="step-body"><h4>Receive the Offer</h4><p>If the interview outcome is GO, a <span class="tech-badge">ReportLab</span>-generated PDF offer arrives via a <span class="tech-badge">S3</span> presigned link in email.</p></div></div>
     <div class="step"><div class="step-n">8</div><div class="step-body"><h4>Accept or Decline</h4><p>One click on the secure token link. Response is recorded instantly, all parties notified, and the <span class="tech-badge">match_result</span> row updated.</p></div></div>
   </div>
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 09 RESUME -->
@@ -852,7 +969,6 @@ footer strong{color:#fff}
     <div class="card"><h4>Work Experience</h4><p>Roles, companies, and durations — used to calculate total experience for the Fit Score.</p></div>
     <div class="card"><h4>Education</h4><p>Degrees, institutions, and graduation years — contributes the Education component (10 pts).</p></div>
   </div>
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 10 JOB CREATION -->
@@ -876,7 +992,6 @@ footer strong{color:#fff}
     </tbody>
   </table>
   </div>
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 11 SKILLS -->
@@ -888,7 +1003,6 @@ footer strong{color:#fff}
     <div class="card"><div class="card-icon green">✍️</div><h4>Manually Declared Skills</h4><p>Added by the candidate with a self-assessed proficiency level (Beginner / Intermediate / Expert). Stored with <span class="tech-badge">source = MANUAL</span>.</p></div>
   </div>
   <p>Both skill sources are scored during matching, but resume-backed skills with evidence receive a higher proficiency factor than unverified manual entries.</p>
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 12 MATCHING & FIT SCORE -->
@@ -968,8 +1082,6 @@ footer strong{color:#fff}
     <strong>Overall Fit Score = 86.2 / 100</strong>
   </div>
   <p>An optional AI narrative (via <span class="tech-badge">Gemini</span>) can supplement the score with a plain-language strengths/gaps summary and suggested interview questions. It is clearly labelled and does <strong>not</strong> modify the authoritative Fit Score.</p>
-  
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 14 RECRUITER -->
@@ -983,7 +1095,6 @@ footer strong{color:#fff}
     <div class="step"><div class="step-n">5</div><div class="step-body"><h4>Coordinate Interview</h4><p>Forward the HM's proposed slots to the candidate. After slot selection, confirm the booking with meeting details.</p></div></div>
     <div class="step"><div class="step-n">6</div><div class="step-body"><h4>Draft &amp; Send Offer</h4><p>Draft compensation → submit for HR approval → generate <span class="tech-badge">ReportLab</span> PDF → upload to <span class="tech-badge">S3</span> → send to candidate.</p></div></div>
   </div>
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 15 HM -->
@@ -998,7 +1109,6 @@ footer strong{color:#fff}
     <div class="step"><div class="step-n">6</div><div class="step-body"><h4>Submit Feedback</h4><p>Post-interview: Technical · Communication · Problem-Solving (1–5 each) + GO / NO-GO decision. Persisted to <span class="tech-badge">interview_feedback</span> table.</p></div></div>
     <div class="step"><div class="step-n">7</div><div class="step-body"><h4>Approve Offer</h4><p>Review the recruiter's draft. Approve, request changes, or reject. Any post-approval modification auto-revokes approval and triggers re-review.</p></div></div>
   </div>
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 16 PIPELINE -->
@@ -1068,7 +1178,6 @@ footer strong{color:#fff}
   <div class="callout callout-info">
     <strong>Multi-Round Support:</strong> An INTERVIEW_PASS outcome allows the HM to request an additional round. The workflow loops back to INTERVIEW_REQUESTED. A final GO decision advances to COMPENSATION_DISCUSSION.
   </div>
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 16 INTERVIEW & EVALUATION -->
@@ -1146,8 +1255,6 @@ footer strong{color:#fff}
     <div class="flow-arr">/</div>
     <div class="flow-step" style="background:#fee2e2;border-color:#fca5a5">NO-GO → Rejected</div>
   </div>
-  
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 17 OFFER & CANDIDATE RESPONSE -->
@@ -1188,8 +1295,6 @@ footer strong{color:#fff}
   <div class="callout callout-warning">
     <strong>180-Day Cooling-Off:</strong> A declined formal offer writes a record to <span class="tech-badge">candidate_blacklists</span> with <code>expires_at = now() + 180 days</code>. The candidate is suppressed from new match results and slot proposals until the record expires automatically.
   </div>
-  
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 21 NOTIFICATIONS -->
@@ -1207,7 +1312,6 @@ footer strong{color:#fff}
     </tbody>
   </table>
   </div>
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 22 AUDIT -->
@@ -1227,7 +1331,6 @@ footer strong{color:#fff}
   </table>
   </div>
   <p>Administrators access the full log via <span class="tech-badge">GET /api/admin/hiring-audit-logs</span> with filters for category, action, date range, candidate, job, and actor.</p>
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 23 SECURITY -->
@@ -1251,7 +1354,6 @@ footer strong{color:#fff}
   <div class="callout callout-info">
     <strong>Server-side enforcement:</strong> RBAC is enforced at the API layer via FastAPI dependency injection — not just in the frontend. Bypassing the browser UI does not bypass access control.
   </div>
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 21 E2E & TEST VERIFICATION -->
@@ -1302,8 +1404,6 @@ footer strong{color:#fff}
   <div class="callout callout-success">
     <strong>Expected:</strong> All 21 pipeline states traversed in order. No state can be skipped. Final <span class="tech-badge">match_results.pipeline_state = HIRED</span>. Complete audit trail confirms every actor and timestamp.
   </div>
-  
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <!-- 26 FUTURE -->
@@ -1317,7 +1417,6 @@ footer strong{color:#fff}
     <div class="card"><div class="card-icon green">📈</div><h4>Analytics Dashboard</h4><p>Time-to-hire, offer acceptance rate, pipeline conversion funnels, and recruiter performance metrics.</p></div>
     <div class="card"><div class="card-icon purple">🌐</div><h4>Multi-Tenant Support</h4><p>Schema-based isolation in <span class="tech-badge">PostgreSQL</span> for multiple clients within a single SkillAlign deployment.</p></div>
   </div>
-  <a href="#contents" class="back-toc">↑ Back to Contents</a>
 </section>
 
 <footer>
@@ -1326,7 +1425,584 @@ footer strong{color:#fff}
   Version 3.0 &nbsp;·&nbsp; September 2026 &nbsp;·&nbsp; Confidential
 </footer>
 
+</main>
 </div>
-<a class="btn-top" href="#top">↑ Top</a>
+
+<!-- Interactive Modals for Documentation -->
+
+<!-- 1. Role Inspector Modal -->
+<div class="doc-modal-overlay" id="roleModal">
+  <div class="doc-modal">
+    <button class="doc-modal-close" onclick="closeDocModal('role')">×</button>
+    <div class="doc-modal-title">🛡️ SkillAlign Role-Based Access Control (RBAC)</div>
+    <div class="doc-modal-sub">Authoritative permissions matrix and operational security boundaries across all 4 system roles.</div>
+    
+    <div class="doc-modal-tabs">
+      <button class="doc-modal-tab active" onclick="switchRoleTab('cand')">Candidate</button>
+      <button class="doc-modal-tab" onclick="switchRoleTab('rec')">Recruiter</button>
+      <button class="doc-modal-tab" onclick="switchRoleTab('hr')">HR Manager</button>
+      <button class="doc-modal-tab" onclick="switchRoleTab('admin')">Super Admin</button>
+    </div>
+
+    <!-- Candidate Tab -->
+    <div class="doc-modal-pane active" id="paneRoleCand">
+      <div style="background:#fffbeb;border:1px solid #fef08a;border-radius:10px;padding:14px;margin-bottom:14px;">
+        <h4 style="color:#92400e;margin-bottom:4px;">👤 Candidate Role Scope (Scoped to Own Record)</h4>
+        <p style="font-size:13px;color:#78350f;margin:0;">Candidates can only access and update their own data. They cannot view other candidates or recruiter internal notes.</p>
+      </div>
+      <table style="font-size:12.5px;">
+        <thead><tr><th>Resource</th><th>Allowed Actions</th><th>Restrictions</th></tr></thead>
+        <tbody>
+          <tr><td>Profile</td><td><span class="tag tag-green">GET</span> <span class="tag tag-blue">PUT</span></td><td>Own record only (/api/candidates/me)</td></tr>
+          <tr><td>Resume</td><td><span class="tag tag-green">POST</span> <span class="tag tag-green">GET</span></td><td>PDF/DOCX max 10MB; triggers auto-parsing</td></tr>
+          <tr><td>Jobs</td><td><span class="tag tag-green">GET</span></td><td>Only Active published jobs (/api/jobs)</td></tr>
+          <tr><td>Interview Slots</td><td><span class="tag tag-blue">POST</span></td><td>Select from proposed slots via secure token</td></tr>
+          <tr><td>Offer Letter</td><td><span class="tag tag-green">GET</span> <span class="tag tag-blue">POST</span></td><td>View PDF and Accept / Decline offer</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Recruiter Tab -->
+    <div class="doc-modal-pane" id="paneRoleRec">
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;margin-bottom:14px;">
+        <h4 style="color:#166534;margin-bottom:4px;">💼 Recruiter Role Scope (Assigned Jobs Only)</h4>
+        <p style="font-size:13px;color:#14532d;margin:0;">Full pipeline management for assigned job requisitions. Recruiter claims candidates with atomic DB locks.</p>
+      </div>
+      <table style="font-size:12.5px;">
+        <thead><tr><th>Resource</th><th>Allowed Actions</th><th>Restrictions</th></tr></thead>
+        <tbody>
+          <tr><td>Candidate Matching</td><td><span class="tag tag-green">GET</span></td><td>View ranked candidates with Fit Scores &gt; threshold</td></tr>
+          <tr><td>Claim Candidate</td><td><span class="tag tag-blue">POST</span></td><td>Atomic DB lock; sets state to CANDIDATE_SCREENED</td></tr>
+          <tr><td>Shortlist / Reject</td><td><span class="tag tag-blue">POST</span></td><td>Moves state to SENT_TO_HIRING_MANAGER or REJECTED</td></tr>
+          <tr><td>Interview Slots</td><td><span class="tag tag-blue">POST</span></td><td>Dispatches SendGrid email with 3 slots to candidate</td></tr>
+          <tr><td>Offer Creation</td><td><span class="tag tag-blue">POST</span></td><td>Drafts offer within salary band; submits for HR review</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- HR Manager Tab -->
+    <div class="doc-modal-pane" id="paneRoleHr">
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px;margin-bottom:14px;">
+        <h4 style="color:#1e40af;margin-bottom:4px;">👔 HR Manager Role Scope (Department Requisition Owner)</h4>
+        <p style="font-size:13px;color:#1e3a8a;margin:0;">Creates and manages Job descriptions, assigns recruiters, provides interview feedback, and approves offers.</p>
+      </div>
+      <table style="font-size:12.5px;">
+        <thead><tr><th>Resource</th><th>Allowed Actions</th><th>Restrictions</th></tr></thead>
+        <tbody>
+          <tr><td>Job Requisitions</td><td><span class="tag tag-green">POST</span> <span class="tag tag-blue">PUT</span> <span class="tag tag-red">DELETE</span></td><td>Full lifecycle (Draft $
+ightarrow$ Active $
+ightarrow$ Closed)</td></tr>
+          <tr><td>Assign Recruiter</td><td><span class="tag tag-blue">POST</span></td><td>Assigns Primary / Secondary recruiters to jobs</td></tr>
+          <tr><td>HM Review</td><td><span class="tag tag-green">GET</span> <span class="tag tag-blue">POST</span></td><td>Reviews candidate shortlist; requests interview</td></tr>
+          <tr><td>Interview Feedback</td><td><span class="tag tag-blue">POST</span></td><td>Submits GO / NO_GO decision with rubric scores</td></tr>
+          <tr><td>Offer Approval</td><td><span class="tag tag-green">POST</span></td><td>Approves/rejects compensation packages</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Super Admin Tab -->
+    <div class="doc-modal-pane" id="paneRoleAdmin">
+      <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:10px;padding:14px;margin-bottom:14px;">
+        <h4 style="color:#6b21a8;margin-bottom:4px;">🛡️ Super Admin Role Scope (Global Governance)</h4>
+        <p style="font-size:13px;color:#581c87;margin:0;">Complete system oversight: User management, tenant audit logs, background workers, and system metrics.</p>
+      </div>
+      <table style="font-size:12.5px;">
+        <thead><tr><th>Resource</th><th>Allowed Actions</th><th>Restrictions</th></tr></thead>
+        <tbody>
+          <tr><td>User Accounts</td><td><span class="tag tag-green">ALL</span></td><td>Create, suspend, activate, reset passwords</td></tr>
+          <tr><td>Skills Master DB</td><td><span class="tag tag-green">ALL</span></td><td>Manage canonical skills taxonomy &amp; aliases</td></tr>
+          <tr><td>Audit Trail</td><td><span class="tag tag-green">GET</span></td><td>Immutable log of all 21 pipeline transitions</td></tr>
+          <tr><td>System Health</td><td><span class="tag tag-green">GET</span></td><td>Celery worker status, Redis queue depth, API metrics</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 2. Fit Score Simulator Modal -->
+<div class="doc-modal-overlay" id="calcModal">
+  <div class="doc-modal" style="width:min(600px,94vw);">
+    <button class="doc-modal-close" onclick="closeDocModal('calc')">×</button>
+    <div class="doc-modal-title">⚡ Match Engine Fit-Score Simulator</div>
+    <div class="doc-modal-sub">Live interactive demonstration of the SkillAlign 4-Pillar Scoring Algorithm.</div>
+
+    <div style="background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:12.5px;font-weight:700;">1. Skills Match (50% Weight)</span>
+        <span id="skillScoreVal" style="font-family:var(--font-mono);font-weight:700;color:var(--primary);">85% (42.5 pts)</span>
+      </div>
+      <input type="range" min="0" max="100" value="85" style="width:100%" oninput="updateSimScore()"/>
+      
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 8px;">
+        <span style="font-size:12.5px;font-weight:700;">2. Experience Fit (25% Weight)</span>
+        <span id="expScoreVal" style="font-family:var(--font-mono);font-weight:700;color:var(--primary);">100% (25.0 pts)</span>
+      </div>
+      <input type="range" min="0" max="100" value="100" style="width:100%" oninput="updateSimScore()"/>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 8px;">
+        <span style="font-size:12.5px;font-weight:700;">3. Education Fit (15% Weight)</span>
+        <span id="eduScoreVal" style="font-family:var(--font-mono);font-weight:700;color:var(--primary);">90% (13.5 pts)</span>
+      </div>
+      <input type="range" min="0" max="100" value="90" style="width:100%" oninput="updateSimScore()"/>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 8px;">
+        <span style="font-size:12.5px;font-weight:700;">4. Work Mode &amp; Location (10% Weight)</span>
+        <span id="locScoreVal" style="font-family:var(--font-mono);font-weight:700;color:var(--primary);">100% (10.0 pts)</span>
+      </div>
+      <input type="range" min="0" max="100" value="100" style="width:100%" oninput="updateSimScore()"/>
+    </div>
+
+    <div style="background:linear-gradient(135deg, #eef2ff, #f5f3ff);border:1px solid #c7d2fe;border-radius:12px;padding:16px;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;color:var(--primary);letter-spacing:.5px;">Calculated Total Fit Score</div>
+        <div style="font-size:12px;color:var(--text-secondary);">Score &gt;= 75 qualifies for Recruiter Shortlist</div>
+      </div>
+      <div id="simTotalScore" style="font-size:32px;font-weight:900;font-family:var(--font-heading);color:var(--primary);">91.0</div>
+    </div>
+  </div>
+</div>
+
+<!-- 3. Card Deep-Dive Specification Modal -->
+<div class="doc-modal-overlay" id="cardDetailModal">
+  <div class="doc-modal" style="width:min(680px,94vw);">
+    <button class="doc-modal-close" onclick="document.getElementById('cardDetailModal').classList.remove('open')">×</button>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+      <div id="cardModalIcon" style="font-size:30px;width:48px;height:48px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">🎯</div>
+      <div>
+        <div id="cardModalCategory" style="font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--primary);margin-bottom:2px;">Module Specification</div>
+        <div id="cardModalTitle" class="doc-modal-title" style="margin:0;font-size:20px;">Feature Title</div>
+      </div>
+    </div>
+    
+    <div id="cardModalDesc" style="font-size:13.5px;color:var(--text-secondary);line-height:1.65;background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px;">
+      Brief summary of this feature.
+    </div>
+
+    <div style="margin-bottom:14px;">
+      <h4 style="font-size:12px;font-weight:700;color:var(--text-primary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+        <span>🏗️</span> Architecture &amp; Technical Implementation
+      </h4>
+      <div id="cardModalTech" style="font-size:13px;color:var(--text-secondary);line-height:1.7;background:#ffffff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;">
+        Detailed technical breakdown.
+      </div>
+    </div>
+
+    <div style="margin-bottom:18px;">
+      <h4 style="font-size:12px;font-weight:700;color:var(--text-primary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+        <span>🔌</span> REST API Endpoints &amp; Contracts
+      </h4>
+      <div id="cardModalEndpoints" style="font-family:var(--font-mono);font-size:11.5px;color:var(--primary-dark);background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:9px 12px;word-break:break-all;">
+        GET /api/example
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;align-items:center;padding-top:14px;border-top:1px solid var(--border);">
+      <button onclick="document.getElementById('cardDetailModal').classList.remove('open')" style="padding:6px 16px;background:#f1f5f9;border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:600;color:var(--text-secondary);cursor:pointer;">
+        Close
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Toggle sidebar drawer on mobile
+function toggleSidebar() {
+  const sb = document.getElementById('docSidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  if (sb) sb.classList.toggle('open');
+  if (backdrop) backdrop.classList.toggle('open');
+}
+
+function handleNavClick(el) {
+  document.querySelectorAll('.doc-sb-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+  if (window.innerWidth <= 1024) {
+    toggleSidebar();
+  }
+}
+
+// Sidebar Search filter
+function filterSidebarItems(q) {
+  q = q.toLowerCase().trim();
+  const clearBtn = document.getElementById('sbClearBtn');
+  if (clearBtn) clearBtn.style.display = q ? 'block' : 'none';
+
+  document.querySelectorAll('.doc-sb-item').forEach(item => {
+    const text = item.textContent.toLowerCase();
+    item.style.display = (!q || text.includes(q)) ? 'flex' : 'none';
+  });
+
+  document.querySelectorAll('.doc-sb-group-label').forEach(label => {
+    let next = label.nextElementSibling;
+    let hasVisible = false;
+    while (next && next.classList.contains('doc-sb-item')) {
+      if (next.style.display !== 'none') hasVisible = true;
+      next = next.nextElementSibling;
+    }
+    label.style.display = (!q || hasVisible) ? 'flex' : 'none';
+  });
+}
+
+function clearSidebarSearch() {
+  const inp = document.getElementById('sbDocSearch');
+  if (inp) {
+    inp.value = '';
+    filterSidebarItems('');
+    inp.focus();
+  }
+}
+
+// Top Nav Search filter
+function filterDocContent(q) {
+  q = q.toLowerCase().trim();
+  if (!q) {
+    document.querySelectorAll('.section').forEach(s => s.style.display = '');
+    return;
+  }
+  document.querySelectorAll('.section').forEach(s => {
+    const text = s.textContent.toLowerCase();
+    s.style.display = text.includes(q) ? '' : 'none';
+  });
+}
+
+// Scroll Spy: Tracks active section and highlights in the sidebar
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.getAttribute('id');
+      if (id) {
+        const matchingItem = document.querySelector(`.doc-sb-item[href="#${id}"]`);
+        if (matchingItem) {
+          document.querySelectorAll('.doc-sb-item').forEach(i => i.classList.remove('active'));
+          matchingItem.classList.add('active');
+          matchingItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      }
+    }
+  });
+}, { threshold: 0.1, rootMargin: '-70px 0px -60% 0px' });
+
+document.querySelectorAll('.section, .hero').forEach(s => observer.observe(s));
+
+// Modals
+function openDocModal(type) {
+  const modal = document.getElementById(type + 'Modal');
+  if (modal) modal.classList.add('open');
+}
+function closeDocModal(type) {
+  const modal = document.getElementById(type + 'Modal');
+  if (modal) modal.classList.remove('open');
+}
+function switchRoleTab(role) {
+  document.querySelectorAll('.doc-modal-tab').forEach((t) => {
+    t.classList.toggle('active', t.textContent.toLowerCase().includes(role));
+  });
+  document.querySelectorAll('.doc-modal-pane').forEach(p => p.classList.remove('active'));
+  const target = document.getElementById('paneRole' + role.charAt(0).toUpperCase() + role.slice(1));
+  if (target) target.classList.add('active');
+}
+
+// Fit score simulator
+function updateSimScore() {
+  const sliders = document.querySelectorAll('#calcModal input[type="range"]');
+  if (sliders.length >= 4) {
+    const s1 = parseFloat(sliders[0].value);
+    const s2 = parseFloat(sliders[1].value);
+    const s3 = parseFloat(sliders[2].value);
+    const s4 = parseFloat(sliders[3].value);
+
+    const pt1 = (s1 * 0.50);
+    const pt2 = (s2 * 0.25);
+    const pt3 = (s3 * 0.15);
+    const pt4 = (s4 * 0.10);
+    const total = (pt1 + pt2 + pt3 + pt4).toFixed(1);
+
+    document.getElementById('skillScoreVal').textContent = s1 + '% (' + pt1.toFixed(1) + ' pts)';
+    document.getElementById('expScoreVal').textContent = s2 + '% (' + pt2.toFixed(1) + ' pts)';
+    document.getElementById('eduScoreVal').textContent = s3 + '% (' + pt3.toFixed(1) + ' pts)';
+    document.getElementById('locScoreVal').textContent = s4 + '% (' + pt4.toFixed(1) + ' pts)';
+    document.getElementById('simTotalScore').textContent = total;
+  }
+}
+
+// Card Deep-Dive Data
+const CARD_DETAILS = {
+  "explainable matching": {
+    category: "Match Engine Architecture",
+    icon: "🎯",
+    tech: "Calculated via a deterministic 4-factor formula: <strong>Skills (50%)</strong>, <strong>Experience (25%)</strong>, <strong>Education (15%)</strong>, and <strong>Work Mode / Location (10%)</strong>. No black box ML or unexplainable AI bias. Every point is traceable directly to candidate resume evidence.",
+    endpoints: "GET /api/matching/jobs/{job_id}/candidates · GET /api/match-results/{id}"
+  },
+  "controlled pipeline": {
+    category: "Recruitment Workflow Engine",
+    icon: "⚙️",
+    tech: "Enforces <strong>21 distinct lifecycle states</strong> strictly governed by a server-side state machine in FastAPI. States cannot be bypassed or skipped. Transitions require specific actor permissions and atomic database row-level locking.",
+    endpoints: "POST /api/workflow/candidates/{candidate_id}/jobs/{job_id}/transition · GET /api/workflow/history"
+  },
+  "role-separated access": {
+    category: "Security & RBAC",
+    icon: "🔐",
+    tech: "Enterprise Role-Based Access Control implemented through <strong>FastAPI dependency injection (get_current_user)</strong>. Role scopes ensure candidates only view their own records, recruiters manage assigned requisitions, and HR governs approvals.",
+    endpoints: "POST /api/auth/login · GET /api/auth/me · POST /api/admin/users"
+  },
+  "end-to-end offers": {
+    category: "Offer Lifecycle Engine",
+    icon: "📄",
+    tech: "Offers are drafted by recruiters within salary bands, submitted for multi-level HR approval, automatically compiled into PDF format via <strong>ReportLab</strong>, stored securely in AWS S3, and dispatched with signed token links for candidate e-acceptance.",
+    endpoints: "POST /api/offers · POST /api/offers/{id}/approve · POST /api/offers/respond"
+  },
+  "complete audit trail": {
+    category: "Compliance & Governance",
+    icon: "📊",
+    tech: "Every state change, actor IP, user role, payload diff, and timestamp is permanently recorded in PostgreSQL table <code>audit_logs</code>. Immutable records ensure full regulatory compliance and zero ambiguity.",
+    endpoints: "GET /api/admin/audit-logs · GET /api/workflow/candidates/{id}/audit"
+  },
+  "automated communication": {
+    category: "Messaging & Notification Infrastructure",
+    icon: "📨",
+    tech: "Automated event-driven communication powered by <strong>SendGrid (Email)</strong> and <strong>Twilio (SMS/WhatsApp)</strong>. Employs cryptographically signed one-time tokens for candidate slot selection and offer letters without requiring prior account sign-in.",
+    endpoints: "POST /api/notifications/send · POST /api/auth/send-otp · POST /api/auth/verify-otp"
+  },
+  "resume overload": {
+    category: "Problem Definition & Solution",
+    icon: "📥",
+    tech: "High-volume applicant pools are processed asynchronously using <strong>Celery workers + Redis queue</strong>. PDF and DOCX documents are parsed, extracting skills, work history, and qualifications within seconds.",
+    endpoints: "POST /api/candidate-resumes/upload · GET /api/candidate-resumes/{id}"
+  },
+  "shallow keyword matching": {
+    category: "Problem Definition & Solution",
+    icon: "🔍",
+    tech: "SkillAlign eliminates naïve string matching by utilizing a normalized <strong>canonical skill taxonomy</strong> with alias dictionaries and contextual depth scoring.",
+    endpoints: "GET /api/skills · POST /api/skills/canonical"
+  },
+  "unexplainable decisions": {
+    category: "Problem Definition & Solution",
+    icon: "❓",
+    tech: "Every candidate match score is accompanied by an itemized mathematical breakdown, showing exact matched mandatory skills, optional skills bonus, years of experience delta, and education tier points.",
+    endpoints: "GET /api/matching/jobs/{job_id}/candidates · GET /api/match-results/{id}"
+  },
+  "fragmented tooling": {
+    category: "Problem Definition & Solution",
+    icon: "🔀",
+    tech: "Unifies sourcing, matching, screening, HM review, multi-slot scheduling, feedback rubrics, offer letters, and audit logs into one single monolithic FastAPI & React architecture.",
+    endpoints: "Complete API surface (137 REST endpoints across 18 modules)"
+  },
+  "poor candidate experience": {
+    category: "Problem Definition & Solution",
+    icon: "📭",
+    tech: "Candidates receive real-time SMS/Email updates at every stage transition and can select interview time slots and review offer letters with 1-click token links.",
+    endpoints: "POST /api/interviews/select-slot · POST /api/offers/respond"
+  },
+  "missing auditability": {
+    category: "Problem Definition & Solution",
+    icon: "🧩",
+    tech: "Full timestamped transition history recorded in database table <code>workflow_history</code> with actor identification.",
+    endpoints: "GET /api/workflow/history · GET /api/admin/audit-logs"
+  },
+  "semantic skill matching": {
+    category: "Future Architecture Roadmap",
+    icon: "🧠",
+    tech: "Integration with <strong>PostgreSQL pgvector</strong> and Google Gemini embeddings to compute dense vector cosine similarity alongside deterministic rule scoring.",
+    endpoints: "POST /api/matching/semantic-search · POST /api/skills/embeddings"
+  },
+  "calendar integration": {
+    category: "Future Architecture Roadmap",
+    icon: "📅",
+    tech: "Two-way synchronization with Google Calendar API and Microsoft Graph / Outlook for automated conflict-free interview slot extraction.",
+    endpoints: "POST /api/interviews/calendar/sync · GET /api/interviews/free-busy"
+  },
+  "video interviews": {
+    category: "Future Architecture Roadmap",
+    icon: "🎥",
+    tech: "Embedded WebRTC audio/video rooms with automated transcription using Whisper AI to assist hiring managers in structured candidate evaluation.",
+    endpoints: "POST /api/interviews/{id}/video-room · POST /api/interviews/{id}/transcript"
+  },
+  "whatsapp notifications": {
+    category: "Future Architecture Roadmap",
+    icon: "💬",
+    tech: "Extending Twilio Conversations API to dispatch instant WhatsApp templates for interview reminders and offer alerts with quick-reply buttons.",
+    endpoints: "POST /api/notifications/whatsapp/template"
+  },
+  "analytics dashboard": {
+    category: "Future Architecture Roadmap",
+    icon: "📈",
+    tech: "Executive talent intelligence dashboards tracking time-to-hire, offer acceptance ratios, recruiter efficiency scores, and candidate source funnels.",
+    endpoints: "GET /api/analytics/recruitment-funnel · GET /api/analytics/time-to-hire"
+  },
+  "multi-tenant support": {
+    category: "Future Architecture Roadmap",
+    icon: "🌐",
+    tech: "Schema-based multi-tenancy in PostgreSQL with row-level security (RLS) allowing multiple enterprise organizations to run on a single cluster.",
+    endpoints: "POST /api/admin/tenants · GET /api/admin/tenants/{id}/metrics"
+  },
+  "automate candidate ranking": {
+    category: "Objective 1 · Match Engine",
+    icon: "⚡",
+    tech: "As soon as an HR Manager activates a job description, an asynchronous Celery task (<code>tasks.calculate_job_matches</code>) is enqueued. The task loads all active candidate feature vectors, runs the deterministic 4-pillar scoring algorithm, and inserts or updates ranked records in PostgreSQL table <code>match_results</code>.",
+    endpoints: "POST /api/jobs/{id}/activate · GET /api/matching/jobs/{id}/candidates"
+  },
+  "provide explainable fit scores": {
+    category: "Objective 2 · Match Engine",
+    icon: "🎯",
+    tech: "To eliminate opaque AI bias, every single candidate Fit Score is accompanied by an itemized mathematical audit object: <code>skills_score</code> (50%), <code>experience_score</code> (25%), <code>education_score</code> (15%), and <code>location_score</code> (10%). Recruiters can inspect exactly which mandatory skills matched and where bonus points were awarded.",
+    endpoints: "GET /api/matching/jobs/{job_id}/candidates · GET /api/match-results/{id}"
+  },
+  "enforce a 21-stage workflow": {
+    category: "Objective 3 · Workflow State Machine",
+    icon: "⚙️",
+    tech: "The recruitment lifecycle is modeled as a strictly governed finite state machine with 21 non-bypassable states (APPLIED, SCREENED, SHORTLISTED, SENT_TO_HM, INTERVIEW_REQUESTED, INTERVIEW_SCHEDULED, INTERVIEW_COMPLETED, OFFER_PENDING_APPROVAL, OFFER_APPROVED, OFFER_SENT, HIRED, REJECTED, etc.). Transitions enforce database row locks and role validation.",
+    endpoints: "POST /api/workflow/candidates/{candidate_id}/jobs/{job_id}/transition · GET /api/workflow/history"
+  },
+  "streamline interview coordination": {
+    category: "Objective 4 · Interview Engine",
+    icon: "📅",
+    tech: "Hiring managers propose 3 available interview time slots with panel member IDs. An automated SendGrid notification dispatches a cryptographically signed HMAC token link to the candidate. The candidate selects their preferred slot in 1 click without requiring a password or prior account login.",
+    endpoints: "POST /api/interviews/propose-slots · POST /api/interviews/select-slot · GET /api/interviews/{id}"
+  },
+  "govern offer approvals": {
+    category: "Objective 5 · Offer Lifecycle",
+    icon: "📄",
+    tech: "Recruiters construct compensation packages within authorized salary bands. The offer transitions to <code>OFFER_PENDING_APPROVAL</code> for HR Manager sign-off. Once approved, the backend ReportLab engine compiles the formal PDF, uploads it to S3, and emails a secure acceptance token to the candidate.",
+    endpoints: "POST /api/offers · POST /api/offers/{id}/approve · POST /api/offers/respond"
+  },
+  "maintain complete auditability": {
+    category: "Objective 6 · Compliance & Governance",
+    icon: "📊",
+    tech: "Every state change, actor IP, user role, payload diff, and timestamp is permanently recorded in PostgreSQL table <code>audit_logs</code>. Immutable records ensure full regulatory compliance, EEOC/GDPR adherence, and complete organizational accountability.",
+    endpoints: "GET /api/admin/audit-logs · GET /api/workflow/candidates/{id}/audit"
+  }
+};
+
+function openCardDetail(title, desc, icon="🎯") {
+  const modal = document.getElementById('cardDetailModal');
+  const cleanKey = title.toLowerCase().trim();
+  
+  // Fuzzy lookup in CARD_DETAILS
+  let info = null;
+  for (const [key, val] of Object.entries(CARD_DETAILS)) {
+    if (cleanKey.includes(key) || key.includes(cleanKey)) {
+      info = val;
+      break;
+    }
+  }
+
+  // High quality dynamic fallback if key not explicitly mapped
+  if (!info) {
+    info = {
+      category: "SkillAlign System Architecture",
+      icon: icon || "🎯",
+      tech: `Deeply integrated into SkillAlign's FastAPI backend and PostgreSQL 16 persistence layer. Ensures deterministic execution, role-gated access control, and complete audit trail logging.`,
+      endpoints: "GET /api/matching/jobs · POST /api/workflow/transition · GET /api/auth/me"
+    };
+  }
+
+  document.getElementById('cardModalTitle').textContent = title;
+  document.getElementById('cardModalCategory').textContent = info.category;
+  document.getElementById('cardModalIcon').textContent = info.icon || icon;
+  document.getElementById('cardModalDesc').textContent = desc || "Detailed module specification and architectural implementation details.";
+  document.getElementById('cardModalTech').innerHTML = info.tech;
+  document.getElementById('cardModalEndpoints').innerHTML = info.endpoints;
+
+
+  modal.classList.add('open');
+}
+
+// Universal Interactive Elements Setup
+function initInteractiveElements() {
+  // Bind all .card elements
+  document.querySelectorAll('.card').forEach(card => {
+    const titleEl = card.querySelector('h4') || card.querySelector('h3');
+    const descEl = card.querySelector('p');
+    const iconEl = card.querySelector('.card-icon');
+    if (titleEl) {
+      const title = titleEl.textContent.trim();
+      const desc = descEl ? descEl.textContent.trim() : '';
+      const icon = iconEl ? iconEl.textContent.trim() : '🎯';
+      card.setAttribute('title', 'Click to inspect detailed specifications');
+      
+      if (!card.querySelector('.card-badge-hint')) {
+        const hint = document.createElement('div');
+        hint.className = 'card-badge-hint';
+        hint.innerHTML = '🔍 Click for deep-dive details →';
+        card.appendChild(hint);
+      }
+
+      card.addEventListener('click', () => {
+        openCardDetail(title, desc, icon);
+      });
+    }
+  });
+
+  // Bind all .step elements (Objectives, workflows)
+  document.querySelectorAll('.step').forEach(step => {
+    const titleEl = step.querySelector('h4');
+    const descEl = step.querySelector('p');
+    if (titleEl) {
+      const title = titleEl.textContent.trim();
+      const desc = descEl ? descEl.textContent.trim() : '';
+      step.setAttribute('title', 'Click to inspect implementation details');
+      step.addEventListener('click', () => {
+        openCardDetail(title, desc, "⚡");
+      });
+    }
+  });
+
+  // Bind all .rule elements (Security & access control)
+  document.querySelectorAll('.rule').forEach(rule => {
+    const titleEl = rule.querySelector('h5');
+    const descEl = rule.querySelector('p');
+    if (titleEl) {
+      const title = titleEl.textContent.trim();
+      const desc = descEl ? descEl.textContent.trim() : '';
+      rule.setAttribute('title', 'Click to inspect rule specifications');
+      rule.addEventListener('click', () => {
+        openCardDetail(title, desc, "🛡️");
+      });
+    }
+  });
+
+  // Bind role cards
+  document.querySelectorAll('.role-card').forEach(rc => {
+    rc.addEventListener('click', () => {
+      openDocModal('role');
+    });
+  });
+
+  // Bind workflow state badges & flow steps
+  document.querySelectorAll('.flow-step, .pipe-state, .swim-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const text = el.textContent.trim();
+      openCardDetail(text, `Stage in the SkillAlign 21-state recruitment lifecycle: ensures strict role gating and audit compliance.`, "🔄");
+    });
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initInteractiveElements);
+} else {
+  initInteractiveElements();
+}
+
+// Shortcuts
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && !['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) {
+    e.preventDefault();
+    const sbSearch = document.getElementById('sbDocSearch');
+    if (sbSearch && window.innerWidth > 1024) sbSearch.focus();
+    else document.getElementById('docSearchInput').focus();
+  }
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.doc-modal-overlay').forEach(m => m.classList.remove('open'));
+    const sb = document.getElementById('docSidebar');
+    if (sb && sb.classList.contains('open')) toggleSidebar();
+  }
+});
+
+document.querySelectorAll('.doc-modal-overlay').forEach(m => {
+  m.addEventListener('click', function(e) {
+    if (e.target === this) this.classList.remove('open');
+  });
+});
+</script>
 </body>
 </html>

@@ -30,7 +30,7 @@ export const HiringPipelinePage: React.FC = () => {
   // Data states
   const [jobs, setJobs] = useState<Job[]>([]);
   const [summaries, setSummaries] = useState<JobPipelineSummary[]>([]);
-  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState<number | "all" | null>("all");
   const [matches, setMatches] = useState<MatchResult[]>([]);
   const [isLoadingJobs, setIsLoadingJobs] = useState<boolean>(true);
   const [isLoadingMatches, setIsLoadingMatches] = useState<boolean>(false);
@@ -50,11 +50,9 @@ export const HiringPipelinePage: React.FC = () => {
       setJobs(jobsData);
       setSummaries(summaryData);
 
-      // Auto-select first job if none selected
-      if (jobsData.length > 0 && selectedJobId === null) {
-        // Prefer a job with active candidates if available
-        const activeSummary = summaryData.find((s) => s.total_candidates > 0);
-        setSelectedJobId(activeSummary ? activeSummary.id : jobsData[0].id);
+      // Default to "all" (Global Cross-Team Pipeline) if not selected
+      if (selectedJobId === null) {
+        setSelectedJobId("all");
       }
     } catch (err: any) {
       toast.error(err.response?.data?.detail || "Failed to load job requisitions.");
@@ -68,11 +66,17 @@ export const HiringPipelinePage: React.FC = () => {
   }, []);
 
   const fetchMatches = useCallback(
-    async (jobId: number) => {
+    async (jobId: number | "all") => {
       setIsLoadingMatches(true);
       try {
-        const data = await matchingApi.getMatches(jobId);
-        const active = data.filter((m) => m.status !== "rejected");
+        let active: MatchResult[] = [];
+        if (jobId === "all") {
+          const data = await matchingApi.listShortlists();
+          active = data.filter((m: MatchResult) => m.status !== "rejected");
+        } else {
+          const data = await matchingApi.getMatches(jobId);
+          active = data.filter((m: MatchResult) => m.status !== "rejected");
+        }
         setMatches(active);
       } catch (err: any) {
         toast.error(err.response?.data?.detail || "Failed to load match results.");
@@ -309,6 +313,27 @@ export const HiringPipelinePage: React.FC = () => {
           </div>
         ) : (
           <div className="flex flex-wrap gap-2 pt-1">
+            {/* Global All Requisitions Selector Pill */}
+            <button
+              type="button"
+              onClick={() => setSelectedJobId("all")}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border cursor-pointer ${
+                selectedJobId === "all"
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm ring-2 ring-primary/25"
+                  : "bg-white dark:bg-slate-900/80 text-foreground border-slate-200/90 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700"
+              }`}
+            >
+              <Layers className="h-3.5 w-3.5 opacity-80 shrink-0 text-cyan-400" />
+              <span>All Requisitions (Global Pipeline)</span>
+              <span
+                className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  selectedJobId === "all" ? "bg-white/20 text-white" : "bg-cyan-500/10 text-cyan-500"
+                }`}
+              >
+                {summaries.reduce((acc, s) => acc + (s.total_candidates || 0), 0)}
+              </span>
+            </button>
+
             {filteredJobs.map((job) => {
               const summary = summaries.find((s) => s.id === job.id);
               const count = summary ? summary.total_candidates : 0;
@@ -361,7 +386,28 @@ export const HiringPipelinePage: React.FC = () => {
       </div>
 
       {/* ── Selected Requisition Meta Bar ──────────────────────────────────── */}
-      {selectedJob && (
+      {selectedJobId === "all" ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground px-1">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center gap-1.5 font-semibold text-foreground">
+              <Layers className="h-3.5 w-3.5 text-cyan-400" />
+              <span>Cross-Requisition Global Pipeline</span>
+            </div>
+            <span>·</span>
+            <span>All {jobs.length} Active Requisitions</span>
+            <span>·</span>
+            <span>
+              <strong className="text-foreground font-bold">{matches.length}</strong> active candidates in progress
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground font-mono">
+              Live Company-wide Pipeline
+            </span>
+          </div>
+        </div>
+      ) : selectedJob ? (
         <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground px-1">
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="flex items-center gap-1.5 font-semibold text-foreground">
@@ -395,7 +441,7 @@ export const HiringPipelinePage: React.FC = () => {
             </Link>
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* ── Pipeline Body: Intelligent Sourcing Hub vs Full Kanban Board ──── */}
       {selectedJobId && (
@@ -424,7 +470,13 @@ export const HiringPipelinePage: React.FC = () => {
               {/* 1-Click Match Trigger */}
               <div className="shrink-0">
                 <Button
-                  onClick={() => handleTriggerMatching(selectedJobId)}
+                  onClick={() => {
+                    if (typeof selectedJobId === "number") {
+                      handleTriggerMatching(selectedJobId);
+                    } else if (jobs.length > 0) {
+                      handleTriggerMatching(jobs[0].id);
+                    }
+                  }}
                   disabled={isTriggeringMatch}
                   className="gap-2 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm cursor-pointer"
                 >

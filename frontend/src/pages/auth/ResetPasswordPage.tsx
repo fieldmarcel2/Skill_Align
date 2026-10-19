@@ -11,6 +11,7 @@ import { Input } from "../../components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../../components/ui/card";
 import { HeroBackground } from "../../components/effects/HeroBackground";
 import { SkillAlignLogo } from "../../components/common/SkillAlignLogo";
+import { HelpMenu } from "../../components/common/HelpMenu";
 import { useTheme } from "../../context/ThemeContext";
 import {
   KeyRound,
@@ -102,7 +103,8 @@ export const ResetPasswordPage: React.FC = () => {
   return (
     <HeroBackground>
       {/* Theme Toggle in top-right */}
-      <div className="absolute top-4 right-4 z-50">
+      <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
+        <HelpMenu />
         <motion.button
           type="button"
           onClick={toggleTheme}

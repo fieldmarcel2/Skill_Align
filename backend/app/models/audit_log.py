@@ -3,17 +3,9 @@ Model: AuditLog
 ===============
 Tracks ALL operational actions and workflow state transitions across the recruitment lifecycle.
 
-Actions tracked (existing):
-- ASSIGN_RECRUITER, REMOVE_RECRUITER, CHANGE_RECRUITER_ROLE
-- CLAIM_CANDIDATE, ASSIGN_CANDIDATE, UNASSIGN_CANDIDATE
-- SCREEN_CANDIDATE, REJECT_CANDIDATE, APPROVE_CANDIDATE, PIPELINE_TRANSITION
-
-New enterprise workflow transitions (pipeline_state transitions):
-- CANDIDATE_SHORTLISTED, SUBMITTED_TO_HM, HM_REVIEW_STARTED, HM_REJECTED
-- INTERVIEW_REQUESTED, SLOTS_PROPOSED, SLOTS_SENT_TO_CANDIDATE
-- CANDIDATE_SLOT_SELECTED, INTERVIEW_CONFIRMED, INTERVIEW_COMPLETED
-- HM_FEEDBACK_SUBMITTED, COMPENSATION_STARTED, OFFER_CREATED, OFFER_SENT
-- OFFER_ACCEPTED, OFFER_REJECTED, CANDIDATE_BLACKLISTED
+Correlation:
+- request_id (nullable) links an Audit Log entry to a specific HTTP request.
+  Use this to correlate audit entries with application logs via shared request_id.
 """
 
 from datetime import datetime
@@ -51,6 +43,9 @@ class AuditLog(Base):
     from_state: Mapped[str | None] = mapped_column(String(60), nullable=True)
     to_state: Mapped[str | None] = mapped_column(String(60), nullable=True)
     details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Correlation field: links this audit entry to the originating HTTP request.
+    # NULL for records created before this column was added — fully backward-compatible.
+    request_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

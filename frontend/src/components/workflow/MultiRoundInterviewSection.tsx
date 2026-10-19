@@ -4,7 +4,6 @@ import {
   Clock,
   Video,
   Award,
-  PlusCircle,
   CheckCircle2,
   XCircle,
   ChevronRight,
@@ -20,7 +19,6 @@ import {
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog";
-import { Input } from "../ui/input";
 import { useToast } from "../ui/toast";
 import { InterviewWithSlots } from "../../types";
 import { workflowApi } from "../../services/api";
@@ -45,11 +43,6 @@ export const MultiRoundInterviewSection: React.FC<MultiRoundInterviewSectionProp
   isOfferPhase = false,
 }) => {
   const toast = useToast();
-  const [isAddRoundOpen, setIsAddRoundOpen] = useState(false);
-  const [roundName, setRoundName] = useState("");
-  const [roundType, setRoundType] = useState("TECHNICAL");
-  const [durationMinutes, setDurationMinutes] = useState(60);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fast-Track to Final GO state (Single Round or Direct Offer clearance)
   const [isFastTrackOpen, setIsFastTrackOpen] = useState(false);
@@ -80,34 +73,6 @@ export const MultiRoundInterviewSection: React.FC<MultiRoundInterviewSectionProp
       toast.error(err.response?.data?.detail || "Failed to fast-track candidate to offer.");
     } finally {
       setIsFastTracking(false);
-    }
-  };
-
-  const handleAddRound = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!roundName.trim()) {
-      toast.warning("Please enter a name for the interview round.");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      await workflowApi.addAdditionalRound(
-        matchId,
-        roundName.trim(),
-        roundType,
-        Number(durationMinutes)
-      );
-      toast.success(`New interview round "${roundName}" created successfully!`);
-      setIsAddRoundOpen(false);
-      setRoundName("");
-      setRoundType("TECHNICAL");
-      setDurationMinutes(60);
-      onRoundsUpdated();
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || "Failed to create additional round.");
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -185,18 +150,6 @@ export const MultiRoundInterviewSection: React.FC<MultiRoundInterviewSectionProp
             Track multi-round technical assessments, competency scorecards, and hiring manager round clearances.
           </p>
         </div>
-
-        {canManageRounds && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsAddRoundOpen(true)}
-            className="text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10 self-start sm:self-auto"
-          >
-            <PlusCircle className="w-3.5 h-3.5" />
-            Add On-Demand Round
-          </Button>
-        )}
       </div>
 
       {/* ── Interview Pipeline Plan Banner (Single Round vs Multi-Round) ── */}
@@ -226,28 +179,17 @@ export const MultiRoundInterviewSection: React.FC<MultiRoundInterviewSectionProp
           </div>
         </div>
 
-        {canManageRounds && !isOfferPhase && (
+        {canManageRounds && !isOfferPhase && rounds.length > 0 && rounds[rounds.length - 1].round_status !== "PASSED" && (
           <div className="flex items-center gap-2 shrink-0">
-            {rounds.length > 0 && rounds[rounds.length - 1].round_status !== "PASSED" && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => setIsFastTrackOpen(true)}
-                disabled={isFastTracking}
-                className="text-xs h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs cursor-pointer"
-              >
-                <Zap className="w-3.5 h-3.5" />
-                {rounds.length <= 1 ? "Grant Final GO to Offer" : "Fast-Track to Final GO"}
-              </Button>
-            )}
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
-              onClick={() => setIsAddRoundOpen(true)}
-              className="text-xs h-8 gap-1.5 cursor-pointer"
+              onClick={() => setIsFastTrackOpen(true)}
+              disabled={isFastTracking}
+              className="text-xs h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs cursor-pointer"
             >
-              <PlusCircle className="w-3.5 h-3.5 text-primary" />
-              Add Extra Round
+              <Zap className="w-3.5 h-3.5" />
+              {rounds.length <= 1 ? "Grant Final GO to Offer" : "Fast-Track to Final GO"}
             </Button>
           </div>
         )}
@@ -424,89 +366,7 @@ export const MultiRoundInterviewSection: React.FC<MultiRoundInterviewSectionProp
         </div>
       )}
 
-      {/* Dialog: Add On-Demand Round */}
-      <Dialog open={isAddRoundOpen} onOpenChange={setIsAddRoundOpen}>
-        <DialogContent className="sm:max-w-[460px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <PlusCircle className="w-5 h-5 text-primary" />
-              Add On-Demand Interview Round
-            </DialogTitle>
-            <DialogDescription>
-              Schedule an additional evaluation round for <strong>{candidateName}</strong>.
-            </DialogDescription>
-          </DialogHeader>
 
-          <form onSubmit={handleAddRound} className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">
-                Round Name / Title *
-              </label>
-              <Input
-                value={roundName}
-                onChange={(e) => setRoundName(e.target.value)}
-                placeholder="e.g., System Architecture Deep-Dive, Executive Fit"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground">
-                  Round Type
-                </label>
-                <select
-                  value={roundType}
-                  onChange={(e) => setRoundType(e.target.value)}
-                  className="w-full text-xs rounded-md bg-background border border-border px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value="TECHNICAL">Technical Assessment</option>
-                  <option value="CODING">Live Coding & Algo</option>
-                  <option value="MANAGERIAL">Managerial & Behavioral</option>
-                  <option value="CULTURE_FIT">Culture & Values Fit</option>
-                  <option value="HR">HR Screen / Discussion</option>
-                  <option value="ADDITIONAL">Additional On-Demand</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground">
-                  Duration
-                </label>
-                <select
-                  value={durationMinutes}
-                  onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                  className="w-full text-xs rounded-md bg-background border border-border px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value={30}>30 minutes</option>
-                  <option value={45}>45 minutes</option>
-                  <option value={60}>60 minutes</option>
-                  <option value={90}>90 minutes</option>
-                </select>
-              </div>
-            </div>
-
-            <DialogFooter className="pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsAddRoundOpen(false)}
-                disabled={isSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" variant="gradient" disabled={isSubmitting} className="gap-1.5">
-                {isSubmitting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="w-4 h-4" />
-                )}
-                Create Round
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* Dialog: Fast-Track to Final GO */}
       <Dialog open={isFastTrackOpen} onOpenChange={setIsFastTrackOpen}>

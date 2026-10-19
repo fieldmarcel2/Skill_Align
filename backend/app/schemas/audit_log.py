@@ -40,9 +40,12 @@ class HiringAuditLogEntry(BaseModel):
     candidate_name: Optional[str] = None
     match_result_id: Optional[int] = None
     interview_id: Optional[int] = None
+    entity_type: Optional[str] = None
+    entity_id: Optional[int] = None
     from_state: Optional[str] = None
     to_state: Optional[str] = None
     details: Optional[dict[str, Any]] = None
+    request_id: Optional[str] = None
     created_at: str
     relative_time: str
 

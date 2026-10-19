@@ -18,12 +18,12 @@ export default defineConfig({
     // NEVER exposed to the browser — only the Vite dev server URL is visible.
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        target: "http://127.0.0.1:8000",
         changeOrigin: true,
         secure: false,
       },
       "/health": {
-        target: "http://localhost:8000",
+        target: "http://127.0.0.1:8000",
         changeOrigin: true,
         secure: false,
       },

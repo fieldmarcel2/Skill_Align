@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
-from app.core.dependencies import require_admin, require_hr_or_admin
+from app.core.dependencies import require_admin, require_hr_or_admin, require_hr_or_recruiter
 from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate, UserOut
 from app.services import user_service
@@ -60,7 +60,7 @@ def get_stats(
 )
 def list_recruiters(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_hr_or_admin),
+    current_user: User = Depends(require_hr_or_recruiter),
 ):
     # Role ID 3 = Recruiter
     return user_service.list_users(db, role_id=3)
@@ -71,12 +71,12 @@ def list_recruiters(
     response_model=List[UserOut],
     status_code=status.HTTP_200_OK,
     summary="List all users",
-    description="Returns all registered users with optional role filtering. HR and Admin accessible."
+    description="Returns all registered users with optional role filtering. HR, Recruiter, and Admin accessible."
 )
 def list_users(
     role_id: Optional[int] = Query(None, description="Filter users by role ID (1: Admin, 2: HR, 3: Recruiter, 4: Candidate)"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_hr_or_admin)
+    current_user: User = Depends(require_hr_or_recruiter)
 ):
     # If caller is HR and hasn't specified role_id, provide recruiters by default
     if current_user.role.name == "HR" and role_id is None:

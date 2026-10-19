@@ -114,7 +114,6 @@ export const CandidateDashboard: React.FC = () => {
 
   // Selected Job for Detailed Modal
   const [selectedJobMatch, setSelectedJobMatch] = useState<MatchResult | null>(null);
-  const [isApplying, setIsApplying] = useState(false);
 
   // Profile Form state
   const [fullName, setFullName] = useState("");
@@ -475,18 +474,6 @@ export const CandidateDashboard: React.FC = () => {
     } catch (err: any) {
       toast.error(err.response?.data?.detail || "Failed to remove skill.");
     }
-  };
-
-  const handleQuickApply = (match: MatchResult) => {
-    setIsApplying(true);
-    setTimeout(() => {
-      setIsApplying(false);
-      setSelectedJobMatch(null);
-      toast.success(
-        `Your application for ${match.job?.title} has been received! The hiring team has been notified.`,
-        "Application Submitted"
-      );
-    }, 600);
   };
 
   const handleApplyExtractedToProfile = () => {
@@ -1417,7 +1404,7 @@ export const CandidateDashboard: React.FC = () => {
                             <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                               <span className="font-semibold text-foreground flex items-center gap-1">
                                 <Building className="h-3.5 w-3.5 text-emerald-500" />
-                                {match.job?.client_name || "XYZ Technologies"}
+                                {match.job?.client_name || "SkillAlign"}
                               </span>
                               {match.job?.department && <span>• {match.job.department}</span>}
                               {match.job?.location_city && (
@@ -3699,7 +3686,7 @@ export const CandidateDashboard: React.FC = () => {
                       </h3>
                       <p className="text-xs text-muted-foreground max-w-xl">
                         {firstOfferMatch?.job?.title ? (
-                          <>Offer extended for <strong className="text-foreground">{firstOfferMatch.job.title}</strong> at <strong className="text-foreground">{firstOfferMatch.job.client_name || "SkillAlign Partner"}</strong>. Please review terms and confirm your joining response.</>
+                          <>Offer extended for <strong className="text-foreground">{firstOfferMatch.job.title}</strong> at <strong className="text-foreground">{firstOfferMatch.job.client_name || "SkillAlign"}</strong>. Please review terms and confirm your joining response.</>
                         ) : (
                           <>Your candidacy has reached the final offer stage. Review the extended compensation package and formal documentation below.</>
                         )}
@@ -4199,28 +4186,123 @@ export const CandidateDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <DialogFooter className="gap-2 sm:gap-0 pt-3">
-                <Button variant="outline" size="sm" onClick={() => setSelectedJobMatch(null)}>
-                  Close
-                </Button>
-                <Button
-                  variant="gradient"
-                  size="sm"
-                  disabled={isApplying}
-                  onClick={() => handleQuickApply(selectedJobMatch)}
-                  className="gap-2"
-                >
-                  {isApplying ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-3.5 w-3.5" /> Quick Apply Now
-                    </>
-                  )}
-                </Button>
-              </DialogFooter>
+              {(() => {
+                const isOfferExtended =
+                  selectedJobMatch.status === "offer" ||
+                  ["OFFER_CREATED", "OFFER_SENT", "COMPENSATION_DISCUSSION"].includes(selectedJobMatch.pipeline_state || "");
+
+                const isHiredMatch =
+                  selectedJobMatch.status === "hired" ||
+                  ["OFFER_ACCEPTED", "HIRED"].includes(selectedJobMatch.pipeline_state || "");
+
+                const isRejectedMatch =
+                  selectedJobMatch.status === "rejected" ||
+                  ["REJECTED", "BLACKLISTED"].includes(selectedJobMatch.pipeline_state || "");
+
+                const isInterviewMatch =
+                  selectedJobMatch.status === "interview_scheduled" ||
+                  selectedJobMatch.status === "technical_interview" ||
+                  selectedJobMatch.status === "hr_interview" ||
+                  Boolean(selectedJobMatch.pipeline_state?.includes("INTERVIEW") || selectedJobMatch.pipeline_state?.includes("SLOT"));
+
+                const isSlotChoiceNeeded =
+                  selectedJobMatch.pipeline_state === "WAITING_FOR_CANDIDATE_SLOT" ||
+                  selectedJobMatch.pipeline_state === "INTERVIEW_SLOTS_PROPOSED";
+
+                return (
+                  <DialogFooter className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-border/60">
+                    {isOfferExtended ? (
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 w-full">
+                        <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 font-semibold">
+                          <Sparkles className="h-4 w-4 text-amber-500 shrink-0 animate-pulse" />
+                          <span>Formal Offer Extended! Review your package & terms.</span>
+                        </div>
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          <Button variant="outline" size="sm" onClick={() => setSelectedJobMatch(null)}>
+                            Close
+                          </Button>
+                          <Link to={`/candidate/offers/${selectedJobMatch.id}`} onClick={() => setSelectedJobMatch(null)}>
+                            <Button size="sm" className="gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold shadow-xs">
+                              <FileText className="h-4 w-4" /> View Official Offer Letter <ArrowRight className="h-3.5 w-3.5" />
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    ) : isHiredMatch ? (
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 w-full">
+                        <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                          <span>Hired! Welcome to the team.</span>
+                        </div>
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          <Button variant="outline" size="sm" onClick={() => setSelectedJobMatch(null)}>
+                            Close
+                          </Button>
+                          <Link to="/candidate/hiring" onClick={() => setSelectedJobMatch(null)}>
+                            <Button size="sm" className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold">
+                              <UserCheck className="h-4 w-4" /> View Placement Details
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    ) : isInterviewMatch ? (
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 w-full">
+                        <div className="flex items-center gap-2 text-xs text-cyan-600 dark:text-cyan-400 font-semibold">
+                          <Calendar className="h-4 w-4 text-cyan-500 shrink-0" />
+                          <span>{isSlotChoiceNeeded ? "Action Required: Interview time slot selection pending." : "Interview Stage in progress."}</span>
+                        </div>
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          <Button variant="outline" size="sm" onClick={() => setSelectedJobMatch(null)}>
+                            Close
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="gap-2 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold"
+                            onClick={() => {
+                              setSelectedJobMatch(null);
+                              setActiveTab("interviews");
+                            }}
+                          >
+                            <Calendar className="h-4 w-4" /> {isSlotChoiceNeeded ? "Select Interview Slot" : "View Interview Details"}
+                          </Button>
+                          <Link to={`/applications/${selectedJobMatch.id}/timeline`} onClick={() => setSelectedJobMatch(null)}>
+                            <Button variant="outline" size="sm" className="gap-1.5 text-xs text-muted-foreground">
+                              <Clock className="h-3.5 w-3.5" /> Timeline
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    ) : isRejectedMatch ? (
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 w-full">
+                        <span className="text-xs text-muted-foreground">This application process has concluded.</span>
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          <Button variant="outline" size="sm" onClick={() => setSelectedJobMatch(null)}>
+                            Close
+                          </Button>
+                          <Link to={`/applications/${selectedJobMatch.id}/timeline`} onClick={() => setSelectedJobMatch(null)}>
+                            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                              <Clock className="h-3.5 w-3.5" /> View History Log
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 w-full">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 text-primary font-semibold border border-primary/20 text-xs">
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Application Active & Under Review
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          <Button variant="outline" size="sm" onClick={() => setSelectedJobMatch(null)}>
+                            Close
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </DialogFooter>
+                );
+              })()}
             </>
           )}
         </DialogContent>

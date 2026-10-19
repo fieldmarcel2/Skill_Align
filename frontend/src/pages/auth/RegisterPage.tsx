@@ -14,6 +14,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../..
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import { HeroBackground } from "../../components/effects/HeroBackground";
 import { SkillAlignLogo } from "../../components/common/SkillAlignLogo";
+import { HelpMenu } from "../../components/common/HelpMenu";
 import {
   Sparkles,
   Loader2,
@@ -237,7 +238,8 @@ export const RegisterPage: React.FC = () => {
 
   return (
     <HeroBackground>
-      <div className="absolute top-4 right-4 z-50">
+      <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
+        <HelpMenu />
         <motion.button
           type="button"
           onClick={toggleTheme}

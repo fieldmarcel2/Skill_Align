@@ -11,7 +11,7 @@ Endpoints:
 """
 
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
@@ -33,8 +33,12 @@ def _to_interview_out(interview: Interview, include_token_for_candidate: bool = 
     job_title = None
     company_name = None
     pipeline_state = None
+    candidate_id = None
+    job_id = None
     if interview.match_result:
         pipeline_state = interview.match_result.pipeline_state
+        candidate_id = interview.match_result.candidate_id
+        job_id = interview.match_result.job_id
         if interview.match_result.candidate:
             candidate_name = interview.match_result.candidate.full_name
         if interview.match_result.job:
@@ -71,6 +75,8 @@ def _to_interview_out(interview: Interview, include_token_for_candidate: bool = 
         candidate_name=candidate_name,
         job_title=job_title,
         company_name=company_name,
+        candidate_id=candidate_id,
+        job_id=job_id,
         pipeline_state=pipeline_state,
         slot_token=interview.slot_token if include_token_for_candidate else None,
         slots=slots_out,
@@ -82,13 +88,13 @@ def _to_interview_out(interview: Interview, include_token_for_candidate: bool = 
     "",
     response_model=InterviewOut,
     status_code=status.HTTP_201_CREATED,
-    summary="Schedule an interview (HR Only)",
-    description="HR schedules an interview for a candidate, transitions match status to 'interview_scheduled', and dispatches candidate notification via SendGrid and in-app alert."
+    summary="Schedule an interview (HR, Recruiter & Admin)",
+    description="Schedules an interview for a candidate, transitions match status to 'interview_scheduled', and dispatches candidate notification via SendGrid and in-app alert."
 )
 def create_interview(
     data: InterviewCreate,
     db: Session = Depends(get_db),
-    hr_user: User = Depends(require_hr)
+    hr_user: User = Depends(require_hr_or_recruiter)
 ):
     match_result = db.query(MatchResult).filter(MatchResult.id == data.match_result_id).first()
     if not match_result:
@@ -120,8 +126,7 @@ def create_interview(
         job_title = match_result.job.title if match_result.job else "Position"
         company_name = (
             match_result.job.client_name
-            or match_result.job.department
-            or "SkillAlign Enterprise Client"
+            or "SkillAlign"
         )
         formatted_date = data.interview_date.strftime("%B %d, %Y")
         formatted_time = data.interview_date.strftime("%I:%M %p")
@@ -186,6 +191,23 @@ def list_interviews(
     if status_filter:
         query = query.filter(Interview.status == status_filter)
     interviews = query.order_by(Interview.interview_date.asc()).all()
+
+    # Automatically cancel scheduled interviews if scheduled date has passed by > 48 hours without update
+    now = datetime.now(timezone.utc)
+    updated = False
+    for iv in interviews:
+        if iv.status in ["scheduled", "CONFIRMED"] and iv.interview_date:
+            iv_date = iv.interview_date
+            if iv_date.tzinfo is None:
+                iv_date = iv_date.replace(tzinfo=timezone.utc)
+            if (now - iv_date).total_seconds() > 48 * 3600 and not iv.feedback:
+                iv.status = "cancelled"
+                iv.feedback = "Auto-cancelled: Scheduled interview date passed >48 hours without recruiter/HM outcome update."
+                updated = True
+
+    if updated:
+        db.commit()
+
     return [_to_interview_out(i) for i in interviews]
 
 
@@ -269,13 +291,13 @@ def get_interview(
     "/{interview_id}",
     response_model=InterviewOut,
     status_code=status.HTTP_200_OK,
-    summary="Update interview status or feedback (HR & Admin)"
+    summary="Update interview status or feedback (HR, Recruiter & Admin)"
 )
 def update_interview(
     interview_id: int,
     data: InterviewUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_admin_or_hr)
+    user: User = Depends(require_hr_or_recruiter)
 ):
     interview = db.query(Interview).filter(Interview.id == interview_id).first()
     if not interview:

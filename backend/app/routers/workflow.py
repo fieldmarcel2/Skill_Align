@@ -342,7 +342,7 @@ def submit_to_hm(
     match_id: int,
     data: SubmitToHMRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_recruiter),
+    current_user: User = Depends(require_hr_or_recruiter),
 ):
     """Recruiter submits a shortlisted candidate to the HM for review."""
     mr = _get_match_result_or_404(db, match_id)
@@ -371,7 +371,7 @@ def submit_to_hm(
 def send_slots_to_candidate(
     match_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_recruiter),
+    current_user: User = Depends(require_hr_or_recruiter),
 ):
     """Recruiter forwards the HM-proposed slots to candidate via email. Generates secure token."""
     mr = _get_match_result_or_404(db, match_id)
@@ -424,7 +424,7 @@ def send_slots_to_candidate(
 def confirm_interview(
     match_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_recruiter),
+    current_user: User = Depends(require_hr_or_recruiter),
 ):
     """Recruiter confirms the interview after candidate selects a slot."""
     mr = _get_match_result_or_404(db, match_id)
@@ -605,15 +605,15 @@ def hm_reject(
     "/{match_id}/request-interview",
     response_model=InterviewWithSlotsOut,
     status_code=status.HTTP_201_CREATED,
-    summary="Hiring Manager: Request interview with slot proposals (min 2 slots)",
+    summary="Hiring Manager or Recruiter: Request interview with slot proposals (min 2 slots)",
 )
 def request_interview(
     match_id: int,
     data: RequestInterviewRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_hr),
+    current_user: User = Depends(require_hr_or_recruiter),
 ):
-    """HM requests an interview and proposes >= 2 time slots. Notifies recruiter."""
+    """HM or Recruiter requests an interview and proposes >= 2 time slots."""
     mr = _get_match_result_or_404(db, match_id)
     bl = workflow_service.is_candidate_blacklisted(db, mr.candidate_id)
     if bl:
@@ -624,7 +624,7 @@ def request_interview(
         )
 
     # Allow from CANDIDATE_MATCHED, CANDIDATE_SHORTLISTED, SENT_TO_HIRING_MANAGER or HIRING_MANAGER_REVIEW
-    if mr.pipeline_state in ("CANDIDATE_MATCHED", "CANDIDATE_SHORTLISTED", "SENT_TO_HIRING_MANAGER"):
+    if mr.pipeline_state in (None, "CANDIDATE_MATCHED", "CANDIDATE_SHORTLISTED", "SENT_TO_HIRING_MANAGER"):
         mr.pipeline_state = "HIRING_MANAGER_REVIEW"
 
     slots_data = [
@@ -1105,7 +1105,7 @@ def get_timeline(
 def get_action_center(
     job_id: Optional[int] = Query(None, description="Filter tasks by Job Requisition ID"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_recruiter),
+    current_user: User = Depends(require_hr_or_recruiter),
 ):
     """Returns all open workflow action tasks for the recruiter or assigned jobs, ordered by priority."""
     from app.models.job_recruiter_assignment import JobRecruiterAssignment
@@ -1331,7 +1331,7 @@ def get_action_center(
 def get_action_center_count(
     job_id: Optional[int] = Query(None, description="Filter tasks by Job Requisition ID"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_recruiter),
+    current_user: User = Depends(require_hr_or_recruiter),
 ):
     """Returns lightweight count of pending actions for efficient sidebar polling without fetching the entire list."""
     items = get_action_center(job_id=job_id, db=db, current_user=current_user)

@@ -143,15 +143,16 @@ export const CandidateSkillsPage: React.FC = () => {
   };
 
   const handleAddSingleExtractedSkill = async (skillName: string, category: string = "Technical") => {
+    const cleanName = skillName.trim();
     let matched = availableSkills.find(
-      (s) => s.name.toLowerCase() === skillName.toLowerCase()
+      (s) => s.name.toLowerCase() === cleanName.toLowerCase()
     );
     if (!matched) {
       try {
-        matched = await skillsApi.create({ name: skillName, category: category || "Technical" });
+        matched = await skillsApi.create({ name: cleanName, category: category || "Technical" });
         setAvailableSkills((prev) => [...prev, matched!]);
-      } catch {
-        toast.error(`Skill "${skillName}" is not in the system taxonomy yet.`);
+      } catch (err: any) {
+        toast.error(err.response?.data?.detail || `Unable to add "${cleanName}" right now. Please try again.`);
         return;
       }
     }

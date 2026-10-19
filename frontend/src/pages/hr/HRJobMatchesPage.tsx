@@ -35,12 +35,10 @@ import {
   Check,
   ExternalLink,
   Users,
-  ListTodo,
   UserCheck,
   Quote,
 } from "lucide-react";
 import { AssignRecruiterModal } from "../../components/job/AssignRecruiterModal";
-import { RecruitmentTaskModal } from "../../components/task/RecruitmentTaskModal";
 
 export const HRJobMatchesPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -54,10 +52,8 @@ export const HRJobMatchesPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>("all");
   const [selectedMatch, setSelectedMatch] = useState<MatchResult | null>(null);
 
-  // Recruiter assignment & Task modals
+  // Recruiter assignment modal
   const [isAssignRecruiterOpen, setIsAssignRecruiterOpen] = useState(false);
-  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-  const [taskCandidate, setTaskCandidate] = useState<{ id: number; name: string } | null>(null);
 
   // Resume viewing states
   const [isTextModalOpen, setIsTextModalOpen] = useState(false);
@@ -166,7 +162,7 @@ export const HRJobMatchesPage: React.FC = () => {
             to="/hr"
             className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-2 transition-colors"
           >
-            <ArrowLeft className="h-3.5 w-3.5" /> Back to HR Dashboard
+            <ArrowLeft className="h-3.5 w-3.5" /> Back to HM Dashboard
           </Link>
           <h1 className="text-3xl font-extrabold font-outfit text-foreground tracking-tight flex items-center gap-3">
             {job?.title}
@@ -194,17 +190,6 @@ export const HRJobMatchesPage: React.FC = () => {
             <Users className="h-4 w-4 text-primary" /> Assign Recruiters
           </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setTaskCandidate(null);
-              setIsTaskModalOpen(true);
-            }}
-            className="gap-1.5 text-xs font-semibold"
-          >
-            <ListTodo className="h-4 w-4 text-primary" /> Dispatch Task
-          </Button>
 
           <Button
             variant="gradient"
@@ -468,17 +453,6 @@ export const HRJobMatchesPage: React.FC = () => {
                         View Full Profile
                       </Button>
 
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setTaskCandidate({ id: match.candidate.id, name: match.candidate.full_name });
-                          setIsTaskModalOpen(true);
-                        }}
-                        className="w-full text-xs gap-1"
-                      >
-                        <ListTodo className="h-3.5 w-3.5 text-primary" /> Assign Task
-                      </Button>
 
                       {match.status === "screening" && (
                         <Button
@@ -753,20 +727,6 @@ export const HRJobMatchesPage: React.FC = () => {
         jobId={jobId}
         jobTitle={job?.title || "Requisition"}
         onAssignmentUpdated={() => fetchData()}
-      />
-
-      {/* Recruitment Task Modal */}
-      <RecruitmentTaskModal
-        isOpen={isTaskModalOpen}
-        onClose={() => {
-          setIsTaskModalOpen(false);
-          setTaskCandidate(null);
-        }}
-        jobId={jobId}
-        jobTitle={job?.title || "Requisition"}
-        candidateId={taskCandidate?.id}
-        candidateName={taskCandidate?.name}
-        onTaskCreated={() => toast.success("Recruitment task dispatched successfully!", "Task Created")}
       />
     </div>
   );

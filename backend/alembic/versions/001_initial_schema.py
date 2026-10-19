@@ -21,9 +21,6 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# UPGRADE — create all tables in dependency order
-# ═══════════════════════════════════════════════════════════════════════════
 def upgrade() -> None:
 
     # ── 1. roles ─────────────────────────────────────────────────────────────

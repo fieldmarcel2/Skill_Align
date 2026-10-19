@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.database.session import get_db
 from app.core.dependencies import get_current_user, require_admin
 from app.models.user import User
+from app.models.skill import Skill
 from app.schemas.skill import SkillCreate, SkillUpdate, SkillOut
 from app.services import skill_service
 
@@ -27,12 +28,12 @@ router = APIRouter(prefix="/api/skills", tags=["Skills"])
     "",
     response_model=SkillOut,
     status_code=status.HTTP_201_CREATED,
-    summary="Create skill (Admin only)"
+    summary="Create or register skill in taxonomy (All authenticated users)"
 )
 def create_skill(
     data: SkillCreate,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    current_user: User = Depends(get_current_user)
 ):
     return skill_service.create_skill(db, data)
 
@@ -49,6 +50,20 @@ def list_skills(
     current_user: User = Depends(get_current_user)
 ):
     return skill_service.list_skills(db, category=category)
+
+
+@router.get(
+    "/categories",
+    response_model=List[str],
+    status_code=status.HTTP_200_OK,
+    summary="List all distinct skill categories"
+)
+def list_skill_categories(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    categories = db.query(Skill.category).distinct().filter(Skill.category.isnot(None)).order_by(Skill.category).all()
+    return [c[0] for c in categories if c[0]]
 
 
 @router.get(

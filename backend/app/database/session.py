@@ -31,15 +31,6 @@ SessionLocal = sessionmaker(
 
 
 def get_db() -> Generator[Session, None, None]:
-    """
-    FastAPI dependency that opens a database session, yields it,
-    and guarantees the session is closed afterwards.
-
-    Usage:
-        @router.get("/example")
-        def example(db: Session = Depends(get_db)):
-            ...
-    """
     db = SessionLocal()
     try:
         yield db

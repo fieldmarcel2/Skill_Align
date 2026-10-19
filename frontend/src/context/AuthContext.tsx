@@ -45,6 +45,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } else {
       setIsLoading(false);
     }
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "skillalign_token") {
+        const nextToken = e.newValue;
+        setToken(nextToken);
+        if (nextToken) {
+          apiClient.defaults.headers.common["Authorization"] = `Bearer ${nextToken}`;
+          fetchCurrentUser();
+        } else {
+          setUser(null);
+          setIsLoading(false);
+        }
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
   }, [token]);
 
   const login = async (newToken: string): Promise<User> => {

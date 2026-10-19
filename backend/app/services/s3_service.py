@@ -19,6 +19,7 @@ CRITICAL SECURITY:
 
 import io
 import os
+import time
 import logging
 from pathlib import Path
 from typing import BinaryIO
@@ -71,6 +72,7 @@ class S3Service:
         Upload binary file stream to S3 under specified key.
         Falls back to local filesystem if S3 is not configured.
         """
+        start_time = time.perf_counter()
         if self._is_s3_configured():
             client = self._get_client()
             try:
@@ -83,10 +85,34 @@ class S3Service:
                         "ServerSideEncryption": "AES256",
                     },
                 )
-                logger.info(f"Successfully uploaded file to s3://{self.bucket_name}/{s3_key}")
+                duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                logger.info(
+                    "Successfully uploaded file to s3://%s/%s in %.2fms",
+                    self.bucket_name,
+                    s3_key,
+                    duration_ms,
+                    extra={
+                        "event": "s3_upload",
+                        "s3_key": s3_key,
+                        "duration_ms": duration_ms,
+                        "status": "success",
+                    },
+                )
                 return s3_key
             except (ClientError, BotoCoreError) as e:
-                logger.error(f"Failed to upload to S3 (key: {s3_key}): {e}")
+                duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                logger.error(
+                    "Failed to upload to S3 (key: %s): %s",
+                    s3_key,
+                    e,
+                    extra={
+                        "event": "s3_upload_failed",
+                        "s3_key": s3_key,
+                        "duration_ms": duration_ms,
+                        "status": "failed",
+                        "exception_type": type(e).__name__,
+                    },
+                )
                 raise RuntimeError(f"S3 Upload failed: {str(e)}") from e
         else:
             # Local filesystem fallback for dev/testing
@@ -94,7 +120,18 @@ class S3Service:
             target_path.parent.mkdir(parents=True, exist_ok=True)
             with open(target_path, "wb") as f:
                 f.write(file_obj.read())
-            logger.info(f"Saved file to local storage: {target_path}")
+            duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            logger.info(
+                "Saved file to local storage: %s in %.2fms",
+                target_path,
+                duration_ms,
+                extra={
+                    "event": "local_storage_save",
+                    "s3_key": s3_key,
+                    "duration_ms": duration_ms,
+                    "status": "success",
+                },
+            )
             return s3_key
 
     def upload_text(
@@ -163,10 +200,30 @@ class S3Service:
                     Params=params,
                     ExpiresIn=expires_in,
                 )
-                logger.info(f"Generated pre-signed URL for {s3_key} (expires in {expires_in}s)")
+                logger.info(
+                    "Generated pre-signed URL for %s (expires in %ds)",
+                    s3_key,
+                    expires_in,
+                    extra={
+                        "event": "s3_presigned_url_generated",
+                        "s3_key": s3_key,
+                        "expires_in": expires_in,
+                        "status": "success",
+                    },
+                )
                 return url
             except (ClientError, BotoCoreError) as e:
-                logger.error(f"Failed to generate pre-signed URL for {s3_key}: {e}")
+                logger.error(
+                    "Failed to generate pre-signed URL for %s: %s",
+                    s3_key,
+                    e,
+                    extra={
+                        "event": "s3_presigned_url_failed",
+                        "s3_key": s3_key,
+                        "status": "failed",
+                        "exception_type": type(e).__name__,
+                    },
+                )
                 raise RuntimeError(f"Failed to generate pre-signed URL: {str(e)}") from e
         else:
             return f"/api/candidates/download-local?key={s3_key}"

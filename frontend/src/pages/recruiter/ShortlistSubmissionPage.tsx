@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
 import {
   FileCheck,
   Send,
@@ -19,17 +19,19 @@ import { ShortlistCandidatesResponse, User as UserType } from "../../types";
 
 export const ShortlistSubmissionPage: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const jid = parseInt(jobId || "0", 10);
+  const queryMatchId = searchParams.get("match_id") ? Number(searchParams.get("match_id")) : null;
 
   const [data, setData] = useState<ShortlistCandidatesResponse | null>(null);
   const [hiringManagers, setHiringManagers] = useState<UserType[]>([]);
-  const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
+  const [selectedMatchId, setSelectedMatchId] = useState<number | null>(queryMatchId);
   const [selectedHMId, setSelectedHMId] = useState<number | null>(null);
   const [shortlistNote, setShortlistNote] = useState<string>("");
 
   // Filters
-  const [minScore, setMinScore] = useState<number>(75);
+  const [minScore, setMinScore] = useState<number>(50);
   const [topN, setTopN] = useState<number>(10);
   const [loading, setLoading] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -48,12 +50,20 @@ export const ShortlistSubmissionPage: React.FC = () => {
       });
       setData(res);
 
+      if (queryMatchId) {
+        setSelectedMatchId(queryMatchId);
+      }
+
       // Fetch HR/Hiring Managers
-      const usersRes = await usersApi.list();
-      const hmList = (usersRes || []).filter((u: UserType) => u.role?.name === "HR");
-      setHiringManagers(hmList);
-      if (hmList.length > 0 && !selectedHMId) {
-        setSelectedHMId(hmList[0].id);
+      try {
+        const usersRes = await usersApi.list();
+        const hmList = (usersRes || []).filter((u: UserType) => u.role?.name === "HR" || u.role?.name === "Admin");
+        setHiringManagers(hmList);
+        if (hmList.length > 0 && !selectedHMId) {
+          setSelectedHMId(hmList[0].id);
+        }
+      } catch (userErr: any) {
+        console.warn("Could not load user list for HM dropdown:", userErr);
       }
     } catch (err: any) {
       setError(err.response?.data?.detail || "Failed to load candidate matches.");
@@ -104,44 +114,46 @@ export const ShortlistSubmissionPage: React.FC = () => {
         <div>
           <Link
             to="/recruiter/dashboard"
-            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors mb-2"
+            className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors mb-2"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Dashboard
           </Link>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">
             Shortlist Submission to Hiring Manager
           </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Role: <span className="text-indigo-300 font-semibold">{data?.job_title}</span> • Review ranked candidates and forward qualified profiles.
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Role: <span className="text-primary font-semibold">{data?.job_title}</span> • Review ranked candidates and forward qualified profiles.
           </p>
         </div>
       </div>
 
       {/* Notifications */}
       {error && (
-        <div className="p-3.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center justify-between">
+        <div className="p-3.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-500 dark:text-rose-400 text-xs flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-rose-400 hover:text-white">✕</button>
+          <button onClick={() => setError(null)} className="text-rose-500 hover:text-rose-700 dark:hover:text-white">✕</button>
         </div>
       )}
       {successMsg && (
-        <div className="p-3.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center justify-between">
+        <div className="p-3.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs flex items-center justify-between">
           <span>{successMsg}</span>
-          <button onClick={() => setSuccessMsg(null)} className="text-emerald-400 hover:text-white">✕</button>
+          <button onClick={() => setSuccessMsg(null)} className="text-emerald-600 hover:text-emerald-800 dark:hover:text-white">✕</button>
         </div>
       )}
 
       {/* Filter Controls Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-slate-900/80 border border-slate-800 rounded-xl">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-card border border-border rounded-xl shadow-xs">
         <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-400 font-medium">Min Match Score:</span>
+          <span className="text-xs text-muted-foreground font-medium">Min Match Score:</span>
           <select
             value={minScore}
             onChange={(e) => setMinScore(Number(e.target.value))}
-            className="px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:border-indigo-500"
+            className="px-3 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground focus:ring-1 focus:ring-primary focus:border-primary"
           >
+            <option value={0}>All Candidates</option>
             <option value={50}>50% & Above</option>
+            <option value={60}>60% & Above</option>
             <option value={70}>70% & Above</option>
             <option value={80}>80% (High Precision)</option>
             <option value={90}>90% (Top Tier)</option>
@@ -149,15 +161,16 @@ export const ShortlistSubmissionPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-400 font-medium">Display Limit:</span>
+          <span className="text-xs text-muted-foreground font-medium">Display Limit:</span>
           <select
             value={topN}
             onChange={(e) => setTopN(Number(e.target.value))}
-            className="px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:border-indigo-500"
+            className="px-3 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground focus:ring-1 focus:ring-primary focus:border-primary"
           >
             <option value={5}>Top 5 Candidates</option>
             <option value={10}>Top 10 Candidates</option>
             <option value={20}>Top 20 Candidates</option>
+            <option value={50}>Top 50 Candidates</option>
           </select>
         </div>
       </div>
@@ -166,10 +179,18 @@ export const ShortlistSubmissionPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Candidates Selection (2 Cols) */}
         <div className="lg:col-span-2 space-y-3">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <Users className="w-4 h-4 text-indigo-400" />
+          <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+            <Users className="w-4 h-4 text-primary" />
             Ranked Candidate Recommendations ({data?.candidates?.length || 0})
           </h3>
+
+          {(!data?.candidates || data.candidates.length === 0) && (
+            <div className="p-8 text-center rounded-xl bg-card border border-border text-muted-foreground shadow-xs">
+              <Users className="w-8 h-8 mx-auto mb-2 opacity-40 text-primary" />
+              <p className="text-sm font-semibold text-foreground">No candidates match current score filter ({minScore}% & above).</p>
+              <p className="text-xs text-muted-foreground mt-1">Try selecting "50% & Above" or "All Candidates" to see more matched profiles.</p>
+            </div>
+          )}
 
           {data?.candidates?.map((c) => {
             const isSelected = selectedMatchId === c.match_result_id;
@@ -181,27 +202,27 @@ export const ShortlistSubmissionPage: React.FC = () => {
                 onClick={() => canSubmit && !c.is_blacklisted && setSelectedMatchId(c.match_result_id)}
                 className={`p-4 rounded-xl border transition-all cursor-pointer ${
                   c.is_blacklisted
-                    ? "opacity-60 bg-red-950/20 border-red-900/40 cursor-not-allowed"
+                    ? "opacity-60 bg-rose-500/10 border-rose-500/30 cursor-not-allowed"
                     : isSelected
-                    ? "bg-indigo-500/15 border-indigo-500 ring-2 ring-indigo-500/30"
-                    : "bg-slate-900/80 border-slate-800 hover:border-slate-700"
+                    ? "bg-primary/10 border-primary ring-2 ring-primary/20 shadow-xs"
+                    : "bg-card border-border hover:border-primary/40 shadow-xs"
                 }`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-bold text-white">{c.candidate_name}</h4>
+                      <h4 className="text-sm font-bold text-foreground">{c.candidate_name}</h4>
                       {c.is_blacklisted && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-500 border border-rose-500/30">
                           Blacklisted
                         </span>
                       )}
-                      <span className="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-400">
+                      <span className="text-[11px] px-2 py-0.5 rounded bg-secondary text-secondary-foreground font-medium border border-border/50">
                         {c.pipeline_state}
                       </span>
                     </div>
 
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-muted-foreground">
                       {c.total_experience_years} yrs exp • {c.current_location || "Location not specified"}
                     </p>
 
@@ -227,15 +248,15 @@ export const ShortlistSubmissionPage: React.FC = () => {
                   </div>
 
                   <div className="text-right flex sm:flex-col items-end gap-2">
-                    <div className="text-base font-bold font-mono text-indigo-300">
+                    <div className="text-base font-bold font-mono text-primary">
                       {Math.round(c.overall_score)}%
                     </div>
                     {canSubmit && !c.is_blacklisted && (
                       <span
-                        className={`text-[11px] px-2.5 py-1 rounded font-semibold border ${
+                        className={`text-[11px] px-2.5 py-1 rounded font-semibold border transition-colors ${
                           isSelected
-                            ? "bg-indigo-600 text-white border-indigo-500"
-                            : "bg-slate-800 text-slate-300 border-slate-700"
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-secondary text-secondary-foreground border-border hover:bg-secondary/80"
                         }`}
                       >
                         {isSelected ? "Selected" : "Select"}
@@ -252,22 +273,22 @@ export const ShortlistSubmissionPage: React.FC = () => {
         <div className="space-y-4">
           <form
             onSubmit={handleSubmitToHM}
-            className="bg-slate-900/80 border border-slate-800 rounded-xl p-5 space-y-4 shadow-xl"
+            className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-sm"
           >
-            <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
-              <Send className="w-4 h-4 text-indigo-400" />
+            <h3 className="text-sm font-bold text-foreground flex items-center gap-2 border-b border-border pb-3">
+              <Send className="w-4 h-4 text-primary" />
               Submit to Hiring Manager
             </h3>
 
             {/* Selected Candidate Info */}
             <div>
-              <span className="text-xs text-slate-400 block mb-1">Target Candidate</span>
+              <span className="text-xs text-muted-foreground block mb-1 font-medium">Target Candidate</span>
               {selectedMatchId ? (
-                <div className="p-2.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-xs text-indigo-300 font-semibold">
+                <div className="p-2.5 rounded-lg bg-primary/10 border border-primary/30 text-xs text-primary font-semibold">
                   ✓ {data?.candidates.find((c) => c.match_result_id === selectedMatchId)?.candidate_name}
                 </div>
               ) : (
-                <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-500 italic">
+                <div className="p-2.5 rounded-lg bg-muted/40 border border-border text-xs text-muted-foreground italic">
                   Select a candidate from the left list
                 </div>
               )}
@@ -275,13 +296,13 @@ export const ShortlistSubmissionPage: React.FC = () => {
 
             {/* Hiring Manager Selector */}
             <div className="space-y-1">
-              <label className="block text-xs font-semibold text-slate-300">
+              <label className="block text-xs font-semibold text-foreground">
                 Assigned Hiring Manager (HM)
               </label>
               <select
                 value={selectedHMId || ""}
                 onChange={(e) => setSelectedHMId(Number(e.target.value))}
-                className="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:border-indigo-500"
+                className="w-full p-2.5 bg-background border border-border rounded-lg text-xs text-foreground focus:ring-1 focus:ring-primary focus:border-primary"
                 required
               >
                 {hiringManagers.map((hm) => (
@@ -294,7 +315,7 @@ export const ShortlistSubmissionPage: React.FC = () => {
 
             {/* Shortlist Note */}
             <div className="space-y-1">
-              <label className="block text-xs font-semibold text-slate-300">
+              <label className="block text-xs font-semibold text-foreground">
                 Recruiter Screening Notes
               </label>
               <textarea
@@ -302,7 +323,7 @@ export const ShortlistSubmissionPage: React.FC = () => {
                 onChange={(e) => setShortlistNote(e.target.value)}
                 placeholder="E.g., Screened candidate; strong Python & FastAPI experience. Highly recommended for technical interview round."
                 rows={4}
-                className="w-full p-3 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:border-indigo-500 leading-relaxed"
+                className="w-full p-3 bg-background border border-border rounded-lg text-xs text-foreground focus:ring-1 focus:ring-primary focus:border-primary leading-relaxed placeholder:text-muted-foreground"
               />
             </div>
 
@@ -310,7 +331,7 @@ export const ShortlistSubmissionPage: React.FC = () => {
             <button
               type="submit"
               disabled={!selectedMatchId || !selectedHMId || submitting}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow-md shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <CheckCircle2 className="w-4 h-4" />
               {submitting ? "Submitting..." : "Send Candidate to HM"}

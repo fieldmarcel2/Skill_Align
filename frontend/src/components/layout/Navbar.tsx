@@ -6,6 +6,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { SkillAlignLogo } from "../common/SkillAlignLogo";
+import { HelpMenu } from "../common/HelpMenu";
 import {
   LogOut,
   Shield,
@@ -46,7 +47,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       case "HR":
         return (
           <Badge variant="info" className="text-[10px] px-2 py-0.5 font-bold shadow-xs hidden sm:inline-flex">
-            <Users className="w-2.5 h-2.5 mr-1" /> Hiring Manager
+            <Users className="w-2.5 h-2.5 mr-1" /> HM
           </Badge>
         );
       case "Recruiter":
@@ -119,8 +120,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* ── RIGHT: Theme Toggle + User Profile ───────────────────────────── */}
+        {/* ── RIGHT: Help & Docs + Theme Toggle + User Profile ───────────────────────────── */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto lg:ml-0">
+          {/* Documentation & Help Hub */}
+          <HelpMenu />
 
           {/* Dark / Light Mode Toggle */}
           <motion.button
@@ -180,7 +183,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {user.name}
                     </span>
                     <span className="text-[10px] text-muted-foreground leading-tight">
-                      {user.role?.name || "Member"}
+                      {user.role?.name === "HR" ? "HM" : user.role?.name || "Member"}
                     </span>
                   </div>
 

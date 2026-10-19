@@ -273,7 +273,7 @@ def get_all_assigned_candidates(
     page_size: int = Query(20, ge=1, le=100),
     response: Response = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_recruiter),
+    current_user: User = Depends(require_hr_or_recruiter),
 ):
     assigned_job_ids = recruiter_assignment_service.get_recruiter_assigned_job_ids(db, current_user.id)
     if job_id is not None:

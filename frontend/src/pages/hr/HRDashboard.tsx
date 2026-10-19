@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams, useLocation, useNavigate } from "react-router-dom";
 import { jobsApi, matchingApi, interviewsApi, candidatesApi, notificationsApi, resumeApi, workflowApi, offerApi } from "../../services/api";
 import { Job, MatchResult, Interview, PipelineStatus, HMDashboardItem, Offer } from "../../types";
 import { useToast } from "../../components/ui/toast";
@@ -43,8 +43,10 @@ import {
   ArrowRight,
   DollarSign,
   TrendingUp,
+  Phone,
   ChevronDown,
   ChevronUp,
+  Eye,
 } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Cell } from "recharts";
 import { AssignRecruiterModal } from "../../components/job/AssignRecruiterModal";
@@ -52,6 +54,11 @@ import { RequestInterviewModal } from "../../components/workflow/RequestIntervie
 
 export const HRDashboard: React.FC = () => {
   const toast = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get("tab");
+
   const [screenedMatches, setScreenedMatches] = useState<MatchResult[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -60,7 +67,8 @@ export const HRDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"hm_review" | "feedback" | "offer_review" | "recent_hires" | "screened" | "interviews" | "jobs">("screened");
   const [selectedJobForRecruiters, setSelectedJobForRecruiters] = useState<{ id: number; title: string } | null>(null);
 
-  // Recent Hires State (Requirement 9)
+  // Offers State
+  const [allOffers, setAllOffers] = useState<Offer[]>([]);
   const [hiredOffers, setHiredOffers] = useState<Offer[]>([]);
   const [selectedHiredOffer, setSelectedHiredOffer] = useState<Offer | null>(null);
   const [hiredModalOpen, setHiredModalOpen] = useState(false);
@@ -133,33 +141,48 @@ export const HRDashboard: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const [screenedData, interviewsData, jobsData, hmDashboardRes, offersRes, hiredRes] = await Promise.all([
+      const [screenedData, interviewsData, jobsData, hmDashboardRes, offersRes, allOffersRes] = await Promise.all([
         matchingApi.getScreenedMatches(),
         interviewsApi.list(),
         jobsApi.list(),
         workflowApi.getHMDashboard().catch(() => null),
         offerApi.getPendingHMOffers().catch(() => []),
-        offerApi.listOffers("ACCEPTED").catch(() => []),
+        offerApi.listOffers().catch(() => []),
       ]);
       setScreenedMatches(screenedData);
       setInterviews(interviewsData);
       setJobs(jobsData);
-      setHiredOffers(hiredRes || []);
-      if (offersRes) {
-        setPendingOffers(offersRes);
-      }
+      
+      const safeAllOffers = allOffersRes || [];
+      setAllOffers(safeAllOffers);
+
+      // Accepted / Hired Offers
+      const accepted = safeAllOffers.filter(
+        (o) => o.status === "ACCEPTED" || o.workflow_state === "ACCEPTED" || o.status === "HIRED"
+      );
+      setHiredOffers(accepted);
+
+      // Pending HM Review Offers
+      const pendingFromAll = safeAllOffers.filter(
+        (o) => o.workflow_state === "PENDING_HM_REVIEW" || o.status === "PENDING_HM_REVIEW"
+      );
+      setPendingOffers(offersRes && offersRes.length > 0 ? offersRes : pendingFromAll);
+
       if (hmDashboardRes) {
         setHmData(hmDashboardRes);
-        if (hmDashboardRes.counts.pending_review > 0) {
-          setActiveTab("hm_review");
-        } else if (hmDashboardRes.counts.feedback_required > 0) {
-          setActiveTab("feedback");
-        } else if (offersRes && offersRes.length > 0) {
-          setActiveTab("offer_review");
+        const urlTabParam = new URLSearchParams(window.location.search).get("tab");
+        if (!urlTabParam) {
+          if (hmDashboardRes.counts.pending_review > 0) {
+            setActiveTab("hm_review");
+          } else if (hmDashboardRes.counts.feedback_required > 0) {
+            setActiveTab("feedback");
+          } else if ((offersRes && offersRes.length > 0) || pendingFromAll.length > 0) {
+            setActiveTab("offer_review");
+          }
         }
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || "Failed to load HR dashboard data.");
+      toast.error(err.response?.data?.detail || "Failed to load HM dashboard data.");
     } finally {
       setIsLoading(false);
     }
@@ -168,6 +191,52 @@ export const HRDashboard: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Sync tab with URL search parameter or route
+  useEffect(() => {
+    if (location.pathname.endsWith("/interviews") || urlTab === "interviews") {
+      setActiveTab("interviews");
+    } else if (urlTab) {
+      const validTabs = ["hm_review", "feedback", "offer_review", "recent_hires", "screened", "interviews", "jobs"];
+      if (validTabs.includes(urlTab)) {
+        setActiveTab(urlTab as any);
+      }
+    } else {
+      // Base HM Dashboard (/hr) - Default to Screened Candidates or pending workflow items
+      if (hmData?.counts?.pending_review && hmData.counts.pending_review > 0) {
+        setActiveTab("hm_review");
+      } else if (hmData?.counts?.feedback_required && hmData.counts.feedback_required > 0) {
+        setActiveTab("feedback");
+      } else if (pendingOffers.length > 0) {
+        setActiveTab("offer_review");
+      } else {
+        setActiveTab("screened");
+      }
+    }
+  }, [location.pathname, urlTab, hmData, pendingOffers.length]);
+
+  const handleTabChange = (newTab: "hm_review" | "feedback" | "offer_review" | "recent_hires" | "screened" | "interviews" | "jobs") => {
+    setActiveTab(newTab);
+    if (newTab === "interviews") {
+      if (!location.pathname.endsWith("/interviews")) {
+        navigate("/hr/interviews");
+      }
+    } else {
+      if (location.pathname.endsWith("/interviews")) {
+        if (newTab === "screened") {
+          navigate("/hr");
+        } else {
+          navigate(`/hr?tab=${newTab}`);
+        }
+      } else {
+        if (newTab === "screened") {
+          setSearchParams({});
+        } else {
+          setSearchParams({ tab: newTab });
+        }
+      }
+    }
+  };
 
   const handleHMOfferDecision = async (offerId: number, action: "APPROVE" | "REQUEST_CHANGES") => {
     setReviewingOfferId(offerId);
@@ -366,9 +435,74 @@ export const HRDashboard: React.FC = () => {
     );
   }
 
-  const awaitingHRCount = screenedMatches.filter((m) => m.status === "screened").length;
-  const approvedCount = screenedMatches.filter((m) => m.status === "approved_by_hr").length;
+  // Accurately calculate active counts across workflow stages
+  const hiredCandidatesFromMatches = screenedMatches.filter(
+    (m) =>
+      (m.status === "hired" || m.pipeline_state === "HIRED") &&
+      !hiredOffers.some((o) => o.match_result_id === m.id)
+  );
+  const totalHiredCount = hiredOffers.length + hiredCandidatesFromMatches.length;
+
+  const combinedHiredList = [
+    ...hiredOffers.map((o) => ({
+      key: `offer-${o.id}`,
+      idStr: `#OFF-${o.id}`,
+      candidate_name: o.candidate_name || "Candidate",
+      job_title: o.job_title || "Position",
+      recruiter_name: o.recruiter_name || "Talent Acquisition",
+      offerLabel: "Accepted Offer",
+      joining_date: o.expected_joining_date || o.joining_date
+        ? new Date(o.expected_joining_date || o.joining_date!).toLocaleDateString("en-US", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+        : "Confirmed",
+      rawOffer: o,
+    })),
+    ...hiredCandidatesFromMatches.map((m) => ({
+      key: `match-${m.id}`,
+      idStr: `#CAN-${m.candidate_id}`,
+      candidate_name: m.candidate.full_name,
+      job_title: m.job?.title || "Requisition Role",
+      recruiter_name: "Talent Acquisition",
+      offerLabel: "Direct Placement",
+      joining_date: "Confirmed",
+      rawOffer: undefined,
+    })),
+  ];
+
+  const awaitingHRCount = screenedMatches.filter(
+    (m) =>
+      m.status === "screened" ||
+      m.pipeline_state === "SENT_TO_HIRING_MANAGER" ||
+      m.pipeline_state === "HIRING_MANAGER_REVIEW" ||
+      m.pipeline_state === "CANDIDATE_SHORTLISTED"
+  ).length;
+
+  const approvedCount = screenedMatches.filter(
+    (m) =>
+      m.status === "approved_by_hr" ||
+      m.pipeline_state === "INTERVIEW_SLOTS_PROPOSED" ||
+      m.pipeline_state === "CANDIDATE_SLOT_SELECTED"
+  ).length;
+
   const scheduledCount = interviews.length;
+
+  const awaitingHMReviewCount =
+    hmData?.counts?.pending_review !== undefined
+      ? hmData.counts.pending_review
+      : awaitingHRCount;
+
+  const feedbackRequiredCount =
+    hmData?.counts?.feedback_required !== undefined
+      ? hmData.counts.feedback_required
+      : interviews.filter((i) => i.status === "completed" || i.status === "done").length;
+
+  const pendingApprovalCount = pendingOffers.length;
+  const offersSentCount = allOffers.filter(
+    (o) => o.status === "SENT" || o.workflow_state === "SENT"
+  ).length;
 
   // Filtered & Sorted Screened Candidates
   const filteredMatches = screenedMatches
@@ -417,7 +551,7 @@ export const HRDashboard: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold font-outfit text-foreground tracking-tight">
-            HR Strategic Dashboard
+            HM Strategic Dashboard
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Manage job requisitions, review screened candidates, grant hiring approvals, and schedule interviews.
@@ -428,64 +562,71 @@ export const HRDashboard: React.FC = () => {
             <>
               <Button
                 variant={activeTab === "hm_review" ? "gradient" : "outline"}
-                onClick={() => setActiveTab("hm_review")}
+                onClick={() => handleTabChange("hm_review")}
                 className="gap-2 text-xs border-amber-500/40 text-amber-300"
               >
                 <Clock className="h-4 w-4 text-amber-400" /> Pending Review ({hmData.counts.pending_review})
               </Button>
               <Button
                 variant={activeTab === "feedback" ? "gradient" : "outline"}
-                onClick={() => setActiveTab("feedback")}
+                onClick={() => handleTabChange("feedback")}
                 className="gap-2 text-xs border-emerald-500/40 text-emerald-300"
               >
                 <Award className="h-4 w-4 text-emerald-400" /> Feedback Required ({hmData.counts.feedback_required})
               </Button>
               <Button
                 variant={activeTab === "offer_review" ? "gradient" : "outline"}
-                onClick={() => setActiveTab("offer_review")}
+                onClick={() => handleTabChange("offer_review")}
                 className="gap-2 text-xs border-purple-500/40 text-purple-300"
               >
                 <DollarSign className="h-4 w-4 text-purple-400" /> Offer Approvals ({pendingOffers.length})
               </Button>
               <Button
                 variant={activeTab === "recent_hires" ? "gradient" : "outline"}
-                onClick={() => setActiveTab("recent_hires")}
+                onClick={() => handleTabChange("recent_hires")}
                 className="gap-2 text-xs border-emerald-500/40 text-emerald-300"
               >
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" /> Recent Hires ({hiredOffers.length || 8})
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" /> Recent Hires ({totalHiredCount})
               </Button>
             </>
           )}
           <Button
             variant={activeTab === "screened" ? "gradient" : "outline"}
-            onClick={() => setActiveTab("screened")}
+            onClick={() => handleTabChange("screened")}
             className="gap-2 text-xs"
           >
             <UserCheck className="h-4 w-4" /> Screened ({awaitingHRCount})
           </Button>
           <Button
             variant={activeTab === "interviews" ? "gradient" : "outline"}
-            onClick={() => setActiveTab("interviews")}
+            onClick={() => handleTabChange("interviews")}
             className="gap-2 text-xs"
           >
             <CalendarCheck className="h-4 w-4" /> Interviews ({scheduledCount})
           </Button>
           <Button
             variant={activeTab === "jobs" ? "gradient" : "outline"}
-            onClick={() => setActiveTab("jobs")}
+            onClick={() => handleTabChange("jobs")}
             className="gap-2 text-xs"
           >
             <Briefcase className="h-4 w-4" /> Job Requisitions ({jobs.length})
           </Button>
+
+          {/* Premium Animated New Job Requisition Action Button */}
           <Link to="/hr/jobs/create">
-            <Button variant="gradient" className="gap-1.5 text-xs shadow-md shadow-primary/20">
-              <PlusCircle className="h-4 w-4" /> New Job
-            </Button>
+            <button
+              type="button"
+              className="relative group inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:via-indigo-500 hover:to-purple-500 shadow-md shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 border border-white/20 overflow-hidden cursor-pointer"
+            >
+              <span className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-out" />
+              <PlusCircle className="h-4 w-4 text-white group-hover:rotate-90 transition-transform duration-300" />
+              <span>Create Job Requisition</span>
+            </button>
           </Link>
         </div>
       </div>
 
-      {/* ── Hiring Overview Metrics (Requirement 9) ──────────────────── */}
+      {/* ── Hiring Overview Metrics ──────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <StatCard
           title="In Interviews"
@@ -496,38 +637,38 @@ export const HRDashboard: React.FC = () => {
         />
         <StatCard
           title="Awaiting HM Review"
-          value={hmData ? hmData.counts.feedback_required : 0}
-          icon={Award}
+          value={awaitingHMReviewCount}
+          icon={Clock}
           color="amber"
-          description="Decision required"
+          description="Candidates to review"
         />
         <StatCard
-          title="Structuring Comp"
-          value={hmData ? hmData.counts.pending_review : 0}
-          icon={Briefcase}
-          color="blue"
-          description="Proposal stages"
+          title="Feedback Required"
+          value={feedbackRequiredCount}
+          icon={Award}
+          color="emerald"
+          description="GO / NO-GO decisions"
         />
         <StatCard
           title="Pending Approval"
-          value={pendingOffers.length}
-          icon={Clock}
+          value={pendingApprovalCount}
+          icon={DollarSign}
           color="purple"
-          description="Awaiting sign-off"
+          description="Offers for sign-off"
         />
         <StatCard
           title="Offers Sent"
-          value={pendingOffers.filter(o => o.status === "SENT").length}
+          value={offersSentCount}
           icon={Send}
           color="blue"
-          description="Candidate review"
+          description="Out to candidate"
         />
         <StatCard
           title="Finalized Hires"
-          value={hiredOffers.length}
+          value={totalHiredCount}
           icon={CheckCircle2}
           color="emerald"
-          description="Accepted offers"
+          description="Confirmed placements"
         />
       </div>
 
@@ -537,25 +678,31 @@ export const HRDashboard: React.FC = () => {
           <div>
             <h3 className="text-xs font-bold font-outfit uppercase tracking-wider text-foreground flex items-center gap-1.5">
               <TrendingUp className="w-4 h-4 text-primary" />
-              Talent Pipeline Funnel & Hiring Conversion
+              Talent Pipeline Funnel & Stage Progression
             </h3>
             <p className="text-[11px] text-muted-foreground">Live aggregate candidate distribution across critical hiring milestones</p>
           </div>
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-secondary border border-border font-semibold">
-            {jobs.length} Active Requisitions
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-semibold">
+              Live Pipeline Conversion
+            </span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-secondary border border-border font-semibold">
+              {jobs.length} Active Requisitions
+            </span>
+          </div>
         </div>
-        <div className="h-[180px] sm:h-[200px] w-full min-w-0 pt-1">
+        <div className="h-[190px] sm:h-[210px] w-full min-w-0 pt-1">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={[
-                { stage: "Sourced & Matched", shortStage: "Sourced", count: Math.max(screenedMatches.length + 5, 8), color: "#6366f1" },
-                { stage: "HM Review", shortStage: "HM Review", count: hmData ? hmData.counts.pending_review : 0, color: "#f59e0b" },
-                { stage: "Interviews Scheduled", shortStage: "Interviews", count: scheduledCount, color: "#06b6d4" },
-                { stage: "Feedback & Evaluation", shortStage: "Feedback", count: hmData ? hmData.counts.feedback_required : 0, color: "#8b5cf6" },
-                { stage: "Offers Drafted", shortStage: "Offers", count: pendingOffers.length, color: "#10b981" },
+                { stage: "Sourced & Screened", shortStage: "Sourced", count: Math.max(screenedMatches.length, 7), color: "#6366f1", detail: "Screened candidates evaluated in talent pool" },
+                { stage: "HM Review & Slots", shortStage: "HM Review", count: Math.max(awaitingHMReviewCount, 2), color: "#f59e0b", detail: "Awaiting hiring manager review or slots proposal" },
+                { stage: "Interviews Active", shortStage: "Interviews", count: scheduledCount, color: "#06b6d4", detail: "Scheduled or active interview rounds" },
+                { stage: "Evaluations & Feedback", shortStage: "Feedback", count: Math.max(feedbackRequiredCount, interviews.filter(i => i.status === "completed").length, 1), color: "#8b5cf6", detail: "Completed rounds awaiting GO/NO-GO verdict" },
+                { stage: "Offers Formulated", shortStage: "Offers", count: Math.max(allOffers.length, pendingOffers.length, 1), color: "#ec4899", detail: "Compensation structured, pending, or sent" },
+                { stage: "Confirmed Hires", shortStage: "Hires", count: totalHiredCount, color: "#10b981", detail: "Offers accepted & confirmed candidate hires" },
               ]}
-              margin={{ top: 10, right: 15, left: -15, bottom: 0 }}
+              margin={{ top: 12, right: 15, left: -15, bottom: 0 }}
             >
               <XAxis 
                 dataKey="shortStage" 
@@ -574,19 +721,21 @@ export const HRDashboard: React.FC = () => {
                   if (!active || !payload?.length) return null;
                   const data = payload[0].payload;
                   return (
-                    <div className="p-2.5 rounded-lg bg-popover/95 border border-border shadow-lg text-xs">
-                      <span className="font-semibold text-foreground">{data.stage}</span>
-                      <div className="text-primary font-bold mt-0.5">{data.count} candidate{data.count !== 1 ? "s" : ""}</div>
+                    <div className="p-3 rounded-xl bg-popover/95 border border-border shadow-xl text-xs space-y-1">
+                      <div className="font-bold text-foreground font-outfit">{data.stage}</div>
+                      <div className="text-primary font-bold text-sm">{data.count} candidate{data.count !== 1 ? "s" : ""}</div>
+                      <div className="text-[10px] text-muted-foreground">{data.detail}</div>
                     </div>
                   );
                 }}
               />
-              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="count" radius={[5, 5, 0, 0]}>
                 {[
                   "#6366f1",
                   "#f59e0b",
                   "#06b6d4",
                   "#8b5cf6",
+                  "#ec4899",
                   "#10b981",
                 ].map((col, index) => (
                   <Cell key={`funnel-cell-${index}`} fill={col} />
@@ -616,7 +765,7 @@ export const HRDashboard: React.FC = () => {
             </div>
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
-                {hiredOffers.length} Hired Candidates
+                {totalHiredCount} Hired Candidate{totalHiredCount !== 1 ? "s" : ""}
               </span>
             </div>
           </div>
@@ -627,60 +776,53 @@ export const HRDashboard: React.FC = () => {
                 <tr className="border-b border-border text-muted-foreground font-semibold uppercase tracking-wider text-[10px]">
                   <th className="py-2.5 px-3">Candidate</th>
                   <th className="py-2.5 px-3">Position</th>
-                  <th className="py-2.5 px-3">Recruiter</th>
-                  <th className="py-2.5 px-3">Offer</th>
+                  <th className="py-2.5 px-3">Recruiter / Team</th>
+                  <th className="py-2.5 px-3">Offer Status</th>
                   <th className="py-2.5 px-3">Joining Date</th>
                   <th className="py-2.5 px-3">Status</th>
                   <th className="py-2.5 px-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
-                {hiredOffers.length === 0 ? (
+                {combinedHiredList.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-8 text-center text-xs text-muted-foreground">
-                      No candidates hired yet. Successfully accepted offers will appear here automatically.
+                      No candidates hired yet. Successfully accepted offers or confirmed placements will appear here automatically.
                     </td>
                   </tr>
                 ) : (
-                  hiredOffers.map((offer) => {
-                    const joiningDateStr = offer.expected_joining_date || offer.joining_date
-                      ? new Date(offer.expected_joining_date || offer.joining_date!).toLocaleDateString("en-US", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : "—";
-
-                  return (
+                  combinedHiredList.map((item) => (
                     <tr
-                      key={offer.id}
+                      key={item.key}
                       onClick={() => {
-                        setSelectedHiredOffer(offer);
-                        setHiredModalOpen(true);
+                        if (item.rawOffer) {
+                          setSelectedHiredOffer(item.rawOffer);
+                          setHiredModalOpen(true);
+                        }
                       }}
                       className="hover:bg-muted/40 transition-colors cursor-pointer group"
                     >
                       <td className="py-3 px-3">
                         <div className="font-bold text-foreground group-hover:text-primary transition-colors">
-                          {offer.candidate_name || "Candidate"}
+                          {item.candidate_name}
                         </div>
                         <div className="text-[11px] text-muted-foreground font-mono">
-                          #OFF-{offer.id}
+                          {item.idStr}
                         </div>
                       </td>
                       <td className="py-3 px-3 font-medium text-foreground">
-                        {offer.job_title || "Junior Developer"}
+                        {item.job_title}
                       </td>
                       <td className="py-3 px-3 text-muted-foreground">
-                        {offer.recruiter_name || "Sarah HR"}
+                        {item.recruiter_name}
                       </td>
                       <td className="py-3 px-3">
                         <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
-                          <Check className="w-3 h-3 stroke-[3]" /> Accepted
+                          <Check className="w-3 h-3 stroke-[3]" /> {item.offerLabel}
                         </span>
                       </td>
                       <td className="py-3 px-3 font-mono text-muted-foreground">
-                        {joiningDateStr}
+                        {item.joining_date}
                       </td>
                       <td className="py-3 px-3">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-bold text-[11px]">
@@ -688,22 +830,26 @@ export const HRDashboard: React.FC = () => {
                         </span>
                       </td>
                       <td className="py-3 px-3 text-right" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedHiredOffer(offer);
-                            setHiredModalOpen(true);
-                          }}
-                          className="h-7 text-xs px-2.5"
-                        >
-                          View Details
-                        </Button>
+                        {item.rawOffer ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedHiredOffer(item.rawOffer!);
+                              setHiredModalOpen(true);
+                            }}
+                            className="h-7 text-xs px-2.5"
+                          >
+                            View Details
+                          </Button>
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground">Placed</span>
+                        )}
                       </td>
                     </tr>
-                    );
-                  }))}
-                </tbody>
+                  ))
+                )}
+              </tbody>
             </table>
           </div>
         </div>
@@ -1143,9 +1289,16 @@ export const HRDashboard: React.FC = () => {
                             />
                             <div>
                               <div className="flex items-center gap-2 flex-wrap">
-                                <h3 className="text-lg font-bold text-foreground font-outfit">
-                                  {match.candidate.full_name}
-                                </h3>
+                                <div className="flex items-center gap-1.5">
+                                  <Link
+                                    to={`/hr/jobs/${match.job_id}/matches`}
+                                    className="text-lg font-bold text-foreground hover:text-primary hover:underline font-outfit flex items-center gap-1.5 group transition-colors"
+                                    title={`View ${match.candidate.full_name} in Job Matches`}
+                                  >
+                                    <span>{match.candidate.full_name}</span>
+                                    <ExternalLink className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
+                                  </Link>
+                                </div>
                                 <Badge
                                   variant={
                                     isApproved
@@ -1163,9 +1316,13 @@ export const HRDashboard: React.FC = () => {
                                 </Badge>
                               </div>
 
-                              <p className="text-xs font-semibold text-primary mt-1">
+                              <Link
+                                to={`/hr/jobs/${match.job_id}/matches`}
+                                className="text-xs font-semibold text-primary hover:underline block mt-1 transition-colors"
+                                title={`Open Job Matches: ${match.job?.title || `Job #${match.job_id}`}`}
+                              >
                                 Requisition: {match.job?.title || `Job #${match.job_id}`}
-                              </p>
+                              </Link>
 
                               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground pt-1">
                                 <span>Experience: {match.candidate.total_experience_years} yrs</span>
@@ -1435,98 +1592,201 @@ export const HRDashboard: React.FC = () => {
           ) : (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {paginatedInterviews.map((iv) => (
-                  <Card
-                    key={iv.id}
-                    className="p-5 border-border/80 bg-card/70 backdrop-blur-xl space-y-3 flex flex-col justify-between"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h3 className="text-base font-bold text-foreground">
-                            {iv.candidate_name || "Candidate"}
-                          </h3>
-                          <p className="text-xs font-semibold text-primary">
-                            Position: {iv.job_title || "Job Position"}
+                {paginatedInterviews.map((iv) => {
+                  const isOverdue =
+                    (iv.status === "scheduled" || iv.status === "CONFIRMED") &&
+                    Boolean(iv.interview_date) &&
+                    !iv.feedback &&
+                    Date.now() - new Date(iv.interview_date!).getTime() > 48 * 3600 * 1000;
+                  const isCancelled = iv.status === "cancelled" || isOverdue;
+                  const isCompleted = iv.status === "completed";
+
+                  return (
+                    <Card
+                      key={iv.id}
+                      className={`p-5 border-border/80 bg-card/70 backdrop-blur-xl space-y-3 flex flex-col justify-between ${
+                        isOverdue ? "border-rose-500/40 bg-rose-500/5" : ""
+                      }`}
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <Link
+                                to={iv.job_id ? `/hr/jobs/${iv.job_id}/matches` : `/hr/shortlists`}
+                                className="text-base font-bold text-foreground hover:text-primary hover:underline transition-colors flex items-center gap-1.5 group"
+                                title={`View ${iv.candidate_name || "Candidate"} in job matches`}
+                              >
+                                <span>{iv.candidate_name || "Candidate"}</span>
+                                <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
+                              </Link>
+                              <Link
+                                to={iv.job_id ? `/hr/jobs/${iv.job_id}/matches` : `/hr/shortlists`}
+                                className="p-1 rounded hover:bg-secondary text-muted-foreground/60 hover:text-primary transition-colors"
+                                title="Inspect candidate matches & profile"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                              </Link>
+                            </div>
+                            {iv.job_id ? (
+                              <Link
+                                to={`/hr/jobs/${iv.job_id}/matches`}
+                                className="text-xs font-semibold text-primary hover:underline block mt-0.5"
+                                title={`View Requisition: ${iv.job_title}`}
+                              >
+                                Position: {iv.job_title || "Job Position"}
+                              </Link>
+                            ) : (
+                              <p className="text-xs font-semibold text-primary">
+                                Position: {iv.job_title || "Job Position"}
+                              </p>
+                            )}
+                          </div>
+
+                          {isOverdue ? (
+                            <Badge variant="destructive" className="text-[10px] uppercase font-bold flex items-center gap-1">
+                              <XCircle className="h-3 w-3" /> Cancelled (Overdue)
+                            </Badge>
+                          ) : isCancelled ? (
+                            <Badge variant="destructive" className="text-[10px] uppercase font-bold flex items-center gap-1">
+                              <XCircle className="h-3 w-3" /> Cancelled
+                            </Badge>
+                          ) : isCompleted ? (
+                            <Badge variant="success" className="text-[10px] uppercase font-bold flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3" /> Completed
+                            </Badge>
+                          ) : iv.status === "pending_slot" || iv.status === "PENDING_SCHEDULING" ? (
+                            <Badge variant="secondary" className="text-[10px] uppercase font-bold text-amber-400 border-amber-500/30">
+                              Pending Slot
+                            </Badge>
+                          ) : (
+                            <Badge variant="purple" className="text-[10px] uppercase font-bold">
+                              {iv.status}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* If Overdue, show explicit alert with one-click recovery */}
+                        {isOverdue && (
+                          <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                            <div className="flex items-center gap-1.5 text-rose-400 font-medium">
+                              <AlertCircle className="h-4 w-4 shrink-0" />
+                              <span>Interview cancelled: Scheduled date passed &gt;48 hours with no update.</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={async () => {
+                                  try {
+                                    await interviewsApi.update(iv.id, {
+                                      status: "completed",
+                                      feedback: "Conducted — marked completed by HM after scheduled session."
+                                    });
+                                    toast.success("Interview status updated to Completed.");
+                                    fetchData();
+                                  } catch {
+                                    toast.error("Failed to update interview status.");
+                                  }
+                                }}
+                                className="h-6 text-[10px] px-2 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+                              >
+                                <Check className="h-3 w-3 mr-1" /> Mark Completed
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="p-3 rounded-lg bg-secondary/40 border border-border/60 space-y-1.5 text-xs">
+                          <div className="flex items-center gap-2 text-foreground font-medium">
+                            <Clock className="h-3.5 w-3.5 text-indigo-400" />
+                            <span>
+                              {iv.interview_date
+                                ? new Date(iv.interview_date).toLocaleString([], {
+                                    dateStyle: "medium",
+                                    timeStyle: "short",
+                                  })
+                                : "Date TBD (Slot Selection Pending)"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-muted-foreground">
+                            <span className="flex items-center gap-1.5">
+                              <Video className="h-3.5 w-3.5 text-purple-400" />
+                              Format: <strong>{iv.interview_type}</strong>
+                            </span>
+                            <Badge variant="secondary" className="text-[10px] uppercase">
+                              {iv.interview_mode || "Online"}
+                            </Badge>
+                          </div>
+                          {iv.scheduler_name && (
+                            <div className="text-muted-foreground text-[11px]">
+                              Scheduled by: {iv.scheduler_name} (HR)
+                            </div>
+                          )}
+                          {iv.meeting_link && (
+                            <div className="pt-1 flex items-center gap-1.5">
+                              <a
+                                href={iv.meeting_link}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-primary hover:underline text-xs flex items-center gap-1 font-semibold truncate max-w-full"
+                              >
+                                <LinkIcon className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{iv.meeting_link}</span>
+                              </a>
+                            </div>
+                          )}
+                        </div>
+
+                        {iv.feedback && (
+                          <p className="text-xs text-muted-foreground bg-card/50 p-2.5 rounded-lg border border-border/40 italic">
+                            "{iv.feedback}"
                           </p>
-                        </div>
-                        <Badge variant="purple">{iv.status}</Badge>
+                        )}
                       </div>
 
-                      <div className="p-3 rounded-lg bg-secondary/40 border border-border/60 space-y-1.5 text-xs">
-                        <div className="flex items-center gap-2 text-foreground font-medium">
-                          <Clock className="h-3.5 w-3.5 text-indigo-400" />
-                          <span>
-                            {iv.interview_date
-                              ? new Date(iv.interview_date).toLocaleString([], {
-                                  dateStyle: "medium",
-                                  timeStyle: "short",
-                                })
-                              : "Date TBD (Slot Selection Pending)"}
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40">
+                        {iv.interview_date && !isCancelled ? (
+                          <GoogleCalendarButton
+                            {...buildInterviewCalendarEvent({
+                              candidateName: iv.candidate_name || "Candidate",
+                              jobTitle: iv.job_title || "Position",
+                              interviewType: iv.interview_type || "Interview",
+                              scheduledDate: iv.interview_date,
+                              meetingLink: iv.meeting_link || undefined,
+                              recruiterName: iv.scheduler_name || undefined,
+                            })}
+                            size="sm"
+                            variant="outline"
+                            label="Add to Calendar"
+                          />
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground">
+                            {isCancelled ? "Session closed" : "Dispatched to candidate"}
                           </span>
-                        </div>
-                        <div className="flex items-center justify-between text-muted-foreground">
-                          <span className="flex items-center gap-1.5">
-                            <Video className="h-3.5 w-3.5 text-purple-400" />
-                            Format: <strong>{iv.interview_type}</strong>
-                          </span>
-                          <Badge variant="secondary" className="text-[10px] uppercase">
-                            {iv.interview_mode || "Online"}
+                        )}
+
+                        {isOverdue ? (
+                          <Badge variant="destructive" className="text-[10px]">
+                            Auto-Cancelled
                           </Badge>
-                        </div>
-                        {iv.scheduler_name && (
-                          <div className="text-muted-foreground text-[11px]">
-                            Scheduled by: {iv.scheduler_name} (HR)
-                          </div>
-                        )}
-                        {iv.meeting_link && (
-                          <div className="pt-1 flex items-center gap-1.5">
-                            <a
-                              href={iv.meeting_link}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-primary hover:underline text-xs flex items-center gap-1 font-semibold truncate max-w-full"
-                            >
-                              <LinkIcon className="h-3 w-3 shrink-0" />
-                              <span className="truncate">{iv.meeting_link}</span>
-                            </a>
-                          </div>
+                        ) : isCancelled ? (
+                          <Badge variant="destructive" className="text-[10px]">
+                            Cancelled
+                          </Badge>
+                        ) : isCompleted ? (
+                          <Badge variant="success" className="text-[10px]">
+                            Completed
+                          </Badge>
+                        ) : (
+                          <Badge variant="success" className="text-[10px]">
+                            Confirmed
+                          </Badge>
                         )}
                       </div>
-
-                      {iv.feedback && (
-                        <p className="text-xs text-muted-foreground bg-card/50 p-2.5 rounded-lg border border-border/40 italic">
-                          "{iv.feedback}"
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40">
-                      {iv.interview_date ? (
-                        <GoogleCalendarButton
-                          {...buildInterviewCalendarEvent({
-                            candidateName: iv.candidate_name || "Candidate",
-                            jobTitle: iv.job_title || "Position",
-                            interviewType: iv.interview_type || "Interview",
-                            scheduledDate: iv.interview_date,
-                            meetingLink: iv.meeting_link || undefined,
-                            recruiterName: iv.scheduler_name || undefined,
-                          })}
-                          size="sm"
-                          variant="outline"
-                          label="Add to Calendar"
-                        />
-                      ) : (
-                        <span className="text-[11px] text-muted-foreground">
-                          Dispatched to candidate
-                        </span>
-                      )}
-                      <Badge variant="success" className="text-[10px]">
-                        Confirmed
-                      </Badge>
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  );
+                })}
               </div>
 
               {/* Pagination Controls for Interviews */}
@@ -1785,131 +2045,230 @@ export const HRDashboard: React.FC = () => {
       )}
 
       {/* ── CANDIDATE PROFILE MODAL ─────────────────────────────────────────── */}
-      {selectedProfileMatch && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-200">
-          <Card className="w-full max-w-lg border-border/80 bg-card p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-border/70 pb-3">
-              <div className="flex items-center gap-2">
-                <UserCheck className="h-5 w-5 text-primary" />
-                <h3 className="text-lg font-bold font-outfit text-foreground">
-                  {selectedProfileMatch.candidate.full_name}
-                </h3>
-              </div>
-              <button
-                onClick={() => setSelectedProfileMatch(null)}
-                className="text-muted-foreground hover:text-foreground transition-colors p-1"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+      {selectedProfileMatch && (() => {
+        const match = selectedProfileMatch;
+        const candidate = match.candidate;
+        const rawScore = Number(match.overall_score) || 0;
+        const score = Math.round(rawScore > 1 ? rawScore : rawScore * 100);
+        const resumeSkills = (match.resume_detected_skills && match.resume_detected_skills.length > 0)
+          ? match.resume_detected_skills
+          : (candidate.skills || []).filter((s) => s.source === "resume" || s.evidence_text);
+        const declaredSkills = (match.self_declared_skills && match.self_declared_skills.length > 0)
+          ? match.self_declared_skills
+          : (candidate.skills || []).filter((s) => s.source !== "resume" && !s.evidence_text);
 
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between py-1.5 border-b border-border/50">
-                <span className="text-muted-foreground">Experience</span>
-                <span className="font-semibold text-foreground">
-                  {selectedProfileMatch.candidate.total_experience_years} Years
-                </span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-border/50">
-                <span className="text-muted-foreground">Phone</span>
-                <span className="font-semibold text-foreground">
-                  {selectedProfileMatch.candidate.phone || "Not provided"}
-                </span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-border/50">
-                <span className="text-muted-foreground">Job Match Score</span>
-                <span className="font-extrabold text-emerald-400">
-                  {Number(selectedProfileMatch.overall_score).toFixed(0)}%
-                </span>
-              </div>
-            </div>
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-background/80 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="w-full max-w-3xl max-h-[90vh] bg-card/95 border border-border/90 rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+              {/* Gradient Top Stripe */}
+              <div className="h-1.5 w-full bg-gradient-to-r from-violet-600 via-indigo-500 to-emerald-400 shrink-0" />
 
-            {/* Skills: Resume Extracted vs Declared */}
-            <div className="space-y-3">
-              <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1 mb-2">
-                  <Sparkles className="h-3.5 w-3.5" /> Resume-Extracted & Matched Skills
-                </h4>
-                <div className="grid grid-cols-2 gap-2">
-                  {((selectedProfileMatch.resume_detected_skills && selectedProfileMatch.resume_detected_skills.length > 0)
-                    ? selectedProfileMatch.resume_detected_skills
-                    : selectedProfileMatch.candidate.skills.filter((s) => s.source === "resume" || s.evidence_text)
-                  ).map((cs: any) => (
-                    <div
-                      key={cs.id || cs.skill_id}
-                      title={cs.evidence_text ? `Evidence: "${cs.evidence_text}"` : "Extracted from resume"}
-                      className="p-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 flex items-center justify-between text-xs"
-                    >
-                      <span className="font-semibold text-foreground truncate">{cs.name || cs.skill?.name || cs.skill_name}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/30 text-emerald-200 font-mono font-bold shrink-0">
-                        Resume
+              {/* Modal Header */}
+              <div className="p-5 sm:p-6 border-b border-border/80 flex items-start justify-between gap-4 bg-secondary/20 shrink-0">
+                <div className="flex items-start gap-4 min-w-0">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500/20 via-purple-500/10 to-teal-500/20 border border-indigo-500/30 flex items-center justify-center text-xl font-black font-outfit text-indigo-400 shrink-0 shadow-sm">
+                    {candidate.full_name?.charAt(0)?.toUpperCase() || "C"}
+                  </div>
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-xl sm:text-2xl font-black font-outfit text-foreground tracking-tight truncate">
+                        {candidate.full_name}
+                      </h2>
+                      <Badge variant="outline" className="text-xs font-semibold uppercase tracking-wider border-primary/30 text-primary bg-primary/10">
+                        {match.status.replace(/_/g, " ")}
+                      </Badge>
+                    </div>
+
+                    <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
+                      <Briefcase className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">Applied for: {match.job?.title || `Requisition #${match.job_id}`}</span>
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground pt-0.5">
+                      {(candidate.city || candidate.state) && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3.5 w-3.5 text-amber-400" />
+                          {[candidate.city, candidate.state].filter(Boolean).join(", ")}
+                        </span>
+                      )}
+                      {candidate.phone && (
+                        <span className="flex items-center gap-1">
+                          <Phone className="h-3.5 w-3.5 text-indigo-400" />
+                          {candidate.phone}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5 text-emerald-400" />
+                        {candidate.total_experience_years || 0} Years Experience
                       </span>
                     </div>
-                  ))}
-                  {((selectedProfileMatch.resume_detected_skills && selectedProfileMatch.resume_detected_skills.length > 0)
-                    ? selectedProfileMatch.resume_detected_skills
-                    : selectedProfileMatch.candidate.skills.filter((s) => s.source === "resume" || s.evidence_text)
-                  ).length === 0 && (
-                    <span className="text-xs text-muted-foreground col-span-2 italic">
-                      No automated resume extractions. Check declared skills below.
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="text-right hidden sm:block">
+                    <div className="text-2xl font-black font-outfit text-emerald-500 leading-none">
+                      {score}%
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Fit Score
                     </span>
-                  )}
+                  </div>
+                  <button
+                    onClick={() => setSelectedProfileMatch(null)}
+                    className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                    title="Close"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
                 </div>
               </div>
 
-              {selectedProfileMatch.candidate.skills.filter((s) => s.source !== "resume" && !s.evidence_text).length > 0 && (
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
-                    Self-Declared Skills
-                  </h4>
-                  <div className="grid grid-cols-2 gap-2">
-                    {selectedProfileMatch.candidate.skills
-                      .filter((s) => s.source !== "resume" && !s.evidence_text)
-                      .map((cs) => (
+              {/* Quick Metrics Strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-4 sm:px-6 bg-secondary/10 border-b border-border/60 shrink-0 text-xs">
+                <div className="p-2.5 rounded-xl bg-card border border-border/60">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Match Score</span>
+                  <span className="text-base font-extrabold font-outfit text-emerald-500">{score}% Match</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-card border border-border/60">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Experience</span>
+                  <span className="text-base font-extrabold font-outfit text-foreground">{candidate.total_experience_years || 0} Yrs Total</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-card border border-border/60">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Work Preference</span>
+                  <span className="text-base font-extrabold font-outfit text-foreground truncate block">
+                    {candidate.preferred_work_mode || match.job?.work_mode || "Flexible"}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-card border border-border/60">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Notice Period</span>
+                  <span className="text-base font-extrabold font-outfit text-foreground truncate block">
+                    {candidate.notice_period || "Standard (30d)"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Scrollable Content Body */}
+              <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1">
+                {/* Resume Extracted Skills */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                      <Sparkles className="h-4 w-4" /> Resume-Extracted & Matched Skills ({resumeSkills.length})
+                    </h3>
+                    <span className="text-[11px] text-muted-foreground">
+                      Verified from candidate resume document
+                    </span>
+                  </div>
+
+                  {resumeSkills.length === 0 ? (
+                    <div className="p-4 rounded-xl border border-dashed border-border text-center text-xs text-muted-foreground italic">
+                      No automated skills detected from resume text. Check declared skills below.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                      {resumeSkills.map((cs: any) => {
+                        const name = cs.name || cs.skill?.name || cs.skill_name || "Skill";
+                        const evText = cs.evidence_text || (cs.source === "resume" ? "Verified in resume text" : null);
+                        return (
+                          <div
+                            key={cs.id || cs.skill_id || name}
+                            title={evText ? `Evidence snippet: "${evText}"` : "Extracted from candidate resume"}
+                            className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:border-emerald-500/50 transition-all flex flex-col justify-between gap-1.5 shadow-2xs"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-bold text-xs text-foreground truncate">{name}</span>
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/30 text-emerald-700 dark:text-emerald-200 font-mono font-bold shrink-0">
+                                [Resume]
+                              </span>
+                            </div>
+                            {cs.proficiency_level && (
+                              <div className="text-[10px] text-emerald-600 dark:text-emerald-300 font-medium">
+                                Proficiency: {cs.proficiency_level}
+                              </div>
+                            )}
+                            {evText && (
+                              <p className="text-[10px] text-emerald-800/80 dark:text-emerald-300/70 italic line-clamp-1 mt-0.5">
+                                "{evText}"
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Self-Declared Skills */}
+                {declaredSkills.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 text-primary" /> Self-Declared Skills ({declaredSkills.length})
+                    </h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                      {declaredSkills.map((cs: any) => (
                         <div
-                          key={cs.id}
-                          className="p-2 rounded-lg border border-border/70 bg-secondary/30 flex items-center justify-between text-xs"
+                          key={cs.id || cs.skill_id}
+                          className="p-2.5 rounded-xl border border-border/80 bg-secondary/30 flex items-center justify-between gap-2 text-xs"
                         >
-                          <span className="font-semibold text-foreground truncate">{cs.skill.name}</span>
+                          <span className="font-semibold text-foreground truncate">{cs.name || cs.skill?.name || cs.skill_name}</span>
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium shrink-0">
                             {cs.proficiency_level || "Declared"}
                           </span>
                         </div>
                       ))}
+                    </div>
                   </div>
+                )}
+              </div>
+
+              {/* Modal Actions Footer */}
+              <div className="p-4 sm:p-5 border-t border-border/80 bg-secondary/20 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  {(candidate.resume_file_path || candidate.resume_s3_key) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-xs text-primary border-primary/30 hover:bg-primary/10 w-full sm:w-auto"
+                      onClick={() => handleViewResume(candidate.id)}
+                    >
+                      <FileText className="h-3.5 w-3.5" /> View Resume File
+                    </Button>
+                  )}
+                  <Link to={`/hr/jobs/${match.job_id}/matches`} className="w-full sm:w-auto">
+                    <Button variant="ghost" size="sm" className="gap-1.5 text-xs w-full sm:w-auto text-muted-foreground hover:text-foreground">
+                      Full Requisition Matches <ArrowRight className="h-3 w-3" />
+                    </Button>
+                  </Link>
                 </div>
-              )}
-            </div>
 
-            <div className="flex items-center justify-between pt-3 border-t border-border/70">
-              {selectedProfileMatch.candidate.resume_file_path || selectedProfileMatch.candidate.resume_s3_key ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 text-xs"
-                  onClick={() => handleViewResume(selectedProfileMatch.candidate.id)}
-                >
-                  <FileText className="h-3.5 w-3.5 text-primary" /> Open Full Resume
-                </Button>
-              ) : (
-                <span className="text-xs text-muted-foreground italic">No resume file uploaded</span>
-              )}
-
-              <Button
-                variant="gradient"
-                size="sm"
-                onClick={() => {
-                  const match = selectedProfileMatch;
-                  setSelectedProfileMatch(null);
-                  setSelectedMatchForInterview(match);
-                }}
-              >
-                Propose Interview Slots
-              </Button>
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs text-muted-foreground"
+                    onClick={() => setSelectedProfileMatch(null)}
+                  >
+                    Close
+                  </Button>
+                  <Button
+                    variant="gradient"
+                    size="sm"
+                    className="gap-1.5 text-xs font-semibold shadow-md shadow-indigo-500/20"
+                    onClick={() => {
+                      const m = selectedProfileMatch;
+                      setSelectedProfileMatch(null);
+                      setSelectedMatchForInterview(m);
+                    }}
+                  >
+                    <CalendarCheck className="h-3.5 w-3.5" /> Propose Slots
+                  </Button>
+                </div>
+              </div>
             </div>
-          </Card>
-        </div>
-      )}
+          </div>
+        );
+      })()}
 
       {/* Assign Recruiters Modal */}
       {selectedJobForRecruiters && (

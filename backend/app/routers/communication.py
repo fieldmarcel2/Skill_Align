@@ -1,6 +1,5 @@
 """
 Communication Router
-====================
 Contextual messaging between HR and Recruiters.
 Endpoints support:
 - Job-level discussion (candidate_id = None)
@@ -37,9 +36,6 @@ def _to_message_out(msg: RecruitmentMessage) -> RecruitmentMessageOut:
     )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Job-Level Messages
-# ─────────────────────────────────────────────────────────────────────────────
 
 @router.get(
     "/{job_id}/messages",

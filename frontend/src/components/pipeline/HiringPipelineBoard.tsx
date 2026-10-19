@@ -115,42 +115,80 @@ const COLUMN_CONFIG: Record<
 // ── Dynamic Mapping from Enterprise PipelineState to Column ─────────────────
 export const mapPipelineStateToColumn = (match: MatchResult): string => {
   const pState = match.pipeline_state;
-  if (!pState) {
-    return match.status || "matched";
+  const status = (match.status || "").toLowerCase();
+
+  // 1. Rejected or Blacklisted
+  if (
+    pState === "HIRING_MANAGER_REJECTED" ||
+    pState === "INTERVIEW_NO_GO" ||
+    pState === "OFFER_REJECTED" ||
+    pState === "BLACKLISTED" ||
+    pState === "REJECTED" ||
+    status === "rejected"
+  ) {
+    return "rejected";
   }
-  switch (pState) {
-    case "CANDIDATE_MATCHED":
-      return "matched";
-    case "CANDIDATE_SHORTLISTED":
-    case "SENT_TO_HIRING_MANAGER":
-    case "HIRING_MANAGER_REVIEW":
-      return "screened";
-    case "INTERVIEW_REQUESTED":
-    case "INTERVIEW_SLOTS_PROPOSED":
-    case "WAITING_FOR_CANDIDATE_SLOT":
-    case "CANDIDATE_SLOT_SELECTED":
-      return "approved_by_hr";
-    case "INTERVIEW_CONFIRMED":
-    case "INTERVIEW_COMPLETED":
-    case "WAITING_FOR_HM_FEEDBACK":
-    case "INTERVIEW_GO":
-      return "interview_scheduled";
-    case "COMPENSATION_DISCUSSION":
-    case "OFFER_CREATED":
-    case "OFFER_SENT":
-    case "OFFER_ACCEPTED":
-      return "offer";
-    case "HIRED":
-      return "hired";
-    case "HIRING_MANAGER_REJECTED":
-    case "INTERVIEW_NO_GO":
-    case "OFFER_REJECTED":
-    case "BLACKLISTED":
-    case "REJECTED":
-      return "rejected";
-    default:
-      return match.status || "matched";
+
+  // 2. Hired
+  if (pState === "HIRED" || status === "hired") {
+    return "hired";
   }
+
+  // 3. Offer Stage
+  if (
+    pState === "COMPENSATION_DISCUSSION" ||
+    pState === "OFFER_CREATED" ||
+    pState === "OFFER_SENT" ||
+    pState === "OFFER_ACCEPTED" ||
+    status === "offer" ||
+    status === "offer_sent" ||
+    status === "offer_created"
+  ) {
+    return "offer";
+  }
+
+  // 4. Interviews (Scheduled / Feedback / Rounds)
+  if (
+    pState === "INTERVIEW_CONFIRMED" ||
+    pState === "INTERVIEW_COMPLETED" ||
+    pState === "WAITING_FOR_HM_FEEDBACK" ||
+    pState === "INTERVIEW_GO" ||
+    status === "interview_scheduled" ||
+    status === "technical_interview" ||
+    status === "hr_interview" ||
+    status === "interview"
+  ) {
+    return "interview_scheduled";
+  }
+
+  // 5. Approved / Slots Proposed Stage
+  if (
+    pState === "INTERVIEW_REQUESTED" ||
+    pState === "INTERVIEW_SLOTS_PROPOSED" ||
+    pState === "WAITING_FOR_CANDIDATE_SLOT" ||
+    pState === "CANDIDATE_SLOT_SELECTED" ||
+    status === "approved_by_hr" ||
+    status === "approved" ||
+    status === "slots_proposed" ||
+    status === "slot_selected"
+  ) {
+    return "approved_by_hr";
+  }
+
+  // 6. Screened / In Review / Shortlisted
+  if (
+    pState === "CANDIDATE_SHORTLISTED" ||
+    pState === "SENT_TO_HIRING_MANAGER" ||
+    pState === "HIRING_MANAGER_REVIEW" ||
+    status === "screened" ||
+    status === "shortlisted" ||
+    status === "screening"
+  ) {
+    return "screened";
+  }
+
+  // Default to matched column
+  return "matched";
 };
 
 // ── Candidate Card Component ──────────────────────────────────────────────────
@@ -228,19 +266,28 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
     bg: "bg-secondary/40 border-border/50",
   };
 
-  const isMatched = pState === "CANDIDATE_MATCHED" || match.status === "matched";
+  const currentStatus = (match.status || "") as string;
+  const isMatched = pState === "CANDIDATE_MATCHED" || currentStatus === "matched";
   const isScreened =
     pState === "CANDIDATE_SHORTLISTED" ||
     pState === "SENT_TO_HIRING_MANAGER" ||
     pState === "HIRING_MANAGER_REVIEW" ||
-    match.status === "screened";
+    currentStatus === "screened" ||
+    currentStatus === "shortlisted" ||
+    currentStatus === "screening";
   const isSlotProposedOrWaiting =
     pState === "INTERVIEW_REQUESTED" ||
     pState === "INTERVIEW_SLOTS_PROPOSED" ||
     pState === "WAITING_FOR_CANDIDATE_SLOT" ||
     pState === "CANDIDATE_SLOT_SELECTED" ||
-    match.status === "approved_by_hr";
-  const isInterviewConfirmed = pState === "INTERVIEW_CONFIRMED";
+    currentStatus === "approved_by_hr" ||
+    currentStatus === "approved" ||
+    currentStatus === "slots_proposed";
+  const isInterviewConfirmed =
+    pState === "INTERVIEW_CONFIRMED" ||
+    currentStatus === "interview_scheduled" ||
+    currentStatus === "technical_interview" ||
+    currentStatus === "hr_interview";
   const isNeedsHMFeedback = pState === "WAITING_FOR_HM_FEEDBACK" || pState === "INTERVIEW_COMPLETED";
   const isOfferStage =
     pState === "COMPENSATION_DISCUSSION" ||
@@ -362,6 +409,11 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
             <h4 className="text-xs font-bold text-foreground truncate font-outfit leading-tight">
               {match.candidate.full_name}
             </h4>
+            {match.job?.title && (
+              <div className="text-[10px] font-semibold text-primary truncate max-w-[170px] mt-0.5">
+                {match.job.title}
+              </div>
+            )}
             <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mt-0.5">
               <span>{match.candidate.total_experience_years || 0} yrs exp</span>
               {match.candidate.preferred_work_mode && (

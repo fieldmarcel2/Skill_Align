@@ -119,21 +119,110 @@ def get_user_detail(
                 ],
             }
 
-    # Extended: Jobs created (for Recruiters)
+    # Extended: Recruiter Profile & Workload
     if user.role.name == "Recruiter":
-        jobs = db.query(Job).filter(Job.created_by == user.id).order_by(Job.created_at.desc()).all()
-        result["jobs_created"] = [
-            {
-                "id": j.id,
-                "title": j.title,
-                "department": j.department,
-                "status": j.status,
-                "min_experience_years": float(j.min_experience_years),
-                "created_at": j.created_at.isoformat() if j.created_at else None,
-                "skills_count": len(j.job_skills),
-            }
-            for j in jobs
-        ]
+        from app.models.job_recruiter_assignment import JobRecruiterAssignment
+        from app.models.candidate_recruiter_assignment import CandidateRecruiterAssignment
+        from app.models.match_result import MatchResult
+
+        assigned_jobs = (
+            db.query(Job)
+            .join(JobRecruiterAssignment, JobRecruiterAssignment.job_id == Job.id)
+            .filter(JobRecruiterAssignment.recruiter_id == user.id)
+            .all()
+        )
+        if not assigned_jobs:
+            assigned_jobs = db.query(Job).filter(Job.created_by == user.id).all()
+
+        claimed_candidates_count = (
+            db.query(CandidateRecruiterAssignment)
+            .filter(CandidateRecruiterAssignment.recruiter_id == user.id)
+            .count()
+        )
+
+        recent_actions = (
+            db.query(AuditLog)
+            .filter(AuditLog.actor_id == user.id)
+            .order_by(AuditLog.created_at.desc())
+            .limit(6)
+            .all()
+        )
+
+        result["recruiter_profile"] = {
+            "assigned_jobs_count": len(assigned_jobs),
+            "claimed_candidates_count": claimed_candidates_count,
+            "assigned_jobs": [
+                {
+                    "id": j.id,
+                    "title": j.title,
+                    "department": j.department or "Engineering",
+                    "status": j.status,
+                    "min_experience_years": float(j.min_experience_years),
+                    "work_mode": j.work_mode or "Hybrid",
+                    "created_at": j.created_at.isoformat() if j.created_at else None,
+                }
+                for j in assigned_jobs[:10]
+            ],
+            "recent_actions": [
+                {
+                    "id": a.id,
+                    "action": a.action,
+                    "created_at": a.created_at.isoformat() if a.created_at else None,
+                    "from_state": a.from_state,
+                    "to_state": a.to_state,
+                }
+                for a in recent_actions
+            ],
+        }
+
+    # Extended: Hiring Manager (HM / HR) Profile & Decisions
+    if user.role.name in ("HR", "HM"):
+        from app.models.match_result import MatchResult
+
+        owned_jobs = db.query(Job).filter(Job.created_by == user.id).all()
+        if not owned_jobs:
+            owned_jobs = db.query(Job).order_by(Job.created_at.desc()).limit(6).all()
+
+        reviews_conducted = (
+            db.query(MatchResult)
+            .filter(or_(MatchResult.hiring_manager_id == user.id, MatchResult.hm_reviewed_at != None))
+            .count()
+        )
+
+        recent_actions = (
+            db.query(AuditLog)
+            .filter(AuditLog.actor_id == user.id)
+            .order_by(AuditLog.created_at.desc())
+            .limit(6)
+            .all()
+        )
+
+        result["hm_profile"] = {
+            "owned_jobs_count": len(owned_jobs),
+            "reviews_conducted": reviews_conducted,
+            "owned_jobs": [
+                {
+                    "id": j.id,
+                    "title": j.title,
+                    "department": j.department or "Engineering",
+                    "status": j.status,
+                    "min_experience_years": float(j.min_experience_years),
+                    "work_mode": j.work_mode or "Hybrid",
+                    "created_at": j.created_at.isoformat() if j.created_at else None,
+                }
+                for j in owned_jobs[:10]
+            ],
+            "recent_actions": [
+                {
+                    "id": a.id,
+                    "action": a.action,
+                    "created_at": a.created_at.isoformat() if a.created_at else None,
+                    "from_state": a.from_state,
+                    "to_state": a.to_state,
+                }
+                for a in recent_actions
+            ],
+        }
 
     return result
 
@@ -180,6 +269,9 @@ ACTION_CATEGORY_MAP: Dict[str, tuple[str, str]] = {
     "OFFER_ACCEPTED": ("OFFERS", "Offer Accepted (Hired)"),
     "OFFER_REJECTED_CANDIDATE_BLACKLISTED": ("OFFERS", "Offer Declined & Cooldown Activated"),
     "OFFER_REJECTED": ("OFFERS", "Offer Declined"),
+    "OFFER_STAGE_INITIATED": ("OFFERS", "Offer Stage Initiated"),
+    "CANDIDATE_HIRED": ("OFFERS", "Candidate Successfully Hired"),
+    "COMPENSATION_UPDATED": ("OFFERS", "Compensation Terms Updated"),
 
     # Interviews & Scheduling
     "INTERVIEW_REQUESTED_AND_SLOTS_PROPOSED": ("INTERVIEWS", "Interview Requested & Slots Proposed"),
@@ -187,30 +279,50 @@ ACTION_CATEGORY_MAP: Dict[str, tuple[str, str]] = {
     "CANDIDATE_SLOT_SELECTED": ("INTERVIEWS", "Candidate Selected Interview Slot"),
     "INTERVIEW_CONFIRMED": ("INTERVIEWS", "Interview Confirmed & Scheduled"),
     "INTERVIEW_COMPLETED": ("INTERVIEWS", "Interview Completed"),
+    "INTERVIEW_SCHEDULED": ("INTERVIEWS", "Interview Scheduled"),
+    "TECHNICAL_INTERVIEW_SCHEDULED": ("INTERVIEWS", "Technical Interview Scheduled"),
+    "HR_INTERVIEW_SCHEDULED": ("INTERVIEWS", "HR Interview Scheduled"),
     "INTERVIEW_ROUND_2_CREATED": ("INTERVIEWS", "Additional Interview Round Scheduled"),
     "ADDITIONAL_ROUND_2_ADDED": ("INTERVIEWS", "Interview Round Added"),
     "ROUND_1_PASS": ("INTERVIEWS", "Round 1 Evaluation: PASS"),
     "ROUND_2_FINAL_GO": ("INTERVIEWS", "Final Round Evaluation: GO"),
     "INTERVIEWER_EVALUATION_SAVED": ("INTERVIEWS", "Interview Scorecard Submitted"),
+    "SCORECARD_SUBMITTED": ("INTERVIEWS", "Candidate Scorecard Submitted"),
 
-    # Hiring Manager Reviews
+    # Hiring Manager Reviews & Approvals
     "SUBMITTED_TO_HM": ("REVIEWS", "Shortlist Submitted for HM Review"),
     "HM_REVIEW_STARTED": ("REVIEWS", "Hiring Manager Review Initiated"),
     "HM_FEEDBACK_GO": ("REVIEWS", "HM Review Decision: GO"),
     "HM_FEEDBACK_NO_GO": ("REVIEWS", "HM Review Decision: NO GO"),
     "HM_REJECTED_CANDIDATE": ("REVIEWS", "Candidate Rejected by HM"),
+    "CANDIDATE_APPROVED_BY_HR": ("REVIEWS", "Candidate Approved by HR"),
 
     # Sourcing & Talent Pipeline
     "CANDIDATE_MATCHED": ("SOURCING", "Candidate Matched to Requisition"),
     "CANDIDATE_SHORTLISTED": ("SOURCING", "Candidate Shortlisted by Recruiter"),
+    "CANDIDATE_SCREENED": ("SOURCING", "Candidate Screened by Recruiter"),
+    "CANDIDATE_REJECTED": ("SOURCING", "Candidate Rejected"),
     "CLAIM_CANDIDATE": ("SOURCING", "Candidate Claimed by Recruiter"),
     "ASSIGN_RECRUITER": ("SOURCING", "Requisition Assigned to Recruiter"),
     "UNASSIGN_CANDIDATE": ("SOURCING", "Candidate Unassigned"),
     "CHANGE_RECRUITER_ROLE": ("SOURCING", "Recruiter Role Adjusted"),
+    "MATCHING_ENGINE_EXECUTED": ("SOURCING", "Deterministic Matching Engine Run"),
+    "PIPELINE_STATUS_UPDATED": ("SOURCING", "Pipeline Status Updated"),
 
     # Operational Tasks
     "CREATE_TASK": ("TASKS", "Recruitment Task Created"),
     "UPDATE_TASK": ("TASKS", "Recruitment Task Updated"),
+
+    # Job Requisition Lifecycle
+    "JOB_CREATED": ("JOBS", "Job Requisition Created"),
+    "JOB_UPDATED": ("JOBS", "Job Requisition Updated"),
+    "JOB_DELETED": ("JOBS", "Job Requisition Deleted"),
+
+    # Security & System Management
+    "USER_CREATED": ("SECURITY", "User Account Provisioned"),
+    "USER_UPDATED": ("SECURITY", "User Account Updated"),
+    "USER_DELETED": ("SECURITY", "User Account Deleted"),
+    "USER_STATUS_TOGGLED": ("SECURITY", "User Status Modified"),
 }
 
 
@@ -218,12 +330,16 @@ def _resolve_category_and_label(action: str) -> tuple[str, str]:
     if action in ACTION_CATEGORY_MAP:
         return ACTION_CATEGORY_MAP[action]
     act_upper = action.upper()
-    if "OFFER" in act_upper or "HIRE" in act_upper:
+    if "OFFER" in act_upper or "HIRE" in act_upper or "COMPENSATION" in act_upper:
         cat = "OFFERS"
-    elif "INTERVIEW" in act_upper or "SLOT" in act_upper or "ROUND" in act_upper:
+    elif "INTERVIEW" in act_upper or "SLOT" in act_upper or "ROUND" in act_upper or "SCORECARD" in act_upper:
         cat = "INTERVIEWS"
-    elif "HM" in act_upper or "REVIEW" in act_upper:
+    elif "HM" in act_upper or "REVIEW" in act_upper or "APPROVED" in act_upper:
         cat = "REVIEWS"
+    elif "JOB" in act_upper:
+        cat = "JOBS"
+    elif "USER" in act_upper or "AUTH" in act_upper or "SECURITY" in act_upper:
+        cat = "SECURITY"
     elif "TASK" in act_upper:
         cat = "TASKS"
     else:
@@ -271,40 +387,36 @@ def _parse_details_dict(raw: Optional[str]) -> Dict[str, Any]:
     summary="Get comprehensive recruitment and hiring audit logs (Admin only)",
     description=(
         "Returns system-wide hiring activity logs, including stage transitions, offers, "
-        "interview scheduling, HM reviews, and sourcing assignments with metrics and filtering."
+        "interview scheduling, HM reviews, sourcing assignments, and request IDs."
     )
 )
 def get_hiring_logs(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
-    category: Optional[str] = Query(None, description="Category: ALL, OFFERS, INTERVIEWS, REVIEWS, SOURCING, TASKS"),
+    category: Optional[str] = Query(None, description="Category: ALL, OFFERS, INTERVIEWS, REVIEWS, SOURCING, TASKS, JOBS, SECURITY"),
     action: Optional[str] = Query(None, description="Filter by exact action name"),
-    search: Optional[str] = Query(None, description="Search term for actions, candidate, job, actor, or details"),
+    request_id: Optional[str] = Query(None, description="Filter by exact request_id"),
+    search: Optional[str] = Query(None, description="Search term for actions, candidate, job, actor, request_id, or details"),
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    from app.services.audit_service import prune_audit_logs
-    # Prune database to retain maximum 50 most recent audit activities
-    try:
-        prune_audit_logs(db, max_keep=50)
-    except Exception as e:
-        logger.warning(f"Audit log auto-prune notice: {e}")
-
-    # Calculate overall metrics bounded by latest 50 entries
+    # Calculate overall metrics
     now = datetime.now(timezone.utc)
     h24 = now - timedelta(hours=24)
 
-    page_size = min(page_size, 50)
     total_logs_count = db.query(func.count(AuditLog.id)).scalar() or 0
-    total_hires = db.query(func.count(AuditLog.id)).filter(AuditLog.action == "OFFER_ACCEPTED").scalar() or 0
+    total_hires = db.query(func.count(AuditLog.id)).filter(
+        AuditLog.action.in_(["OFFER_ACCEPTED", "CANDIDATE_HIRED"])
+    ).scalar() or 0
     total_offers = db.query(func.count(AuditLog.id)).filter(
-        AuditLog.action.in_(["OFFER_SENT", "OFFER_CREATED", "OFFER_APPROVED_BY_HM", "OFFER_ACCEPTED"])
+        AuditLog.action.in_(["OFFER_SENT", "OFFER_CREATED", "OFFER_APPROVED_BY_HM", "OFFER_ACCEPTED", "OFFER_STAGE_INITIATED"])
     ).scalar() or 0
     total_interviews = db.query(func.count(AuditLog.id)).filter(
         or_(
-            AuditLog.action.like("INTERVIEW%"),
+            AuditLog.action.like("%INTERVIEW%"),
             AuditLog.action.like("%SLOT%"),
-            AuditLog.action.like("ROUND%"),
+            AuditLog.action.like("%ROUND%"),
+            AuditLog.action.like("%SCORECARD%"),
         )
     ).scalar() or 0
     recent_24h = db.query(func.count(AuditLog.id)).filter(AuditLog.created_at >= h24).scalar() or 0
@@ -326,48 +438,66 @@ def get_hiring_logs(
         .outerjoin(Candidate, AuditLog.candidate_id == Candidate.id)
     )
 
+    # Request ID filter
+    if isinstance(request_id, str) and request_id.strip():
+        query = query.filter(AuditLog.request_id == request_id.strip())
+
     # Category filtering
-    if category and category.upper() != "ALL":
+    if isinstance(category, str) and category.upper() != "ALL":
         cat = category.upper()
         if cat in ("OFFERS", "HIRES"):
             query = query.filter(
-                AuditLog.action.in_([
-                    "OFFER_CREATED", "OFFER_SUBMITTED_FOR_HM_REVIEW", "OFFER_APPROVED_BY_HM",
-                    "OFFER_CHANGES_REQUESTED_BY_HM", "OFFER_PDF_GENERATED", "OFFER_SENT",
-                    "OFFER_ACCEPTED", "OFFER_REJECTED_CANDIDATE_BLACKLISTED", "OFFER_REJECTED"
-                ])
+                or_(
+                    AuditLog.action.like("OFFER%"),
+                    AuditLog.action.like("%HIRE%"),
+                    AuditLog.action.like("%COMPENSATION%"),
+                )
             )
         elif cat == "INTERVIEWS":
             query = query.filter(
                 or_(
-                    AuditLog.action.like("INTERVIEW%"),
+                    AuditLog.action.like("%INTERVIEW%"),
                     AuditLog.action.like("%SLOT%"),
-                    AuditLog.action.like("ROUND%"),
+                    AuditLog.action.like("%ROUND%"),
+                    AuditLog.action.like("%SCORECARD%"),
                 )
             )
         elif cat == "REVIEWS":
             query = query.filter(
-                AuditLog.action.in_([
-                    "SUBMITTED_TO_HM", "HM_REVIEW_STARTED", "HM_FEEDBACK_GO",
-                    "HM_FEEDBACK_NO_GO", "HM_REJECTED_CANDIDATE"
-                ])
+                or_(
+                    AuditLog.action.like("%HM%"),
+                    AuditLog.action.like("%REVIEW%"),
+                    AuditLog.action.like("%APPROVED%"),
+                )
             )
         elif cat == "SOURCING":
             query = query.filter(
                 AuditLog.action.in_([
-                    "CANDIDATE_MATCHED", "CANDIDATE_SHORTLISTED", "CLAIM_CANDIDATE",
-                    "ASSIGN_RECRUITER", "UNASSIGN_CANDIDATE", "CHANGE_RECRUITER_ROLE"
+                    "CANDIDATE_MATCHED", "CANDIDATE_SHORTLISTED", "CANDIDATE_SCREENED",
+                    "CANDIDATE_REJECTED", "CLAIM_CANDIDATE", "ASSIGN_RECRUITER",
+                    "UNASSIGN_CANDIDATE", "CHANGE_RECRUITER_ROLE", "MATCHING_ENGINE_EXECUTED",
+                    "PIPELINE_STATUS_UPDATED",
                 ])
             )
         elif cat == "TASKS":
-            query = query.filter(AuditLog.action.in_(["CREATE_TASK", "UPDATE_TASK"]))
+            query = query.filter(AuditLog.action.like("%TASK%"))
+        elif cat == "JOBS":
+            query = query.filter(AuditLog.action.like("JOB%"))
+        elif cat == "SECURITY":
+            query = query.filter(
+                or_(
+                    AuditLog.action.like("USER%"),
+                    AuditLog.action.like("PASSWORD%"),
+                    AuditLog.action.like("%SECURITY%"),
+                )
+            )
 
     # Action filtering
-    if action:
-        query = query.filter(AuditLog.action == action)
+    if isinstance(action, str) and action.strip():
+        query = query.filter(AuditLog.action == action.strip())
 
     # Search filtering across all attributes
-    if search and search.strip():
+    if isinstance(search, str) and search.strip():
         term = f"%{search.strip()}%"
         query = query.filter(
             or_(
@@ -375,6 +505,7 @@ def get_hiring_logs(
                 AuditLog.from_state.ilike(term),
                 AuditLog.to_state.ilike(term),
                 AuditLog.details.ilike(term),
+                AuditLog.request_id.ilike(term),
                 User.name.ilike(term),
                 User.email.ilike(term),
                 Job.title.ilike(term),
@@ -407,6 +538,8 @@ def get_hiring_logs(
             actor_name
             or details_obj.get("recruiter")
             or details_obj.get("recruiter_name")
+            or details_obj.get("creator")
+            or details_obj.get("updater")
             or details_obj.get("hm")
             or ("System Automation" if log.actor_id is None else None)
         )
@@ -423,15 +556,18 @@ def get_hiring_logs(
             actor_email=actor_email,
             actor_role=resolved_actor_role,
             job_id=log.job_id,
-            job_title=job_title,
-            job_department=job_dept,
+            job_title=job_title or details_obj.get("job_title") or details_obj.get("title"),
+            job_department=job_dept or details_obj.get("department"),
             candidate_id=log.candidate_id,
             candidate_name=resolved_cand_name,
             match_result_id=log.match_result_id,
             interview_id=log.interview_id,
+            entity_type=log.entity_type,
+            entity_id=log.entity_id,
             from_state=log.from_state,
             to_state=log.to_state,
             details=details_obj,
+            request_id=log.request_id,
             created_at=log.created_at.isoformat() if log.created_at else "",
             relative_time=_format_relative_time(log.created_at) if log.created_at else "",
         )

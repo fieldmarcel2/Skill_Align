@@ -44,9 +44,18 @@ import {
 } from "../types";
 
 // Base URL configured via environment variable for Vercel/production.
-// In local dev, if unset, defaults to empty string to use the Vite proxy.
-const rawApiUrl = (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || "") as string;
-export const API_BASE_URL = rawApiUrl.replace(/\/+$/, "");
+// In local dev, if unset or set to "/api", defaults to empty string to use the Vite proxy.
+// Note: All API endpoints defined in this file already include the "/api" prefix (e.g. "/api/auth/login").
+const rawApiUrl = (
+  (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || "") as string
+).trim().replace(/\/+$/, "");
+
+export const API_BASE_URL =
+  rawApiUrl === "/api"
+    ? ""
+    : rawApiUrl.endsWith("/api")
+    ? rawApiUrl.slice(0, -4)
+    : rawApiUrl;
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,

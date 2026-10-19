@@ -62,6 +62,8 @@ class InterviewOut(BaseModel):
     candidate_name: Optional[str] = None
     job_title: Optional[str] = None
     company_name: Optional[str] = None
+    candidate_id: Optional[int] = None
+    job_id: Optional[int] = None
     slot_token: Optional[str] = None
     pipeline_state: Optional[str] = None
     slots: Optional[List[InterviewSlotOut]] = []

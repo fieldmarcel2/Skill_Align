@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../context/AuthContext";
 import { cn } from "../../lib/utils";
@@ -12,7 +12,6 @@ import {
   UserCheck,
   Layers,
   FileSpreadsheet,
-  Kanban,
   X,
   Inbox,
   CheckSquare,
@@ -24,6 +23,8 @@ import {
   Bell,
   Settings,
   ShieldCheck,
+  GitFork,
+  CalendarCheck,
 } from "lucide-react";
 
 interface NavItem {
@@ -78,7 +79,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [internalCollapsed, setInternalCollapsed] = useState(false);
+
+  const isItemActive = (to: string): boolean => {
+    const currentPath = location.pathname;
+
+    // 1. Root dashboards (exact match)
+    if (to === "/admin" || to === "/recruiter" || to === "/candidate") {
+      return currentPath === to;
+    }
+
+    // 2. Base HM Dashboard ("/hr")
+    if (to === "/hr") {
+      return currentPath === "/hr" && !location.search.includes("tab=interviews");
+    }
+
+    // 3. Scheduled Interviews
+    if (to === "/hr/interviews" || to === "/hr?tab=interviews") {
+      return (
+        currentPath === "/hr/interviews" ||
+        (currentPath === "/hr" && location.search.includes("tab=interviews"))
+      );
+    }
+
+    return currentPath === to || currentPath.startsWith(to + "/");
+  };
 
   const collapsed = controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed;
   const toggleCollapse = onToggleCollapse || (() => setInternalCollapsed((c) => !c));
@@ -116,7 +142,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {
           section: "Workspace",
           items: [
-            { title: "HR Dashboard", to: "/hr", icon: LayoutDashboard },
+            { title: "HM Dashboard", to: "/hr", icon: LayoutDashboard },
+            { title: "Scheduled Interviews", to: "/hr/interviews", icon: CalendarCheck },
             { title: "Recruiter Decision Calls", to: "/hr/decisions", icon: CheckSquare },
             { title: "Create Job Requisition", to: "/hr/jobs/create", icon: PlusCircle },
           ],
@@ -124,7 +151,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {
           section: "Pipeline",
           items: [
-            { title: "Hiring Pipeline", to: "/hr/pipeline", icon: Kanban },
             { title: "Shortlisted Candidates", to: "/hr/shortlists", icon: BookmarkCheck },
           ],
         },
@@ -223,28 +249,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </h4>
             )}
             <nav className="space-y-1">
-              {section.items.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={
-                    item.to === "/admin" ||
-                    item.to === "/hr" ||
-                    item.to === "/recruiter" ||
-                    item.to === "/candidate"
-                  }
-                  onClick={() => onClose?.()}
-                  title={collapsed ? item.title : undefined}
-                  className={({ isActive }) =>
-                    cn(
+              {section.items.map((item) => {
+                const active = isItemActive(item.to);
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    onClick={() => onClose?.()}
+                    title={collapsed ? item.title : undefined}
+                    className={cn(
                       "flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 group relative",
                       collapsed ? "justify-center px-2" : "",
-                      isActive
+                      active
                         ? "bg-primary text-primary-foreground font-bold shadow-xs"
                         : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
-                    )
-                  }
-                >
+                    )}
+                  >
                   <item.icon
                     className={cn(
                       "shrink-0 transition-transform group-hover:scale-105",
@@ -266,7 +286,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-rose-500 shadow-xs animate-pulse" />
                   )}
                 </NavLink>
-              ))}
+              );
+            })}
             </nav>
           </div>
         ))}
@@ -290,10 +311,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <p className="text-xs font-bold text-foreground truncate">{user.name}</p>
                 </div>
                 <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ${rc.bg} ${rc.accent} border ${rc.border}`}>
-                  {user.role.name}
+                  {user.role.name === "HR" ? "HM" : user.role.name}
                 </span>
               </div>
             </div>
+
+            {/* Documentation & Workflow Link */}
+            <a
+              href="/docs/flow-diagram.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all group"
+              title="Interactive Workflow Diagram & Specifications"
+            >
+              <GitFork className="h-4 w-4 text-emerald-500 group-hover:scale-110 transition-transform" />
+              <span>Workflow &amp; Specs</span>
+              <span className="ml-auto text-[10px] font-mono text-muted-foreground group-hover:text-primary">↗</span>
+            </a>
 
             {/* Logout */}
             <button
@@ -309,10 +343,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* Collapsed avatar */}
             <div
               className={`w-9 h-9 mx-auto rounded-xl ${rc.solid} flex items-center justify-center text-white font-black text-xs font-outfit shadow-xs cursor-default`}
-              title={`${user.name} (${user.role.name})`}
+              title={`${user.name} (${user.role.name === "HR" ? "HM" : user.role.name})`}
             >
               {getInitials(user.name || "U")}
             </div>
+            <a
+              href="/docs/flow-diagram.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-center p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all"
+              title="Workflow & Architecture Diagram"
+            >
+              <GitFork className="h-4 w-4 text-emerald-500" />
+            </a>
             <button
               onClick={handleLogout}
               className="w-full flex items-center justify-center p-2 rounded-xl text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-all cursor-pointer"

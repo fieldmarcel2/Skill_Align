@@ -58,11 +58,11 @@ VALID_TRANSITIONS: dict[str, list[str]] = {
     "WAITING_FOR_CANDIDATE_SLOT": ["WAITING_FOR_CANDIDATE_SLOT", "INTERVIEW_SLOTS_PROPOSED", "CANDIDATE_SLOT_SELECTED", "INTERVIEW_CONFIRMED", "REJECTED"],
     "CANDIDATE_SLOT_SELECTED": ["CANDIDATE_SLOT_SELECTED", "INTERVIEW_SLOTS_PROPOSED", "WAITING_FOR_CANDIDATE_SLOT", "INTERVIEW_CONFIRMED", "REJECTED"],
     "INTERVIEW_CONFIRMED": ["INTERVIEW_COMPLETED", "INTERVIEW_SLOTS_PROPOSED", "INTERVIEW_REQUESTED", "CANDIDATE_SLOT_SELECTED", "REJECTED"],
-    "INTERVIEW_COMPLETED": ["WAITING_FOR_HM_FEEDBACK", "INTERVIEW_GO", "COMPENSATION_DISCUSSION", "REJECTED"],
-    "WAITING_FOR_HM_FEEDBACK": ["INTERVIEW_GO", "INTERVIEW_NO_GO", "COMPENSATION_DISCUSSION", "REJECTED"],
-    "INTERVIEW_GO": ["COMPENSATION_DISCUSSION", "INTERVIEW_REQUESTED", "REJECTED"],
+    "INTERVIEW_COMPLETED": ["WAITING_FOR_HM_FEEDBACK", "INTERVIEW_GO", "INTERVIEW_SLOTS_PROPOSED", "INTERVIEW_REQUESTED", "COMPENSATION_DISCUSSION", "REJECTED"],
+    "WAITING_FOR_HM_FEEDBACK": ["INTERVIEW_GO", "INTERVIEW_NO_GO", "INTERVIEW_SLOTS_PROPOSED", "INTERVIEW_REQUESTED", "COMPENSATION_DISCUSSION", "REJECTED"],
+    "INTERVIEW_GO": ["COMPENSATION_DISCUSSION", "INTERVIEW_REQUESTED", "INTERVIEW_SLOTS_PROPOSED", "REJECTED"],
     "INTERVIEW_NO_GO": ["REJECTED"],
-    "COMPENSATION_DISCUSSION": ["OFFER_CREATED", "INTERVIEW_REQUESTED", "REJECTED"],
+    "COMPENSATION_DISCUSSION": ["OFFER_CREATED", "INTERVIEW_REQUESTED", "INTERVIEW_SLOTS_PROPOSED", "REJECTED"],
     "OFFER_CREATED": ["OFFER_SENT", "OFFER_CREATED", "REJECTED"],
     "OFFER_SENT": ["OFFER_ACCEPTED", "OFFER_REJECTED", "REJECTED"],
     "OFFER_ACCEPTED": ["HIRED"],
@@ -95,8 +95,14 @@ def _create_audit_log(
     to_state: Optional[str] = None,
     interview_id: Optional[int] = None,
     details: Optional[str] = None,
+    request_id: Optional[str] = None,
 ) -> AuditLog:
     """Create an audit log entry for a workflow transition."""
+    from app.core.request_context import get_request_id
+    resolved_request_id = request_id or get_request_id()
+    if resolved_request_id == "no-request-id":
+        resolved_request_id = None
+
     log = AuditLog(
         actor_id=actor_id,
         action=action,
@@ -109,6 +115,7 @@ def _create_audit_log(
         from_state=from_state,
         to_state=to_state,
         details=details,
+        request_id=resolved_request_id,
     )
     db.add(log)
     return log
@@ -462,24 +469,32 @@ def request_interview(
         .first()
     )
 
+    existing_rounds = get_match_interviews(db, match_result.id)
+    next_round_num = (max((r.round_number for r in existing_rounds), default=0) + 1) if existing_rounds else 1
+
     calculated_round_name = round_name or (
-        "Comprehensive Assessment (Single Round)"
-        if interview_structure == "single_round"
-        else "Technical Screening (Round 1)"
+        ("Comprehensive Assessment (Single Round)" if interview_structure == "single_round" else "Technical Screening (Round 1)")
+        if next_round_num == 1
+        else f"Interview Assessment (Round {next_round_num})"
     )
 
-    if existing_interview and current_pstate in ("INTERVIEW_SLOTS_PROPOSED", "WAITING_FOR_CANDIDATE_SLOT", "INTERVIEW_REQUESTED", "CANDIDATE_SLOT_SELECTED"):
+    if existing_interview and (
+        current_pstate in ("INTERVIEW_SLOTS_PROPOSED", "WAITING_FOR_CANDIDATE_SLOT", "INTERVIEW_REQUESTED", "CANDIDATE_SLOT_SELECTED")
+        or (current_pstate == "INTERVIEW_CONFIRMED" and existing_interview.status != "completed")
+    ):
         interview = existing_interview
         interview.interview_type = interview_type
         if meeting_link:
             interview.meeting_link = meeting_link
         interview.round_name = calculated_round_name
         interview.status = "pending_slot"
+        interview.interview_date = None
+        interview.scheduled_end = None
 
-        # Cancel previous proposed slots
+        # Cancel previous proposed or selected slots
         db.query(InterviewSlot).filter(
             InterviewSlot.interview_id == interview.id,
-            InterviewSlot.status == "proposed",
+            InterviewSlot.status.in_(["proposed", "selected"]),
         ).update({"status": "cancelled"})
     else:
         if current_pstate not in ("INTERVIEW_REQUESTED", "INTERVIEW_SLOTS_PROPOSED"):
@@ -494,10 +509,11 @@ def request_interview(
             meeting_link=meeting_link,
             interview_mode="online",
             status="pending_slot",
-            round_number=1,
+            round_number=next_round_num,
             round_name=calculated_round_name,
             round_type="TECHNICAL",
             round_status="PENDING_SCHEDULING",
+            is_additional_round=True if next_round_num > 1 else False,
         )
         db.add(interview)
         db.flush()  # get interview.id
@@ -530,8 +546,13 @@ def request_interview(
     # Update match state: INTERVIEW_REQUESTED → INTERVIEW_SLOTS_PROPOSED
     match_result.pipeline_state = "INTERVIEW_SLOTS_PROPOSED"
     match_result.status = "interview_scheduled"
-    if not match_result.hiring_manager_id:
-        match_result.hiring_manager_id = hm_user.id
+    user_role = (hm_user.role.name if hm_user.role else "").upper()
+    if user_role == "RECRUITER":
+        if not match_result.recruiter_id:
+            match_result.recruiter_id = hm_user.id
+    else:
+        if not match_result.hiring_manager_id:
+            match_result.hiring_manager_id = hm_user.id
 
     slot_summary = "; ".join([
         str(s.get("slot_datetime"))[:16] for s in slots

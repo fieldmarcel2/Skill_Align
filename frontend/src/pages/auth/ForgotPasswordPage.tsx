@@ -11,6 +11,7 @@ import { Input } from "../../components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../../components/ui/card";
 import { HeroBackground } from "../../components/effects/HeroBackground";
 import { SkillAlignLogo } from "../../components/common/SkillAlignLogo";
+import { HelpMenu } from "../../components/common/HelpMenu";
 import { useTheme } from "../../context/ThemeContext";
 import {
   Mail,
@@ -19,8 +20,6 @@ import {
   Loader2,
   CheckCircle2,
   KeyRound,
-  ShieldCheck,
-  ExternalLink,
   Sun,
   Moon,
 } from "lucide-react";
@@ -36,7 +35,6 @@ export const ForgotPasswordPage: React.FC = () => {
   const { toggleTheme, isDark } = useTheme();
   const [isLoading, setIsLoading] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
-  const [devResetUrl, setDevResetUrl] = useState<string | null>(null);
 
   const {
     register,
@@ -49,11 +47,8 @@ export const ForgotPasswordPage: React.FC = () => {
   const onSubmit = async (data: ForgotPasswordFormData) => {
     setIsLoading(true);
     try {
-      const res = await authApi.forgotPassword({ email: data.email.trim() });
+      await authApi.forgotPassword({ email: data.email.trim() });
       setSubmittedEmail(data.email.trim());
-      if (res.dev_reset_url) {
-        setDevResetUrl(res.dev_reset_url);
-      }
       toast.success(
         "If your email is registered, you will receive password reset instructions shortly.",
         "Reset Link Dispatched"
@@ -68,8 +63,9 @@ export const ForgotPasswordPage: React.FC = () => {
 
   return (
     <HeroBackground>
-      {/* Theme Toggle in top-right */}
-      <div className="absolute top-4 right-4 z-50">
+      {/* Theme Toggle & Help in top-right */}
+      <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
+        <HelpMenu />
         <motion.button
           type="button"
           onClick={toggleTheme}
@@ -176,32 +172,12 @@ export const ForgotPasswordPage: React.FC = () => {
                   </p>
                 </div>
 
-                {devResetUrl && (
-                  <div className="p-3.5 bg-primary/10 border border-primary/25 rounded-xl text-left space-y-2 shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
-                        <ShieldCheck className="w-3.5 h-3.5 text-primary" /> Direct Reset Link
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      Development / Sandbox link available:
-                    </p>
-                    <a
-                      href={devResetUrl}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-all shadow-xs"
-                    >
-                      Open Reset Password Page <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </div>
-                )}
-
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => {
                     setSubmittedEmail(null);
-                    setDevResetUrl(null);
                   }}
                   className="text-xs h-9 px-4 rounded-xl border-border/80"
                 >

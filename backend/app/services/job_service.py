@@ -102,16 +102,24 @@ def create_job(db: Session, data: JobCreate, creator: User) -> JobOut:
         ))
 
     # Record job creation in audit log
-    audit_entry = AuditLog(
+    from app.services.audit_service import log_audit
+    log_audit(
+        db=db,
         actor_id=creator.id,
         action="JOB_CREATED",
         entity_type="job",
         entity_id=job.id,
         job_id=job.id,
         to_state=job.status,
-        details=f"Job '{job.title}' created by {creator.name} ({creator.role.name if creator.role else 'HR'}) with {len(data.skills)} required/preferred skills.",
+        details={
+            "title": job.title,
+            "department": job.department,
+            "status": job.status,
+            "skills_count": len(data.skills),
+            "creator": creator.name,
+        },
+        commit=False,
     )
-    db.add(audit_entry)
 
     db.commit()
     db.refresh(job)
@@ -161,6 +169,7 @@ def update_job(db: Session, job_id: int, data: JobUpdate, requester: User) -> Jo
     # Track which matching-relevant fields change
     matching_relevant_changed = False
     was_active = job.status == "active"
+    old_status = job.status
 
     if data.title is not None:
         job.title = data.title.strip()
@@ -210,6 +219,26 @@ def update_job(db: Session, job_id: int, data: JobUpdate, requester: User) -> Jo
                 weight=s.weight,
             ))
 
+    from app.services.audit_service import log_audit
+    log_audit(
+        db=db,
+        actor_id=requester.id,
+        action="JOB_UPDATED",
+        entity_type="job",
+        entity_id=job.id,
+        job_id=job.id,
+        from_state=old_status,
+        to_state=job.status,
+        details={
+            "title": job.title,
+            "department": job.department,
+            "status": job.status,
+            "matching_relevant_changed": matching_relevant_changed,
+            "updater": requester.name,
+        },
+        commit=False,
+    )
+
     db.commit()
     db.refresh(job)
 
@@ -233,6 +262,19 @@ def delete_job(db: Session, job_id: int, requester: User) -> None:
     Only HR and Admin can delete jobs.
     """
     job = get_job(db, job_id)
+    job_title = job.title
+
+    from app.services.audit_service import log_audit
+    log_audit(
+        db=db,
+        actor_id=requester.id,
+        action="JOB_DELETED",
+        entity_type="job",
+        entity_id=job_id,
+        job_id=job_id,
+        details={"title": job_title, "deleted_by": requester.name},
+        commit=False,
+    )
 
     # Delete associated job_skills first (cascade should handle this but explicit is safer)
     for js in list(job.job_skills):

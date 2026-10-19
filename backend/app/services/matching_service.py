@@ -13,11 +13,15 @@ Roles & Permissions Workflow:
 5. Final decisions -> 'offer', 'hired', or 'rejected'.
 """
 
+import logging
+import time
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
+
+logger = logging.getLogger("skillalign.matching")
 
 from app.models.job import Job
 from app.models.candidate import Candidate
@@ -269,6 +273,7 @@ def run_job_matching(db: Session, job_id: int, recruiter_user: User) -> MatchRun
     Executes the matching engine for all candidate profiles against the specified job.
     Accessible by Recruiter (or Admin). Sets recruiter_id to the recruiter's ID and status to 'matched'.
     """
+    start_time = time.perf_counter()
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(
@@ -285,52 +290,130 @@ def run_job_matching(db: Session, job_id: int, recruiter_user: User) -> MatchRun
         )
 
     candidates = db.query(Candidate).all()
+    logger.info(
+        "Matching started for job %s with %d candidates",
+        job_id,
+        len(candidates),
+        extra={
+            "event": "matching_started",
+            "job_id": job_id,
+            "total_candidates": len(candidates),
+            "user_id": recruiter_user.id,
+            "user_role": recruiter_user.role.name if recruiter_user.role else "Unknown",
+        },
+    )
+
     if not candidates:
+        duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        logger.info(
+            "Matching completed for job %s: 0 candidates",
+            job_id,
+            extra={
+                "event": "matching_completed",
+                "job_id": job_id,
+                "total_candidates": 0,
+                "match_count": 0,
+                "duration_ms": duration_ms,
+                "status": "success",
+            },
+        )
         return MatchRunResponse(job_id=job_id, total_candidates=0, results=[])
 
-    match_results_out: List[MatchResultOut] = []
+    try:
+        match_results_out: List[MatchResultOut] = []
 
-    for cand in candidates:
-        overall_score, breakdown, meets_experience = calculate_candidate_match_score(job, cand)
+        for cand in candidates:
+            overall_score, breakdown, meets_experience = calculate_candidate_match_score(job, cand)
 
-        existing_result = db.query(MatchResult).filter(
-            MatchResult.job_id == job.id,
-            MatchResult.candidate_id == cand.id
-        ).first()
+            existing_result = db.query(MatchResult).filter(
+                MatchResult.job_id == job.id,
+                MatchResult.candidate_id == cand.id
+            ).first()
 
-        if existing_result:
-            existing_result.overall_score = Decimal(str(overall_score))
-            existing_result.recruiter_id = recruiter_user.id
-            existing_result.matched_by = recruiter_user.id
-            existing_result.status = "matched"
-            db_record = existing_result
-        else:
-            db_record = MatchResult(
-                job_id=job.id,
-                candidate_id=cand.id,
-                recruiter_id=recruiter_user.id,
-                matched_by=recruiter_user.id,
-                overall_score=Decimal(str(overall_score)),
-                status="matched"
-            )
-            db.add(db_record)
+            if existing_result:
+                existing_result.overall_score = Decimal(str(overall_score))
+                existing_result.recruiter_id = recruiter_user.id
+                existing_result.matched_by = recruiter_user.id
+                existing_result.status = "matched"
+                db_record = existing_result
+            else:
+                db_record = MatchResult(
+                    job_id=job.id,
+                    candidate_id=cand.id,
+                    recruiter_id=recruiter_user.id,
+                    matched_by=recruiter_user.id,
+                    overall_score=Decimal(str(overall_score)),
+                    status="matched"
+                )
+                db.add(db_record)
 
-        db.flush()
-        db.refresh(db_record)
+            db.flush()
+            db.refresh(db_record)
 
-        result_out = _build_match_result_out(db_record)
-        match_results_out.append(result_out)
+            result_out = _build_match_result_out(db_record)
+            match_results_out.append(result_out)
 
-    db.commit()
+        from app.services.audit_service import log_audit
+        log_audit(
+            db=db,
+            actor_id=recruiter_user.id,
+            action="MATCHING_ENGINE_EXECUTED",
+            entity_type="job",
+            entity_id=job.id,
+            job_id=job.id,
+            details={
+                "job_title": job.title,
+                "total_candidates": len(candidates),
+                "matches_found": len(match_results_out),
+                "triggered_by": recruiter_user.name,
+            },
+            commit=False,
+        )
 
-    # Sort candidates by overall score descending
-    match_results_out.sort(key=lambda r: r.overall_score, reverse=True)
+        db.commit()
 
-    return MatchRunResponse(
-        job_id=job_id,
-        total_candidates=len(match_results_out),
-        results=match_results_out
-    )
+        # Sort candidates by overall score descending
+        match_results_out.sort(key=lambda r: r.overall_score, reverse=True)
+
+        duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        logger.info(
+            "Matching completed for job %s: %d matches in %.2fms",
+            job_id,
+            len(match_results_out),
+            duration_ms,
+            extra={
+                "event": "matching_completed",
+                "job_id": job_id,
+                "total_candidates": len(candidates),
+                "match_count": len(match_results_out),
+                "duration_ms": duration_ms,
+                "status": "success",
+                "user_id": recruiter_user.id,
+                "user_role": recruiter_user.role.name if recruiter_user.role else "Unknown",
+            },
+        )
+
+        return MatchRunResponse(
+            job_id=job_id,
+            total_candidates=len(match_results_out),
+            results=match_results_out
+        )
+    except Exception as e:
+        duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        logger.error(
+            "Matching failed for job %s: %s",
+            job_id,
+            str(e),
+            exc_info=True,
+            extra={
+                "event": "matching_failed",
+                "job_id": job_id,
+                "duration_ms": duration_ms,
+                "status": "failed",
+                "exception_type": type(e).__name__,
+            },
+        )
+        raise
 
 
 def get_job_matches(db: Session, job_id: int, status_filter: Optional[str] = None) -> List[MatchResultOut]:
@@ -353,8 +436,27 @@ def get_job_matches(db: Session, job_id: int, status_filter: Optional[str] = Non
 def get_screened_matches(db: Session, job_id: Optional[int] = None) -> List[MatchResultOut]:
     """Retrieve all candidates screened by recruiters (ready for HR strategic review & approval). Excludes active blacklisted candidates."""
     from app.services.workflow_service import is_candidate_blacklisted
+    from sqlalchemy import or_
 
-    query = db.query(MatchResult).filter(MatchResult.status.in_(["screened", "approved_by_hr", "interview_scheduled"]))
+    active_statuses = [
+        "screened", "approved_by_hr", "interview_scheduled", "shortlisted",
+        "screening", "technical_interview", "hr_interview", "offer", "hired"
+    ]
+    active_pipeline_states = [
+        "CANDIDATE_SHORTLISTED", "SENT_TO_HIRING_MANAGER", "HIRING_MANAGER_REVIEW",
+        "INTERVIEW_REQUESTED", "INTERVIEW_SLOTS_PROPOSED", "WAITING_FOR_CANDIDATE_SLOT",
+        "CANDIDATE_SLOT_SELECTED", "INTERVIEW_CONFIRMED", "INTERVIEW_COMPLETED",
+        "WAITING_FOR_HM_FEEDBACK", "INTERVIEW_GO", "COMPENSATION_DISCUSSION",
+        "OFFER_CREATED", "OFFER_SENT", "OFFER_ACCEPTED", "HIRED"
+    ]
+
+    query = db.query(MatchResult).filter(
+        or_(
+            MatchResult.status.in_(active_statuses),
+            MatchResult.pipeline_state.in_(active_pipeline_states),
+        )
+    ).filter(MatchResult.status != "rejected")
+
     if job_id:
         query = query.filter(MatchResult.job_id == job_id)
 
@@ -400,11 +502,11 @@ def update_match_status(db: Session, match_id: int, new_status: str, user: User)
     user_role = user.role.name
 
     if user_role == "Recruiter":
-        # Recruiters can screen/reject candidates — no longer tied to job ownership
-        if new_status not in ("screened", "rejected", "matched"):
+        # Recruiters can screen/reject candidates or recommend them to HR ('approved_by_hr')
+        if new_status not in ("screened", "rejected", "matched", "approved_by_hr"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Recruiter can only update candidate status to 'screened' or 'rejected'."
+                detail="Recruiter can only update candidate status to 'screened', 'approved_by_hr', or 'rejected'."
             )
     elif user_role == "HR":
         # HR strategic approval / rejection / interviews / offers
@@ -419,9 +521,13 @@ def update_match_status(db: Session, match_id: int, new_status: str, user: User)
             detail="Unauthorized to update match status."
         )
 
+    old_status = match_record.status
     match_record.status = new_status
 
-    if new_status == "rejected":
+    if new_status == "approved_by_hr":
+        if match_record.pipeline_state in (None, "CANDIDATE_MATCHED"):
+            match_record.pipeline_state = "CANDIDATE_SHORTLISTED"
+    elif new_status == "rejected":
         match_record.pipeline_state = "REJECTED"
         from app.models.recruitment_task import RecruitmentTask
         from app.models.candidate_recruiter_assignment import CandidateRecruiterAssignment
@@ -448,14 +554,54 @@ def update_match_status(db: Session, match_id: int, new_status: str, user: User)
             "completed_at": datetime.now(timezone.utc)
         }, synchronize_session=False)
 
+    # ── Audit Log Entry ──────────────────────────────────────────────────────────
+    status_to_action = {
+        "approved_by_hr": "CANDIDATE_APPROVED_BY_HR",
+        "screened": "CANDIDATE_SCREENED",
+        "rejected": "CANDIDATE_REJECTED",
+        "shortlisted": "CANDIDATE_SHORTLISTED",
+        "interview_scheduled": "INTERVIEW_SCHEDULED",
+        "technical_interview": "TECHNICAL_INTERVIEW_SCHEDULED",
+        "hr_interview": "HR_INTERVIEW_SCHEDULED",
+        "offer": "OFFER_STAGE_INITIATED",
+        "hired": "CANDIDATE_HIRED",
+        "matched": "CANDIDATE_MATCHED",
+    }
+    audit_action = status_to_action.get(new_status, "PIPELINE_STATUS_UPDATED")
+
+    from app.services.audit_service import log_audit
+    cand_name = match_record.candidate.full_name if match_record.candidate else None
+    job_name = match_record.job.title if match_record.job else None
+
+    log_audit(
+        db=db,
+        actor_id=user.id,
+        action=audit_action,
+        entity_type="match_result",
+        entity_id=match_record.id,
+        job_id=match_record.job_id,
+        candidate_id=match_record.candidate_id,
+        match_result_id=match_record.id,
+        from_state=old_status,
+        to_state=new_status,
+        details={
+            "old_status": old_status,
+            "new_status": new_status,
+            "candidate_name": cand_name,
+            "job_title": job_name,
+            "score": float(match_record.overall_score) if match_record.overall_score is not None else None,
+            "actor_role": user_role,
+        },
+        commit=False,
+    )
+
     # Trigger in-app notification & SendGrid email on key milestones
     if match_record.candidate and match_record.candidate.user:
         cand_user = match_record.candidate.user
         job_title = match_record.job.title if match_record.job else "Requisition"
         company_name = (
             match_record.job.client_name
-            or match_record.job.department
-            or "SkillAlign Enterprise Client"
+            or "SkillAlign"
         )
         status_readable = new_status.replace("_", " ").title()
 
@@ -514,6 +660,31 @@ def create_scorecard(
         overall_impression=data.overall_impression,
     )
     db.add(scorecard)
+    db.flush()
+
+    from app.services.audit_service import log_audit
+    cand_name = match_record.candidate.full_name if match_record.candidate else None
+    job_name = match_record.job.title if match_record.job else None
+    log_audit(
+        db=db,
+        actor_id=reviewer.id,
+        action="SCORECARD_SUBMITTED",
+        entity_type="scorecard",
+        entity_id=scorecard.id,
+        job_id=match_record.job_id,
+        candidate_id=match_record.candidate_id,
+        match_result_id=match_record.id,
+        details={
+            "candidate_name": cand_name,
+            "job_title": job_name,
+            "communication_score": data.communication_score,
+            "technical_score": data.technical_score,
+            "overall_impression": data.overall_impression,
+            "reviewer_name": reviewer.name,
+        },
+        commit=False,
+    )
+
     db.commit()
     db.refresh(scorecard)
     return ScorecardOut.model_validate(scorecard)

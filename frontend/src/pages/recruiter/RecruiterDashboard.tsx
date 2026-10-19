@@ -55,6 +55,7 @@ import {
   Check,
   TrendingUp,
   Copy,
+  Eye,
 } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Cell } from "recharts";
 import { cn } from "../../lib/utils";
@@ -1152,22 +1153,48 @@ export const RecruiterDashboard: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {scheduledInterviews.map((inv) => {
                     const isCopied = copiedInterviewId === inv.id;
+                    const isOverdue =
+                      (inv.status === "scheduled" || inv.status === "CONFIRMED") &&
+                      Boolean(inv.interview_date) &&
+                      !inv.feedback &&
+                      Date.now() - new Date(inv.interview_date!).getTime() > 48 * 3600 * 1000;
+                    const isCancelled = inv.status === "cancelled" || isOverdue;
+
                     return (
                       <div
                         key={inv.id}
-                        className="p-5 rounded-2xl border border-border/80 bg-secondary/30 hover:border-emerald-500/40 transition-all space-y-3 shadow-sm"
+                        className={`p-5 rounded-2xl border bg-secondary/30 transition-all space-y-3 shadow-sm ${
+                          isOverdue ? "border-rose-500/40 bg-rose-500/5" : "border-border/80 hover:border-emerald-500/40"
+                        }`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <span className="font-extrabold text-base text-foreground block">
-                              {inv.candidate_name || `Candidate Match #${inv.match_result_id}`}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <Link
+                                to={`/recruiter/candidate/${inv.candidate_id || inv.match_result_id}`}
+                                className="font-extrabold text-base text-foreground hover:text-primary hover:underline transition-colors flex items-center gap-1.5 group"
+                                title="Open candidate review page"
+                              >
+                                <span>{inv.candidate_name || `Candidate Match #${inv.match_result_id}`}</span>
+                                <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
+                              </Link>
+                              <Link
+                                to={`/recruiter/candidate/${inv.candidate_id || inv.match_result_id}`}
+                                className="p-1 rounded hover:bg-secondary text-muted-foreground/60 hover:text-primary transition-colors"
+                                title="Inspect candidate profile"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </Link>
+                            </div>
                             <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-muted-foreground">
                               {inv.job_title && (
-                                <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                                <Link
+                                  to={`/recruiter/candidate/${inv.candidate_id || inv.match_result_id}`}
+                                  className="inline-flex items-center gap-1 font-medium text-foreground hover:text-primary hover:underline transition-colors"
+                                >
                                   <Briefcase className="w-3 h-3 text-primary" />
                                   {inv.job_title}
-                                </span>
+                                </Link>
                               )}
                               <span>•</span>
                               <span className="font-semibold text-primary">
@@ -1176,9 +1203,15 @@ export const RecruiterDashboard: React.FC = () => {
                             </div>
                           </div>
 
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                            {inv.status}
-                          </span>
+                          {isOverdue ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                              Cancelled (Overdue)
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                              {inv.status}
+                            </span>
+                          )}
                         </div>
 
                         {/* Date & Time */}
