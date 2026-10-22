@@ -504,7 +504,7 @@ export const RecruiterOfferPage: React.FC = () => {
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition disabled:opacity-50"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    Submit to HR Manager
+                    Submit to HM
                   </button>
                 </>
               )}
@@ -631,18 +631,14 @@ export const RecruiterOfferPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
-                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60">
-                  <span className="text-[10px] text-muted-foreground block font-medium">Candidate Email</span>
-                  <span className="font-bold text-foreground truncate block">{match.candidate?.email || "—"}</span>
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
                 <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60">
                   <span className="text-[10px] text-muted-foreground block font-medium">Hiring Manager (HRM)</span>
                   <span className="font-bold text-foreground truncate block">
                     {match.hiring_manager_name || offer?.hiring_manager_name || "Sarah HR"}
                   </span>
                 </div>
-                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 col-span-2 sm:col-span-1">
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60">
                   <span className="text-[10px] text-muted-foreground block font-medium">Managing Recruiter</span>
                   <span className="font-bold text-foreground truncate block">
                     {match.assigned_recruiter?.name || offer?.recruiter_name || "James Recruiter"}
@@ -1035,7 +1031,7 @@ export const RecruiterOfferPage: React.FC = () => {
                   className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-lg shadow-indigo-600/25 transition disabled:opacity-50"
                 >
                   <Send className="w-4 h-4" />
-                  Submit to HR Manager
+                  Submit to HM
                 </button>
               )}
             </div>

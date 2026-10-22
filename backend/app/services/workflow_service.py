@@ -31,6 +31,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 
 from fastapi import HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.match_result import MatchResult
@@ -186,8 +187,26 @@ def shortlist_candidate(
     note: Optional[str] = None,
 ) -> MatchResult:
     """Recruiter shortlists a candidate for a job."""
+    from app.core.logging_config import debug_log
     _validate_transition(match_result.pipeline_state, "CANDIDATE_SHORTLISTED")
     old_state = match_result.pipeline_state
+
+    debug_log(
+        logger,
+        "Shortlisting candidate: match_result_id=%s candidate_id=%s job_id=%s "
+        "transition=%s→CANDIDATE_SHORTLISTED",
+        stage="service_processing",
+        extra_fields={
+            "event": "shortlist_transition_started",
+            "match_result_id": match_result.id,
+            "candidate_id": match_result.candidate_id,
+            "job_id": match_result.job_id,
+            "from_state": old_state,
+            "to_state": "CANDIDATE_SHORTLISTED",
+            "user_id": recruiter.id,
+            "note_provided": bool(note),
+        },
+    )
 
     match_result.pipeline_state = "CANDIDATE_SHORTLISTED"
     match_result.status = "screened"
@@ -199,9 +218,41 @@ def shortlist_candidate(
         from_state=old_state, to_state="CANDIDATE_SHORTLISTED",
         details=f"Shortlisted by {recruiter.name}. Note: {note or 'None'}",
     )
+
+    debug_log(
+        logger,
+        "Committing shortlist state change for match_result_id=%s",
+        stage="database_insert",
+        extra_fields={
+            "event": "shortlist_db_update",
+            "match_result_id": match_result.id,
+            "db_operation": "UPDATE",
+            "candidate_id": match_result.candidate_id,
+            "job_id": match_result.job_id,
+        },
+    )
+
     db.commit()
     db.refresh(match_result)
-    logger.info(f"[Workflow] MatchResult {match_result.id}: {old_state} → CANDIDATE_SHORTLISTED by user {recruiter.id}")
+
+    logger.info(
+        "[Workflow] MatchResult %s: %s → CANDIDATE_SHORTLISTED by user_id=%s",
+        match_result.id,
+        old_state,
+        recruiter.id,
+        extra={
+            "event": "candidate_shortlisted",
+            "stage": "response",
+            "match_result_id": match_result.id,
+            "candidate_id": match_result.candidate_id,
+            "job_id": match_result.job_id,
+            "from_state": old_state,
+            "to_state": "CANDIDATE_SHORTLISTED",
+            "user_id": recruiter.id,
+            "rows_affected": 1,
+            "db_operation": "UPDATE",
+        },
+    )
     return match_result
 
 
@@ -230,6 +281,28 @@ def submit_to_hiring_manager(
     match_result.shortlist_note = note
     match_result.submitted_to_hm_at = now
     match_result.status = "screened"
+    if not match_result.recruiter_id:
+        match_result.recruiter_id = recruiter.id
+
+    from app.models.candidate_recruiter_assignment import CandidateRecruiterAssignment
+    _asgn = db.query(CandidateRecruiterAssignment).filter(
+        CandidateRecruiterAssignment.job_id == match_result.job_id,
+        CandidateRecruiterAssignment.candidate_id == match_result.candidate_id,
+    ).first()
+    if not _asgn:
+        _asgn = CandidateRecruiterAssignment(
+            job_id=match_result.job_id,
+            candidate_id=match_result.candidate_id,
+            recruiter_id=recruiter.id,
+            assigned_by=recruiter.id,
+            status="active",
+            assigned_at=now,
+        )
+        db.add(_asgn)
+    elif _asgn.status != "active":
+        _asgn.status = "active"
+        _asgn.recruiter_id = recruiter.id
+        _asgn.assigned_at = now
 
     candidate_name = match_result.candidate.full_name if match_result.candidate else "Candidate"
     job_title = match_result.job.title if match_result.job else "Job"
@@ -611,6 +684,78 @@ def request_interview(
         f"Interview {interview.id} created with {len(slots)} slots."
     )
     return match_result, interview
+
+
+def hm_approve_for_interview(
+    db: Session,
+    match_result: MatchResult,
+    hm_user: User,
+    slots: Optional[List[dict]] = None,
+    interview_type: str = "technical",
+) -> tuple[MatchResult, Optional[Interview]]:
+    """
+    Hiring Manager approves a candidate shortlist for interview.
+    Transitions candidate from SENT_TO_HIRING_MANAGER or HIRING_MANAGER_REVIEW
+    to INTERVIEW_SLOTS_PROPOSED (with initial proposed slots).
+    Removes candidate from Gate 1 (Shortlists) and advances them to Gate 2 (Slot Allocation & Schedules).
+    """
+    bl = is_candidate_blacklisted(db, match_result.candidate_id)
+    if bl:
+        until_str = bl.blacklisted_until.strftime("%d %B %Y")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Candidate unavailable for interview consideration until {until_str}.",
+        )
+
+    # If candidate is already in an interview scheduling or later state, just refresh updated_at
+    if match_result.pipeline_state in (
+        "INTERVIEW_SLOTS_PROPOSED",
+        "WAITING_FOR_CANDIDATE_SLOT",
+        "CANDIDATE_SLOT_SELECTED",
+        "INTERVIEW_CONFIRMED",
+        "INTERVIEW_REQUESTED",
+    ):
+        match_result.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(match_result)
+        existing_itw = (
+            db.query(Interview)
+            .filter(Interview.match_result_id == match_result.id)
+            .order_by(Interview.created_at.desc())
+            .first()
+        )
+        return match_result, existing_itw
+
+    now_utc = datetime.now(timezone.utc)
+    if not slots or len(slots) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "At least 2 interview time slots must be proposed by the Hiring Manager. "
+                "Please use the 'Approve & Schedule Interview' action to provide specific slots."
+            ),
+        )
+
+    proposed_slots = slots
+
+    # Ensure pipeline_state is valid for request_interview
+    if match_result.pipeline_state not in ("INTERVIEW_REQUESTED", "INTERVIEW_SLOTS_PROPOSED"):
+        _validate_transition(match_result.pipeline_state or "SENT_TO_HIRING_MANAGER", "INTERVIEW_SLOTS_PROPOSED")
+
+    match_result, interview = request_interview(
+        db=db,
+        match_result=match_result,
+        hm_user=hm_user,
+        slots=proposed_slots,
+        interview_type=interview_type,
+    )
+
+    match_result.hm_reviewed_at = now_utc
+    match_result.updated_at = now_utc
+    db.commit()
+    db.refresh(match_result)
+    return match_result, interview
+
 
 
 def send_slots_to_candidate(
@@ -1505,9 +1650,10 @@ def send_offer(
 def candidate_respond_to_offer(
     db: Session,
     offer: Offer,
-    token: str,
-    accept: bool,
+    token: Optional[str] = None,
+    accept: bool = True,
     note: Optional[str] = None,
+    current_user: Optional[User] = None,
 ) -> tuple[MatchResult, Offer]:
     """Candidate accepts or rejects an offer with strict transactional safety & row locking."""
     # Transactional row lock on Offer table to prevent race conditions
@@ -1516,7 +1662,28 @@ def candidate_respond_to_offer(
         raise HTTPException(status_code=404, detail="Offer not found.")
     offer = locked_offer
 
-    if not offer.offer_token or offer.offer_token != token:
+    match_result = db.query(MatchResult).filter(MatchResult.id == offer.match_result_id).first()
+    if not match_result:
+        raise HTTPException(status_code=404, detail="Application record not found.")
+
+    # Authorization verification:
+    # 1. Valid token matching offer.offer_token
+    # 2. Or logged-in candidate who owns this offer/match (or Admin)
+    is_authorized = False
+    if token and offer.offer_token and offer.offer_token == token:
+        is_authorized = True
+    elif current_user:
+        if match_result.candidate and match_result.candidate.user_id == current_user.id:
+            is_authorized = True
+        elif current_user.role and current_user.role.name in ("Admin", "Candidate", "HR", "Recruiter"):
+            from app.models.candidate import Candidate
+            cand_prof = db.query(Candidate).filter(Candidate.user_id == current_user.id).first()
+            if cand_prof and cand_prof.id == offer.candidate_id:
+                is_authorized = True
+            elif current_user.role.name == "Admin":
+                is_authorized = True
+
+    if not is_authorized:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid or expired offer authorization token.",
@@ -1908,10 +2075,13 @@ def submit_round_hm_feedback(
             )
 
         else:
-            # Intermediate round passed — keep in INTERVIEW_GO for next round
+            # Intermediate round passed — advance to INTERVIEW_GO for next round
+            _validate_transition(match_result.pipeline_state, "INTERVIEW_GO")
+            match_result.pipeline_state = "INTERVIEW_GO"
+
             _create_audit_log(
                 db, hm_user.id, f"ROUND_{interview.round_number}_PASS", match_result,
-                from_state=old_state, to_state=old_state,
+                from_state=old_state, to_state="INTERVIEW_GO",
                 interview_id=interview.id,
                 details=json.dumps({
                     "round": interview.round_number,
@@ -1920,8 +2090,19 @@ def submit_round_hm_feedback(
                 }),
             )
 
-            # Notify recruiter to schedule next round
+            # Assign task to recruiter to schedule next round
             if match_result.recruiter_id:
+                _create_recruiter_task(
+                    db,
+                    job_id=match_result.job_id,
+                    candidate_id=match_result.candidate_id,
+                    assigned_to=match_result.recruiter_id,
+                    created_by=hm_user.id,
+                    title=f"Schedule Next Round — Round {interview.round_number} Passed",
+                    description=f"Candidate passed Round {interview.round_number}. Propose interview slots for the next round.",
+                    action_type="SEND_SLOTS_TO_CANDIDATE",
+                    match_result_id=match_result.id,
+                )
                 _create_notification(
                     db, match_result.recruiter_id,
                     subject=f"Round {interview.round_number} Passed — Schedule Next Round",
@@ -1940,7 +2121,7 @@ def submit_round_hm_feedback(
                 )
 
             logger.info(
-                f"[Workflow] MatchResult {match_result.id}: Round {interview.round_number} PASS — awaiting next round"
+                f"[Workflow] MatchResult {match_result.id}: Round {interview.round_number} PASS → INTERVIEW_GO (awaiting next round)"
             )
     else:
         raise HTTPException(

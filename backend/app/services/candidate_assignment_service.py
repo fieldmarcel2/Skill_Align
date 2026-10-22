@@ -104,6 +104,8 @@ def claim_candidate(
         )
         db.add(assignment)
 
+    match.recruiter_id = recruiter_user.id
+
     try:
         db.commit()
         db.refresh(assignment)
@@ -171,6 +173,8 @@ def assign_candidate_to_recruiter(
             assigned_at=now,
         )
         db.add(assignment)
+
+    match.recruiter_id = target_recruiter_id
 
     try:
         db.commit()

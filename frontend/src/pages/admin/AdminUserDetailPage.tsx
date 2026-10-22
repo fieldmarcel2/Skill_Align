@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { adminApi, resumeApi } from "../../services/api";
 import { useToast } from "../../components/ui/toast";
 import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "../../components/ui/card";
 import {
@@ -44,6 +45,8 @@ import {
   Eye,
   ArrowRight,
   Activity,
+  Edit3,
+  UserCog,
 } from "lucide-react";
 
 export const AdminUserDetailPage: React.FC = () => {
@@ -51,6 +54,7 @@ export const AdminUserDetailPage: React.FC = () => {
   const userId = Number(id);
   const navigate = useNavigate();
   const toast = useToast();
+  const [searchParams] = useSearchParams();
 
   const [detail, setDetail] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -108,6 +112,66 @@ export const AdminUserDetailPage: React.FC = () => {
     } finally {
       setIsDeleting(false);
       setIsDeleteModalOpen(false);
+    }
+  };
+
+  // Edit Profile modal state
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    email: "",
+    phone_number: "",
+    role: "Recruiter",
+    is_active: true,
+  });
+
+  const handleOpenEditModal = () => {
+    if (!detail || detail.role === "Candidate") return;
+    setEditForm({
+      name: detail.name || "",
+      email: detail.email || "",
+      phone_number: detail.phone_number || "",
+      role: detail.role === "HR" ? "HR" : detail.role || "Recruiter",
+      is_active: detail.is_active ?? true,
+    });
+    setIsEditModalOpen(true);
+  };
+
+  useEffect(() => {
+    if (searchParams.get("edit") === "true" && detail && detail.role !== "Candidate") {
+      handleOpenEditModal();
+    }
+  }, [searchParams, detail]);
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editForm.name.trim()) {
+      toast.error("User name cannot be empty.");
+      return;
+    }
+    if (!editForm.email.trim()) {
+      toast.error("Email address cannot be empty.");
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const updated = await adminApi.updateUser(userId, {
+        name: editForm.name.trim(),
+        email: editForm.email.trim(),
+        phone_number: editForm.phone_number.trim() || null,
+        role: editForm.role,
+        is_active: editForm.is_active,
+      });
+
+      toast.success(`Profile for ${updated.name} updated successfully!`);
+      setIsEditModalOpen(false);
+      await fetchDetail();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to update user profile.");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -245,48 +309,76 @@ export const AdminUserDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {detail.role !== "Admin" && (
-          <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          {detail.role !== "Candidate" && (
             <Button
-              variant={detail.is_active ? "outline" : "secondary"}
-              className={
-                detail.is_active
-                  ? "text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border-rose-500/30"
-                  : "text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 border-emerald-500/30"
-              }
-              disabled={isToggling}
-              onClick={handleToggleStatus}
-            >
-              {isToggling ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : detail.is_active ? (
-                <XCircle className="h-4 w-4 mr-2" />
-              ) : (
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-              )}
-              {isToggling ? "Updating..." : detail.is_active ? "Deactivate Account" : "Activate Account"}
-            </Button>
-
-            <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="text-xs h-9 text-rose-400 hover:text-rose-300 hover:bg-rose-500/15 border border-rose-500/30 gap-1.5 px-3"
-              onClick={() => setIsDeleteModalOpen(true)}
-              title="Permanently remove user"
+              className="text-xs h-9 text-primary hover:text-primary-foreground hover:bg-primary border-primary/40 gap-1.5 px-3 font-semibold shadow-xs"
+              onClick={handleOpenEditModal}
+              title="Edit user profile, phone, or role"
             >
-              <Trash2 className="h-3.5 w-3.5" /> Remove User
+              <Edit3 className="h-3.5 w-3.5" /> Edit Profile
             </Button>
-          </div>
-        )}
+          )}
+
+          {detail.role !== "Admin" && (
+            <>
+              <Button
+                variant={detail.is_active ? "outline" : "secondary"}
+                className={
+                  detail.is_active
+                    ? "text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border-rose-500/30"
+                    : "text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 border-emerald-500/30"
+                }
+                disabled={isToggling}
+                onClick={handleToggleStatus}
+              >
+                {isToggling ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : detail.is_active ? (
+                  <XCircle className="h-4 w-4 mr-2" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                )}
+                {isToggling ? "Updating..." : detail.is_active ? "Deactivate Account" : "Activate Account"}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs h-9 text-rose-400 hover:text-rose-300 hover:bg-rose-500/15 border border-rose-500/30 gap-1.5 px-3"
+                onClick={() => setIsDeleteModalOpen(true)}
+                title="Permanently remove user"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Remove User
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Core Info + Role Detail */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <Card className="border-border/80 bg-card/70 backdrop-blur-xl">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <User className="h-4 w-4 text-primary" /> Account Information
             </CardTitle>
+            {detail.role === "Candidate" ? (
+              <span className="text-[10px] text-muted-foreground font-medium px-2 py-0.5 rounded bg-secondary border border-border">
+                Candidate-Managed Profile
+              </span>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleOpenEditModal}
+                className="h-7 px-2.5 text-xs text-primary hover:text-primary hover:bg-primary/10 gap-1 font-semibold"
+              >
+                <Edit3 className="h-3 w-3" /> Edit
+              </Button>
+            )}
           </CardHeader>
           <CardContent className="space-y-3.5">
             <div className="flex items-center gap-3 text-sm">
@@ -983,6 +1075,153 @@ export const AdminUserDetailPage: React.FC = () => {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── EDIT USER PROFILE MODAL ─────────────────────────────────────── */}
+      <Dialog open={isEditModalOpen} onOpenChange={(open) => !open && setIsEditModalOpen(false)}>
+        <DialogContent className="sm:max-w-md border-border/80 bg-card/95 backdrop-blur-2xl">
+          <form onSubmit={handleSaveProfile} className="space-y-4">
+            <DialogHeader>
+              <div className="flex items-center gap-3 text-primary mb-1">
+                <div className="h-10 w-10 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0 text-primary">
+                  <UserCog className="h-5 w-5" />
+                </div>
+                <div>
+                  <DialogTitle className="text-lg font-bold font-outfit text-foreground">
+                    Edit User Profile
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground">
+                    Update personal details, communication channels, and governance roles.
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="space-y-3.5 py-1">
+              {/* Full Name */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                  <span>Full Name</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">Required</span>
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    required
+                    value={editForm.name}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                    placeholder="e.g. Second Recruiter"
+                    className="pl-9 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Email Address */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                  <span>Email Address</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">Login Identity</span>
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    type="email"
+                    required
+                    value={editForm.email}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, email: e.target.value }))}
+                    placeholder="e.g. recruiter@skillalign.dev"
+                    className="pl-9 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Phone Number */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                  <span>Phone Number</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">Optional</span>
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    type="tel"
+                    value={editForm.phone_number}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, phone_number: e.target.value }))}
+                    placeholder="e.g. +91 98765 43210 or +1 (555) 0199"
+                    className="pl-9 text-xs"
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground">Used for interview coordination and notifications.</p>
+              </div>
+
+              {/* System Role */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                  <span>System Role & Permissions</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">Role assignment</span>
+                </label>
+                <select
+                  value={editForm.role}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, role: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 font-medium"
+                >
+                  <option value="Recruiter">Recruiter (Talent Sourcing & Candidate Claiming)</option>
+                  <option value="HR">Hiring Manager / HM (Requisitions & Offer Approvals)</option>
+                  <option value="Admin">System Administrator</option>
+                </select>
+              </div>
+
+              {/* Account Status Switch */}
+              <div className="flex items-center justify-between p-3 rounded-xl border border-border/70 bg-secondary/30 mt-2">
+                <div>
+                  <span className="text-xs font-semibold text-foreground block">Account Status</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {editForm.is_active ? "User can sign in and perform assigned duties" : "Account is suspended and cannot log in"}
+                  </span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editForm.is_active}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, is_active: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                </label>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0 pt-3 border-t border-border/60">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsEditModalOpen(false)}
+                disabled={isUpdating}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={isUpdating}
+                className="gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs"
+              >
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving Changes...
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-3.5 w-3.5" /> Save Changes
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

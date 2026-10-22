@@ -44,6 +44,11 @@ _SENSITIVE_KEYS: frozenset[str] = frozenset({
     "password_reset_token", "token_hash", "sendgrid_api_key",
     "twilio_auth_token", "gemini_api_key", "credentials", "credential",
     "private_key", "secret", "auth_token",
+    # PII — present in resume uploads and candidate profile objects
+    "phone", "phone_number", "mobile", "mobile_number",
+    "address", "home_address", "street_address", "postal_code", "zip_code",
+    "resume_raw_text", "extracted_text", "raw_text",
+    "national_id", "ssn", "passport_number", "dob", "date_of_birth",
 })
 _REDACTED = "[REDACTED]"
 
@@ -98,6 +103,59 @@ def _redact_data(obj: Any) -> Any:
     elif isinstance(obj, str):
         return _redact_string(obj)
     return obj
+
+
+# ── Payload truncation helpers ────────────────────────────────────────────────
+
+_MAX_PAYLOAD_CHARS = 2000   # Max characters logged for any single payload
+_MAX_LIST_ITEMS = 20        # Max items from a list logged in full
+
+
+def _truncate_payload(obj: Any, max_chars: int = _MAX_PAYLOAD_CHARS) -> Any:
+    """
+    Produce a safe, size-bounded representation of a payload for debug logs.
+    - Dicts: truncated after _MAX_PAYLOAD_CHARS JSON chars.
+    - Lists: capped at _MAX_LIST_ITEMS items, then appended with a count note.
+    - Strings: truncated at max_chars.
+    """
+    if isinstance(obj, dict):
+        try:
+            raw = json.dumps(obj, default=str, ensure_ascii=False)
+        except Exception:
+            raw = str(obj)
+        if len(raw) > max_chars:
+            return raw[:max_chars] + f"...[truncated, total={len(raw)} chars]"
+        return raw
+    elif isinstance(obj, list):
+        total = len(obj)
+        items = obj[:_MAX_LIST_ITEMS]
+        try:
+            raw = json.dumps(items, default=str, ensure_ascii=False)
+        except Exception:
+            raw = str(items)
+        if total > _MAX_LIST_ITEMS:
+            return raw + f" ...[{total - _MAX_LIST_ITEMS} more items omitted, total={total}]"
+        return raw
+    elif isinstance(obj, str):
+        if len(obj) > max_chars:
+            return obj[:max_chars] + f"...[truncated, total={len(obj)} chars]"
+        return obj
+    try:
+        return json.dumps(obj, default=str, ensure_ascii=False)
+    except Exception:
+        return str(obj)
+
+
+def sanitize_and_truncate(obj: Any, max_chars: int = _MAX_PAYLOAD_CHARS) -> str:
+    """
+    Redact sensitive fields, then truncate to max_chars.
+    Safe to call for any payload before logging at DEBUG level.
+    """
+    try:
+        clean = _redact_data(obj)
+        return _truncate_payload(clean, max_chars=max_chars)
+    except Exception:
+        return "[payload serialization error]"
 
 
 class RedactionFilter(logging.Filter):
@@ -257,6 +315,9 @@ class JSONFormatter(logging.Formatter):
             "status", "exception_type", "category", "client_ip",
             "file_type", "s3_key", "skills_count", "total_candidates",
             "match_count",
+            # Debug data-flow fields
+            "stage", "payload_preview", "rows_affected", "db_operation",
+            "input_count", "output_count", "discrepancy_note",
         )
         for field in _CONTEXT_FIELDS:
             val = getattr(record, field, None)
@@ -345,12 +406,24 @@ class ConsoleFormatter(logging.Formatter):
         if rid:
             parts.append(f"req={rid}")
 
-        for field in ("user_id", "candidate_id", "job_id", "duration_ms"):
+        # Show stage first so it's easy to scan the data-flow sequence
+        stage = getattr(record, "stage", None)
+        if stage:
+            parts.append(f"stage={stage}")
+
+        for field in ("user_id", "user_role", "candidate_id", "job_id",
+                      "match_result_id", "match_id", "interview_id", "offer_id",
+                      "duration_ms", "status_code"):
             val = getattr(record, field, None)
             if val is not None:
                 parts.append(f"{field}={val}")
 
         parts.append(msg)
+
+        # In DEBUG mode, append payload preview on a separate indented line for readability
+        payload_preview = getattr(record, "payload_preview", None)
+        if payload_preview and record.levelno <= logging.DEBUG:
+            parts.append(f"\n    payload={payload_preview}")
         line = " | ".join(parts)
 
         if record.exc_info:
@@ -605,11 +678,16 @@ def setup_logging(
 
     # Silence noisy third-party loggers
     for noisy in (
-        "uvicorn.access", "sqlalchemy.engine", "sqlalchemy.pool",
-        "passlib", "httpx", "celery.app.trace", "amqp", "kombu",
+        "uvicorn.access", "passlib", "httpx", "celery.app.trace", "amqp", "kombu",
     ):
         logging.getLogger(noisy).setLevel(logging.WARNING)
     logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
+
+    # SQLAlchemy: suppress at WARNING normally; promote to INFO in DEBUG mode so
+    # raw SQL statements appear in the terminal without flooding every other log.
+    sa_level = logging.INFO if numeric_level <= logging.DEBUG else logging.WARNING
+    logging.getLogger("sqlalchemy.engine").setLevel(sa_level)
+    logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)  # pool chatter stays quiet
 
     # Ensure all skillalign.* loggers propagate to root
     for name in (
@@ -638,3 +716,62 @@ def setup_logging(
             "max_file_size_mb": max_file_size_mb,
         },
     )
+
+
+# ── Convenience helpers for application code ──────────────────────────────────
+
+def is_debug_logging_enabled() -> bool:
+    """Returns True if the root logger is set to DEBUG level."""
+    return logging.getLogger().isEnabledFor(logging.DEBUG)
+
+
+def debug_log(
+    logger_instance: logging.Logger,
+    message: str,
+    *,
+    stage: Optional[str] = None,
+    payload: Any = None,
+    extra_fields: Optional[dict] = None,
+) -> None:
+    """
+    Emit a DEBUG-level structured log only when DEBUG logging is active.
+    Payload is automatically sanitized and truncated — never logs raw secrets.
+
+    Usage::
+
+        from app.core.logging_config import debug_log
+        debug_log(logger, "Incoming payload",
+                  stage="request_validation",
+                  payload=request_data.model_dump(),
+                  extra_fields={"job_id": job_id})
+    """
+    if not logger_instance.isEnabledFor(logging.DEBUG):
+        return
+
+    extra: dict[str, Any] = {}
+    if stage:
+        extra["stage"] = stage
+    if extra_fields:
+        extra.update(extra_fields)
+
+    if payload is not None:
+        try:
+            extra["payload_preview"] = sanitize_and_truncate(payload)
+        except Exception:
+            extra["payload_preview"] = "[serialization error]"
+
+    logger_instance.debug(message, extra=extra)
+
+
+def _build_log_extra(
+    *,
+    event: str,
+    stage: Optional[str] = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Build a consistent extra dict for structured log records."""
+    d: dict[str, Any] = {"event": event}
+    if stage:
+        d["stage"] = stage
+    d.update({k: v for k, v in kwargs.items() if v is not None})
+    return d

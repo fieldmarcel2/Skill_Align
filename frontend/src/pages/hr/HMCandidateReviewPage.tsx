@@ -92,6 +92,7 @@ export const HMCandidateReviewPage: React.FC = () => {
     }
   };
 
+
   // Handle HM Reject
   const handleReject = async () => {
     if (!rejectReason.trim()) {
@@ -159,7 +160,7 @@ export const HMCandidateReviewPage: React.FC = () => {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => navigate("/hr/dashboard")}
+          onClick={() => navigate("/hr")}
           className="mt-5 text-xs font-semibold"
         >
           Return to Dashboard
@@ -185,7 +186,7 @@ export const HMCandidateReviewPage: React.FC = () => {
       {/* Top Breadcrumb & Actions */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <Link
-          to="/hr/dashboard"
+          to="/hr"
           className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -364,7 +365,7 @@ export const HMCandidateReviewPage: React.FC = () => {
               {canDecide ? (
                 <div className="space-y-3">
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Evaluate this profile against role expectations. You can request multi-slot interview schedules or release the candidate.
+                    Evaluate this profile against role expectations. To advance the candidate, you must propose at least 2 interview time slots.
                   </p>
                   <Button
                     type="button"
@@ -374,7 +375,7 @@ export const HMCandidateReviewPage: React.FC = () => {
                     className="w-full gap-2 text-xs font-bold shadow-md shadow-indigo-500/20"
                   >
                     <Calendar className="w-4 h-4" />
-                    Request Interview (Propose Slots)
+                    Approve &amp; Schedule Interview
                   </Button>
                   <Button
                     type="button"

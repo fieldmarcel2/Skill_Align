@@ -26,12 +26,13 @@ export const RecruiterCandidatesPage: React.FC = () => {
   // URL Query Params - support both snake_case and camelCase
   const qJobId = searchParams.get("job_id") || searchParams.get("jobId");
   const initialJobId = qJobId ? Number(qJobId) : undefined;
+  const qStatus = searchParams.get("status") || "";
 
   // Filters State
   const [selectedJobId, setSelectedJobId] = useState<number | undefined>(initialJobId);
   const [searchTerm, setSearchTerm] = useState("");
   const [minScore, setMinScore] = useState<number | undefined>(undefined);
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>(qStatus);
   const [assignmentFilter, setAssignmentFilter] = useState<string>("all"); // 'all', 'assigned_to_me', 'unassigned'
 
   // Pagination State
@@ -49,6 +50,10 @@ export const RecruiterCandidatesPage: React.FC = () => {
   useEffect(() => {
     const currentParam = searchParams.get("job_id") || searchParams.get("jobId");
     setSelectedJobId(currentParam ? Number(currentParam) : undefined);
+    const currentStatus = searchParams.get("status") || "";
+    if (currentStatus) {
+      setStatusFilter(currentStatus);
+    }
     setPage(1);
   }, [searchParams]);
 
@@ -66,7 +71,8 @@ export const RecruiterCandidatesPage: React.FC = () => {
     try {
       const assigned = await recruiterApi.getAssignedJobs();
       if (assigned && assigned.length > 0) {
-        setJobs(assigned);
+        const sorted = [...assigned].sort((a, b) => (b.total_candidates || 0) - (a.total_candidates || 0));
+        setJobs(sorted);
       } else {
         const allJobs = await jobsApi.list();
         setJobs(
@@ -202,7 +208,7 @@ export const RecruiterCandidatesPage: React.FC = () => {
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-center gap-3 text-amber-700 dark:text-amber-400 text-xs">
           <AlertCircle className="w-5 h-5 shrink-0" />
           <div>
-            <span className="font-bold">No Job Requisitions Assigned:</span> You do not have any active job requisitions assigned to your recruiter queue yet. Please request your HR manager to assign requisitions to you in order to review and screen matched candidates.
+            <span className="font-bold">No Job Requisitions Assigned:</span> You do not have any active job requisitions assigned to your recruiter queue yet. Please request your Hiring Manager (HM) to assign requisitions to you in order to review and screen matched candidates.
           </div>
         </div>
       )}
@@ -315,7 +321,7 @@ export const RecruiterCandidatesPage: React.FC = () => {
                 <option value="">All Stages</option>
                 <option value="matched">Matched (Pending Review)</option>
                 <option value="screened">Screened</option>
-                <option value="approved_by_hr">Approved by HR</option>
+                <option value="approved_by_hr">Approved by HM</option>
                 <option value="interview_scheduled">Interview Scheduled</option>
                 <option value="rejected">Rejected</option>
               </select>

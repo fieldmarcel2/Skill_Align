@@ -789,7 +789,7 @@ export const LandingPage: React.FC = () => {
                     End-to-End Visual ATS Pipeline
                   </h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    Move talent seamlessly across customizable hiring stages: <strong>Matched → Screened → HR Approved → Interview Scheduled → Offer Extended → Hired</strong>.
+                    Move talent seamlessly across customizable hiring stages: <strong>Matched → Screened → HM Approved → Interview Scheduled → Offer Extended → Hired</strong>.
                   </p>
                   <ul className="space-y-2 text-xs sm:text-sm text-foreground/90">
                     <li className="flex items-center gap-2">
@@ -813,7 +813,7 @@ export const LandingPage: React.FC = () => {
                     <span className="text-emerald-400">100% Idempotent</span>
                   </div>
                   <div className="space-y-2">
-                    {["Matched (Candidate Pool)", "Screened (Recruiter Cleared)", "HR Approved (Director Signoff)", "Interview Scheduled (Video Link Dispatched)", "Hired (Offer Accepted)"].map((stage, i) => (
+                    {["Matched (Candidate Pool)", "Screened (Recruiter Cleared)", "HM Approved (Manager Signoff)", "Interview Scheduled (Video Link Dispatched)", "Hired (Offer Accepted)"].map((stage, i) => (
                       <div key={stage} className="flex items-center gap-2 p-2 rounded-lg bg-background/60 border border-border/40">
                         <span className="h-5 w-5 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center">
                           {i + 1}

@@ -7,6 +7,7 @@ import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
 import { getProficiencyBadgeClass, cn } from "../../lib/utils";
+import { MatchScoreGauge } from "../../components/common/MatchScoreGauge";
 import {
   Dialog,
   DialogContent,
@@ -320,7 +321,7 @@ export const ShortlistsPage: React.FC = () => {
               <option value="all">All Pipeline Stages</option>
               <option value="shortlisted">Shortlisted</option>
               <option value="interview_scheduled">Interview Scheduled</option>
-              <option value="approved_by_hr">Approved by HR</option>
+              <option value="approved_by_hr">Approved by HM</option>
               <option value="screened">Screened</option>
             </select>
           </div>
@@ -493,17 +494,8 @@ export const ShortlistsPage: React.FC = () => {
 
                   {/* Right Column: Score & Action Suite */}
                   <div className="flex items-center justify-between lg:justify-end gap-4 shrink-0 pt-4 lg:pt-0 border-t lg:border-t-0 border-border/50">
-                    {/* Score Badge */}
-                    <div
-                      className={cn(
-                        "flex flex-col items-center justify-center min-w-[62px] h-14 rounded-2xl border px-3",
-                        scoreColor
-                      )}
-                      title="Deterministic match score based on verified resume evidence, required skills, and experience"
-                    >
-                      <span className="text-xl font-black leading-none">{scorePercent}%</span>
-                      <span className="text-[9px] font-extrabold uppercase tracking-wider mt-0.5">Match</span>
-                    </div>
+                    {/* Score Gauge */}
+                    <MatchScoreGauge score={rawScore} size="md" />
 
                     {/* Actions */}
                     <div className="flex flex-wrap items-center gap-2">

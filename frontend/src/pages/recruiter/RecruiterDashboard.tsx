@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import {
   jobsApi,
@@ -28,6 +28,8 @@ import { Badge } from "../../components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../../components/ui/dialog";
 import { StatCard } from "../../components/common/StatCard";
 import { CandidateCard } from "../../components/candidate/CandidateCard";
+import { GoogleCalendarButton } from "../../components/calendar/GoogleCalendarButton";
+import { buildInterviewCalendarEvent } from "../../lib/googleCalendar";
 import {
   Briefcase,
   Sparkles,
@@ -41,6 +43,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  Archive,
   ExternalLink,
   ChevronLeft,
   ChevronRight,
@@ -56,12 +59,17 @@ import {
   TrendingUp,
   Copy,
   Eye,
+  Search,
 } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Cell } from "recharts";
+import { Suspense, lazy } from "react";
 import { cn } from "../../lib/utils";
+import { ChartSkeleton } from "../../components/charts/ChartSkeleton";
+
+const RecruiterMatchQualityChart = lazy(() => import("../../components/charts/RecruiterMatchQualityChart"));
 
 const MATCH_PAGE_SIZE = 8;
 const JOBS_PAGE_SIZE = 6;
+const INTERVIEWS_PER_PAGE = 6;
 
 export const RecruiterDashboard: React.FC = () => {
   const toast = useToast();
@@ -88,6 +96,8 @@ export const RecruiterDashboard: React.FC = () => {
   // Scheduled Interviews
   const [scheduledInterviews, setScheduledInterviews] = useState<Interview[]>([]);
   const [copiedInterviewId, setCopiedInterviewId] = useState<number | null>(null);
+  const [interviewPage, setInterviewPage] = useState(1);
+  const [interviewSearch, setInterviewSearch] = useState("");
 
   // Tasks & Messages for selected job
   const [myTasks, setMyTasks] = useState<RecruitmentTask[]>([]);
@@ -113,6 +123,37 @@ export const RecruiterDashboard: React.FC = () => {
   const [hiredOffers, setHiredOffers] = useState<Offer[]>([]);
   const [selectedHiredCandidate, setSelectedHiredCandidate] = useState<Offer | null>(null);
   const [hiredDetailModalOpen, setHiredDetailModalOpen] = useState(false);
+
+  // Scheduled Interviews sorting descending by creation/date before pagination
+  const filteredSortedInterviews = useMemo(() => {
+    return scheduledInterviews
+      .filter((inv) => {
+        if (!interviewSearch.trim()) return true;
+        const q = interviewSearch.toLowerCase();
+        return (
+          (inv.candidate_name || "").toLowerCase().includes(q) ||
+          (inv.job_title || "").toLowerCase().includes(q) ||
+          (inv.interview_type || "").toLowerCase().includes(q) ||
+          String(inv.id).includes(q)
+        );
+      })
+      .sort((a, b) => {
+        const timeA = a.created_at
+          ? new Date(a.created_at).getTime()
+          : (a.interview_date ? new Date(a.interview_date).getTime() : 0);
+        const timeB = b.created_at
+          ? new Date(b.created_at).getTime()
+          : (b.interview_date ? new Date(b.interview_date).getTime() : 0);
+        if (timeB !== timeA) return timeB - timeA;
+        return (b.id || 0) - (a.id || 0);
+      });
+  }, [scheduledInterviews, interviewSearch]);
+
+  const totalInterviewPages = Math.max(1, Math.ceil(filteredSortedInterviews.length / INTERVIEWS_PER_PAGE));
+  const paginatedInterviews = filteredSortedInterviews.slice(
+    (interviewPage - 1) * INTERVIEWS_PER_PAGE,
+    interviewPage * INTERVIEWS_PER_PAGE
+  );
 
   const handleStageCardClick = async (
     key: string,
@@ -146,15 +187,34 @@ export const RecruiterDashboard: React.FC = () => {
         offerApi.listOffers("ACCEPTED").catch(() => []),
       ]);
 
-      setAssignedJobs(jobsData);
+      // Sort jobs descending by total_candidates so requisition with highest candidate volume is first
+      const sortedJobs = [...jobsData].sort((a, b) => {
+        const diff = (b.total_candidates || 0) - (a.total_candidates || 0);
+        if (diff !== 0) return diff;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
+      // Sort scheduled interviews descending by creation/date
+      const sortedInvs = [...interviewsData].sort((a, b) => {
+        const timeA = a.created_at
+          ? new Date(a.created_at).getTime()
+          : (a.interview_date ? new Date(a.interview_date).getTime() : 0);
+        const timeB = b.created_at
+          ? new Date(b.created_at).getTime()
+          : (b.interview_date ? new Date(b.interview_date).getTime() : 0);
+        if (timeB !== timeA) return timeB - timeA;
+        return (b.id || 0) - (a.id || 0);
+      });
+
+      setAssignedJobs(sortedJobs);
       setDashboardStats(statsData);
       setMyTasks(tasksData);
-      setScheduledInterviews(interviewsData);
+      setScheduledInterviews(sortedInvs);
       setOfferStats(offerStatsData);
       setHiredOffers(hiredOffersData || []);
 
-      if (jobsData.length > 0) {
-        const firstJobId = jobsData[0].id;
+      if (sortedJobs.length > 0) {
+        const firstJobId = sortedJobs[0].id;
         setSelectedJobId(firstJobId);
         loadMatchesForJob(firstJobId);
         loadJobMessages(firstJobId);
@@ -257,7 +317,7 @@ export const RecruiterDashboard: React.FC = () => {
     try {
       await matchingApi.updateStatus(matchId, status);
       if (status === "screened") {
-        toast.success("Candidate endorsed and sent to HR review!", "Screening Complete");
+        toast.success("Candidate endorsed and sent to HM review!", "Screening Complete");
       } else {
         toast.warning("Candidate marked as Rejected.");
       }
@@ -292,7 +352,7 @@ export const RecruiterDashboard: React.FC = () => {
       });
       setJobMessages((prev) => [...prev, msg]);
       setNewMsgText("");
-      toast.success("Message sent to HR & team.");
+      toast.success("Message sent to HM & team.");
     } catch (err: any) {
       toast.error(err?.response?.data?.detail || "Failed to send message.");
     } finally {
@@ -311,8 +371,51 @@ export const RecruiterDashboard: React.FC = () => {
   const selectedJob = assignedJobs.find((j) => j.id === selectedJobId);
   const currentMatches = selectedJobId ? jobMatches[selectedJobId] || [] : [];
 
+  const isMatchRejected = (m: MatchResult) => {
+    return (
+      m.status === "rejected" ||
+      m.pipeline_state === "REJECTED" ||
+      m.pipeline_state === "HIRING_MANAGER_REJECTED" ||
+      m.pipeline_state === "OFFER_REJECTED" ||
+      m.pipeline_state === "BLACKLISTED"
+    );
+  };
+
+  const activeMatches = currentMatches.filter((m) => !isMatchRejected(m));
+  const rejectedMatches = currentMatches.filter((m) => isMatchRejected(m));
+
+  const claimedActiveCount = activeMatches.filter(
+    (m) =>
+      (m.assignment_status === "claimed" || m.assignment_status === "assigned") &&
+      m.assigned_recruiter?.id === user?.id
+  ).length;
+
+  const unassignedActiveCount = activeMatches.filter(
+    (m) =>
+      !m.assigned_recruiter ||
+      (m.assignment_status !== "claimed" && m.assignment_status !== "assigned")
+  ).length;
+
   const filteredMatches = currentMatches.filter((m) => {
+    const isRejected = isMatchRejected(m);
+
+    // If explicit rejected tab selected in Queue:
+    if (assignmentFilter === "rejected") {
+      return isRejected;
+    }
+
+    // If explicit rejected selected in Stage dropdown:
+    if (filterStatus === "rejected") {
+      return isRejected;
+    }
+
+    // Otherwise, exclude rejected candidates from the active work queue
+    if (isRejected) return false;
+
+    // Filter by stage
     if (filterStatus !== "all" && m.status !== filterStatus) return false;
+
+    // Filter by assignment
     if (assignmentFilter === "assigned_to_me") {
       return (
         (m.assignment_status === "claimed" || m.assignment_status === "assigned") &&
@@ -430,118 +533,29 @@ export const RecruiterDashboard: React.FC = () => {
         );
       })()}
 
-      {/* Enterprise Offer Management Lifecycle Strip */}
-      {offerStats && (
-        <div className="bg-card border border-border rounded-xl p-4 shadow-sm space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                <FileCheck className="w-4 h-4 text-primary" />
-                Compensation & Offer Management Lifecycle
-              </h3>
-              <p className="text-[11px] text-muted-foreground">
-                Real-time tracking of candidate compensation proposals, hiring manager approvals, and offer formalization
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link to="/recruiter/offers/create">
-                <Button variant="outline" size="sm" className="text-xs font-semibold h-7 px-2.5 gap-1.5">
-                  <FileCheck className="w-3.5 h-3.5 text-primary" />
-                  New Offer Proposal
-                </Button>
-              </Link>
-            </div>
+
+      {/* Visual Candidate Match Quality Distribution */}
+      <div className="bg-card border border-border rounded-xl p-4 shadow-sm space-y-3 min-w-0 overflow-hidden">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-xs font-bold font-outfit uppercase tracking-wider text-foreground flex items-center gap-1.5">
+              <TrendingUp className="w-4 h-4 text-primary" />
+              Candidate Match Quality & Alignment Tiers
+            </h3>
+            <p className="text-[11px] text-muted-foreground">Distribution of algorithmic relevance across assigned candidate pool</p>
           </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-            <div
-              onClick={() => handleStageCardClick("DRAFT", "Draft Offers", "Candidate offers currently being drafted and configured.", "bg-muted text-foreground border-border")}
-              className="p-2.5 rounded-lg bg-muted/20 border border-border cursor-pointer hover:bg-muted/40 hover:border-primary/40 hover:shadow-sm transition-all active:scale-[0.98] group"
-              role="button"
-              tabIndex={0}
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-[10px] font-semibold text-muted-foreground uppercase group-hover:text-foreground transition-colors">Drafts</div>
-                <ChevronRight className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <div className="text-lg font-bold font-mono text-foreground mt-0.5">{offerStats.draft}</div>
-              <div className="text-[10px] text-muted-foreground">In preparation</div>
-            </div>
-
-            <div
-              onClick={() => handleStageCardClick("PENDING_HM_REVIEW", "Pending HM Review", "Offers awaiting hiring manager review and approval.", "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20")}
-              className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 cursor-pointer hover:bg-amber-500/20 hover:border-amber-500/50 hover:shadow-sm transition-all active:scale-[0.98] group"
-              role="button"
-              tabIndex={0}
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 uppercase group-hover:underline">Pending HM Review</div>
-                <ChevronRight className="w-3 h-3 text-amber-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <div className="text-lg font-bold font-mono text-amber-700 dark:text-amber-400 mt-0.5">{offerStats.pending_hm_review}</div>
-              <div className="text-[10px] text-amber-600/80 dark:text-amber-400/80">Awaiting HM sign-off</div>
-            </div>
-
-            <div
-              onClick={() => handleStageCardClick("HM_CHANGES_REQUESTED", "Changes Requested", "Offers requiring revisions per Hiring Manager feedback.", "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20")}
-              className="p-2.5 rounded-lg bg-orange-500/10 border border-orange-500/20 cursor-pointer hover:bg-orange-500/20 hover:border-orange-500/50 hover:shadow-sm transition-all active:scale-[0.98] group"
-              role="button"
-              tabIndex={0}
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-[10px] font-semibold text-orange-700 dark:text-orange-400 uppercase group-hover:underline">Changes Requested</div>
-                <ChevronRight className="w-3 h-3 text-orange-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <div className="text-lg font-bold font-mono text-orange-700 dark:text-orange-400 mt-0.5">{offerStats.hm_changes_requested}</div>
-              <div className="text-[10px] text-orange-600/80 dark:text-orange-400/80">Revisions needed</div>
-            </div>
-
-            <div
-              onClick={() => handleStageCardClick("HM_APPROVED", "HM Approved / Ready", "Offers approved by HM and cleared for formal PDF creation and dispatch.", "bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-500/20")}
-              className="p-2.5 rounded-lg bg-sky-500/10 border border-sky-500/20 cursor-pointer hover:bg-sky-500/20 hover:border-sky-500/50 hover:shadow-sm transition-all active:scale-[0.98] group"
-              role="button"
-              tabIndex={0}
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-[10px] font-semibold text-sky-700 dark:text-sky-400 uppercase group-hover:underline">HM Approved</div>
-                <ChevronRight className="w-3 h-3 text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <div className="text-lg font-bold font-mono text-sky-700 dark:text-sky-400 mt-0.5">{(offerStats.hm_approved || 0) + (offerStats.offer_ready || 0)}</div>
-              <div className="text-[10px] text-sky-600/80 dark:text-sky-400/80">Ready for dispatch</div>
-            </div>
-
-            <div
-              onClick={() => handleStageCardClick("SENT", "Sent to Candidate", "Official offers delivered to candidates awaiting signature/acceptance.", "bg-primary/10 border border-primary/20 text-primary")}
-              className="p-2.5 rounded-lg bg-primary/10 border border-primary/20 cursor-pointer hover:bg-primary/20 hover:border-primary/50 hover:shadow-sm transition-all active:scale-[0.98] group"
-              role="button"
-              tabIndex={0}
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-[10px] font-semibold text-primary uppercase group-hover:underline">Sent to Candidate</div>
-                <ChevronRight className="w-3 h-3 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <div className="text-lg font-bold font-mono text-primary mt-0.5">{offerStats.sent}</div>
-              <div className="text-[10px] text-muted-foreground">Active proposals</div>
-            </div>
-
-            <div
-              onClick={() => handleStageCardClick("ACCEPTED", "Accepted (Hired)", "Finalized employment offers accepted by candidates.", "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20")}
-              className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 cursor-pointer hover:bg-emerald-500/20 hover:border-emerald-500/50 hover:shadow-sm transition-all active:scale-[0.98] group"
-              role="button"
-              tabIndex={0}
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase group-hover:underline">Accepted (Hired)</div>
-                <ChevronRight className="w-3 h-3 text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <div className="text-lg font-bold font-mono text-emerald-700 dark:text-emerald-400 mt-0.5">{offerStats.accepted}</div>
-              <div className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80">Finalized placements</div>
-            </div>
-          </div>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-secondary border border-border font-semibold">
+            {assignedJobs.length} Assigned Jobs
+          </span>
         </div>
-      )}
+        <div className="h-[180px] sm:h-[200px] w-full min-w-0 pt-1">
+          <Suspense fallback={<ChartSkeleton height="h-[180px] sm:h-[200px]" label="Loading match quality distribution..." />}>
+            <RecruiterMatchQualityChart />
+          </Suspense>
+        </div>
+      </div>
 
-      {/* ── HIRED CANDIDATES SECTION (Requirement 8) ──────────────────── */}
+      {/* ── HIRED CANDIDATES SECTION (Requirement 8) ────────────────────────────────────────── */}
       {(() => {
         const combinedHired = hiredOffers;
 
@@ -592,133 +606,75 @@ export const RecruiterDashboard: React.FC = () => {
                             month: "short",
                             year: "numeric",
                           })
-                        : "—";
+                        : "Confirmed";
 
-                    return (
-                      <tr
-                        key={offer.id}
-                        onClick={() => {
-                          setSelectedHiredCandidate(offer);
-                          setHiredDetailModalOpen(true);
-                        }}
-                        className="hover:bg-muted/40 transition-colors cursor-pointer group"
-                      >
-                        <td className="py-3 px-3">
-                          <div className="font-bold text-foreground group-hover:text-primary transition-colors">
-                            {offer.candidate_name || "Candidate"}
-                          </div>
-                          <div className="text-[11px] text-muted-foreground">
-                            {offer.candidate_email || "Verified Placement"}
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 font-medium text-foreground">
-                          {offer.job_title || "Software Engineer"}
-                        </td>
-                        <td className="py-3 px-3 font-mono text-muted-foreground">
-                          {joiningDateStr}
-                        </td>
-                        <td className="py-3 px-3">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-bold text-[11px]">
-                            <Check className="w-3 h-3 stroke-[3]" />
-                            HIRED
-                          </span>
-                        </td>
-                        <td className="py-3 px-3 text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1.5">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedHiredCandidate(offer);
-                                setHiredDetailModalOpen(true);
-                              }}
-                              className="h-7 text-xs px-2.5"
-                            >
-                              Details
-                            </Button>
-                            <Link to={`/recruiter/offers/${offer.id}`}>
-                              <Button variant="outline" size="sm" className="h-7 text-xs px-2.5 gap-1">
-                                <FileText className="w-3 h-3 text-primary" /> Offer
+                      return (
+                        <tr
+                          key={offer.id}
+                          onClick={() => {
+                            setSelectedHiredCandidate(offer);
+                            setHiredDetailModalOpen(true);
+                          }}
+                          className="hover:bg-muted/40 transition-colors cursor-pointer group"
+                        >
+                          <td className="py-3 px-3">
+                            <div className="font-bold text-foreground group-hover:text-primary transition-colors">
+                              {offer.candidate_name || "Candidate"}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground">
+                              {offer.candidate_email || "Verified Placement"}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 font-medium text-foreground">
+                            {offer.job_title || "Software Engineer"}
+                          </td>
+                          <td className="py-3 px-3 font-mono text-muted-foreground">
+                            {joiningDateStr}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-bold text-[11px]">
+                              <Check className="w-3 h-3 stroke-[3]" />
+                              HIRED
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedHiredCandidate(offer);
+                                  setHiredDetailModalOpen(true);
+                                }}
+                                className="h-7 text-xs px-2.5"
+                              >
+                                Details
                               </Button>
-                            </Link>
-                            <a
-                              href={offerApi.downloadOfferPdf(offer.id)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-secondary hover:bg-secondary/80 text-foreground text-xs font-medium border border-border"
-                            >
-                              PDF
-                            </a>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  }))}
+                              <Link to={`/recruiter/offers/${offer.id}`}>
+                                <Button variant="outline" size="sm" className="h-7 text-xs px-2.5 gap-1">
+                                  <FileText className="w-3 h-3 text-primary" /> Offer
+                                </Button>
+                              </Link>
+                              <a
+                                href={offerApi.downloadOfferPdf(offer.id)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-secondary hover:bg-secondary/80 text-foreground text-xs font-medium border border-border"
+                              >
+                                PDF
+                              </a>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
         );
       })()}
-
-      {/* Visual Candidate Match Quality Distribution */}
-      <div className="bg-card border border-border rounded-xl p-4 shadow-sm space-y-3 min-w-0 overflow-hidden">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-xs font-bold font-outfit uppercase tracking-wider text-foreground flex items-center gap-1.5">
-              <TrendingUp className="w-4 h-4 text-primary" />
-              Candidate Match Quality & Alignment Tiers
-            </h3>
-            <p className="text-[11px] text-muted-foreground">Distribution of algorithmic relevance across assigned candidate pool</p>
-          </div>
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-secondary border border-border font-semibold">
-            {assignedJobs.length} Assigned Jobs
-          </span>
-        </div>
-        <div className="h-[180px] sm:h-[200px] w-full min-w-0 pt-1">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={[
-                { tier: "90%+ Match (Exceptional)", shortTier: "≥90%", count: 4, color: "#10b981" },
-                { tier: "80-89% Match (Strong Fit)", shortTier: "80-89%", count: 5, color: "#06b6d4" },
-                { tier: "70-79% Match (Qualified)", shortTier: "70-79%", count: 2, color: "#6366f1" },
-                { tier: "<70% Match (Baseline)", shortTier: "<70%", count: 1, color: "#94a3b8" },
-              ]}
-              margin={{ top: 10, right: 15, left: -15, bottom: 0 }}
-            >
-              <XAxis 
-                dataKey="shortTier" 
-                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} 
-                tickLine={false} 
-                axisLine={{ stroke: "hsl(var(--border))" }} 
-              />
-              <YAxis 
-                allowDecimals={false} 
-                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} 
-                tickLine={false} 
-                axisLine={{ stroke: "hsl(var(--border))" }} 
-              />
-              <RechartsTooltip
-                content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null;
-                  const data = payload[0].payload;
-                  return (
-                    <div className="p-2.5 rounded-lg bg-popover/95 border border-border shadow-lg text-xs">
-                      <span className="font-semibold text-foreground">{data.tier}</span>
-                      <div className="text-emerald-500 font-bold mt-0.5">{data.count} candidate{data.count !== 1 ? "s" : ""}</div>
-                    </div>
-                  );
-                }}
-              />
-              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                {["#10b981", "#06b6d4", "#6366f1", "#94a3b8"].map((col, index) => (
-                  <Cell key={`tier-cell-${index}`} fill={col} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
 
       {/* My Assigned Requisitions Section */}
       <div>
@@ -762,7 +718,7 @@ export const RecruiterDashboard: React.FC = () => {
             <Briefcase className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-50" />
             <p className="text-sm font-semibold">No assigned job requisitions yet.</p>
             <p className="text-xs mt-1">
-              HR will assign you to active job requisitions to begin candidate screening.
+              Hiring Managers (HM) will assign you to active job requisitions to begin candidate screening.
             </p>
           </Card>
         ) : (
@@ -813,10 +769,12 @@ export const RecruiterDashboard: React.FC = () => {
                   </div>
 
                   <div className="mt-3 pt-2.5 border-t border-border/60 flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">
-                      <strong className="text-foreground font-semibold">{job.total_candidates}</strong> candidates
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md font-bold text-[11px] bg-primary/10 text-primary border border-primary/20">
+                        {job.total_candidates} {job.total_candidates === 1 ? "candidate" : "candidates"}
+                      </span>
                     </span>
-                    <span className="text-muted-foreground">
+                    <span className="text-muted-foreground text-[11px]">
                       <strong className="text-emerald-500 font-semibold">{job.assigned_to_me}</strong> claimed by you
                     </span>
                   </div>
@@ -842,7 +800,7 @@ export const RecruiterDashboard: React.FC = () => {
               )}
             >
               <Users className="w-4 h-4" />
-              Candidate Work Queue ({currentMatches.length})
+              Candidate Work Queue ({activeMatches.length})
             </button>
 
             <button
@@ -891,23 +849,36 @@ export const RecruiterDashboard: React.FC = () => {
               {/* Filter Sub-bar */}
               <div className="flex flex-wrap items-center justify-between gap-3 bg-card border border-border/70 rounded-xl p-3 shadow-sm">
                 {/* Assignment Filters */}
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mr-1">
                     Queue:
                   </span>
                   {[
-                    { id: "all", label: "All Candidates" },
-                    { id: "assigned_to_me", label: "Claimed by Me" },
-                    { id: "unassigned", label: "Unassigned Pool" },
+                    { id: "all", label: `Active (${activeMatches.length})` },
+                    { id: "assigned_to_me", label: `Claimed by Me (${claimedActiveCount})` },
+                    { id: "unassigned", label: `Unassigned Pool (${unassignedActiveCount})` },
+                    ...(rejectedMatches.length > 0
+                      ? [{ id: "rejected", label: `Rejected (${rejectedMatches.length})` }]
+                      : []),
                   ].map((btn) => (
                     <button
                       key={btn.id}
-                      onClick={() => setAssignmentFilter(btn.id)}
+                      onClick={() => {
+                        setAssignmentFilter(btn.id);
+                        if (btn.id === "rejected") {
+                          setFilterStatus("all");
+                        }
+                        setMatchPage(1);
+                      }}
                       className={cn(
-                        "px-2.5 py-1 rounded-lg text-xs font-semibold transition border",
+                        "px-2.5 py-1 rounded-lg text-xs font-semibold transition border flex items-center gap-1.5",
                         assignmentFilter === btn.id
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-secondary text-muted-foreground border-border hover:text-foreground"
+                          ? btn.id === "rejected"
+                            ? "bg-rose-600 text-white border-rose-600 shadow-sm"
+                            : "bg-primary text-primary-foreground border-primary shadow-sm"
+                          : btn.id === "rejected"
+                            ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border-rose-200 dark:border-rose-900/50 hover:bg-rose-100"
+                            : "bg-secondary text-muted-foreground border-border hover:text-foreground"
                       )}
                     >
                       {btn.label}
@@ -919,13 +890,22 @@ export const RecruiterDashboard: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <select
                     value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFilterStatus(val);
+                      if (val === "rejected") {
+                        setAssignmentFilter("rejected");
+                      } else if (assignmentFilter === "rejected") {
+                        setAssignmentFilter("all");
+                      }
+                      setMatchPage(1);
+                    }}
                     className="text-xs rounded-lg border border-border bg-background px-2.5 py-1 text-foreground"
                   >
                     <option value="all">All Stages</option>
                     <option value="matched">Matched (Pending Review)</option>
                     <option value="screened">Screened</option>
-                    <option value="approved_by_hr">Approved by HR</option>
+                    <option value="approved_by_hr">Approved by HM</option>
                     <option value="interview_scheduled">Interview Scheduled</option>
                     <option value="rejected">Rejected</option>
                   </select>
@@ -943,11 +923,33 @@ export const RecruiterDashboard: React.FC = () => {
                 </div>
               </div>
 
+              {/* Banner when viewing rejected candidates */}
+              {assignmentFilter === "rejected" && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs">
+                  <div className="flex items-center gap-2 text-rose-800 dark:text-rose-300">
+                    <Archive className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>
+                      Showing <strong>{rejectedMatches.length}</strong> archived/rejected candidate{rejectedMatches.length !== 1 ? "s" : ""} for this requisition. These candidates have completed or exited evaluation and are excluded from the active queue.
+                    </span>
+                  </div>
+                  <Link
+                    to={`/recruiter/candidates?job_id=${selectedJob.id}&status=rejected`}
+                    className="inline-flex items-center gap-1 font-semibold text-primary hover:underline shrink-0"
+                  >
+                    Open in Global Candidate Pool <ExternalLink className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              )}
+
               {/* Candidates Grid */}
               {paginatedMatches.length === 0 ? (
                 <div className="p-10 rounded-2xl border border-dashed border-border text-center text-muted-foreground">
                   <Users className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                  <p className="text-sm font-semibold">No candidates match the selected filters.</p>
+                  <p className="text-sm font-semibold">
+                    {assignmentFilter === "rejected"
+                      ? "No rejected candidates found for this job requisition."
+                      : "No candidates match the selected filters."}
+                  </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1003,7 +1005,7 @@ export const RecruiterDashboard: React.FC = () => {
             <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-4">
               <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                 <ListTodo className="w-4 h-4 text-primary" />
-                Action Tasks Assigned by HR
+                Action Tasks Assigned by HM
               </h3>
 
               {myTasks.length === 0 ? (
@@ -1126,167 +1128,239 @@ export const RecruiterDashboard: React.FC = () => {
           {/* TAB 4: Scheduled Interviews & Video Links */}
           {activeTab === "interviews" && (
             <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-4">
-              <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
                 <div>
                   <h3 className="text-sm font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
                     <Video className="w-4 h-4 text-emerald-500" />
                     Scheduled Candidate Interviews & Live Meeting Links
                   </h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Coordinated by HR. Recruiters have full visibility to join sessions and view candidate progress.
+                    Sorted newest first. Coordinated by HM with live meeting links & interview status.
                   </p>
                 </div>
-                <Badge variant="success" className="text-xs">
-                  {scheduledInterviews.length} Scheduled
-                </Badge>
+                <div className="flex items-center gap-2.5">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+                    <input
+                      type="text"
+                      placeholder="Filter candidate or role..."
+                      value={interviewSearch}
+                      onChange={(e) => {
+                        setInterviewSearch(e.target.value);
+                        setInterviewPage(1);
+                      }}
+                      className="pl-8 pr-3 py-1.5 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary w-48 text-foreground placeholder:text-muted-foreground"
+                    />
+                  </div>
+                  <Badge variant="success" className="text-xs shrink-0">
+                    {filteredSortedInterviews.length} Scheduled
+                  </Badge>
+                </div>
               </div>
 
-              {scheduledInterviews.length === 0 ? (
+              {filteredSortedInterviews.length === 0 ? (
                 <div className="p-12 text-center text-muted-foreground border border-dashed border-border/80 rounded-xl">
                   <Video className="w-10 h-10 mx-auto mb-2 text-muted-foreground/40" />
-                  <p className="text-sm font-semibold text-foreground">No candidate interviews scheduled yet</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {interviewSearch ? "No scheduled interviews match your search" : "No candidate interviews scheduled yet"}
+                  </p>
                   <p className="text-xs mt-1">
-                    When HR schedules interviews for screened and approved candidates, meeting links will appear here.
+                    {interviewSearch
+                      ? "Try adjusting your search query or clear the filter."
+                      : "When HM schedules interviews for screened candidates, meeting links will appear here sorted latest first."}
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {scheduledInterviews.map((inv) => {
-                    const isCopied = copiedInterviewId === inv.id;
-                    const isOverdue =
-                      (inv.status === "scheduled" || inv.status === "CONFIRMED") &&
-                      Boolean(inv.interview_date) &&
-                      !inv.feedback &&
-                      Date.now() - new Date(inv.interview_date!).getTime() > 48 * 3600 * 1000;
-                    const isCancelled = inv.status === "cancelled" || isOverdue;
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {paginatedInterviews.map((inv) => {
+                      const isCopied = copiedInterviewId === inv.id;
+                      const isOverdue =
+                        (inv.status === "scheduled" || inv.status === "CONFIRMED") &&
+                        Boolean(inv.interview_date) &&
+                        !inv.feedback &&
+                        Date.now() - new Date(inv.interview_date!).getTime() > 7 * 24 * 3600 * 1000;
 
-                    return (
-                      <div
-                        key={inv.id}
-                        className={`p-5 rounded-2xl border bg-secondary/30 transition-all space-y-3 shadow-sm ${
-                          isOverdue ? "border-rose-500/40 bg-rose-500/5" : "border-border/80 hover:border-emerald-500/40"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <Link
-                                to={`/recruiter/candidate/${inv.candidate_id || inv.match_result_id}`}
-                                className="font-extrabold text-base text-foreground hover:text-primary hover:underline transition-colors flex items-center gap-1.5 group"
-                                title="Open candidate review page"
-                              >
-                                <span>{inv.candidate_name || `Candidate Match #${inv.match_result_id}`}</span>
-                                <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
-                              </Link>
-                              <Link
-                                to={`/recruiter/candidate/${inv.candidate_id || inv.match_result_id}`}
-                                className="p-1 rounded hover:bg-secondary text-muted-foreground/60 hover:text-primary transition-colors"
-                                title="Inspect candidate profile"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                              </Link>
-                            </div>
-                            <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-muted-foreground">
-                              {inv.job_title && (
+                      return (
+                        <div
+                          key={inv.id}
+                          className={`p-5 rounded-2xl border bg-secondary/30 transition-all space-y-3 shadow-sm ${
+                            isOverdue ? "border-rose-500/40 bg-rose-500/5" : "border-border/80 hover:border-emerald-500/40"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-1.5">
                                 <Link
                                   to={`/recruiter/candidate/${inv.candidate_id || inv.match_result_id}`}
-                                  className="inline-flex items-center gap-1 font-medium text-foreground hover:text-primary hover:underline transition-colors"
+                                  className="font-extrabold text-base text-foreground hover:text-primary hover:underline transition-colors flex items-center gap-1.5 group"
+                                  title="Open candidate review page"
                                 >
-                                  <Briefcase className="w-3 h-3 text-primary" />
-                                  {inv.job_title}
+                                  <span>{inv.candidate_name || `Candidate Match #${inv.match_result_id}`}</span>
+                                  <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
                                 </Link>
-                              )}
-                              <span>•</span>
-                              <span className="font-semibold text-primary">
-                                {inv.interview_type || "Technical Interview"}
-                              </span>
+                                <Link
+                                  to={`/recruiter/candidate/${inv.candidate_id || inv.match_result_id}`}
+                                  className="p-1 rounded hover:bg-secondary text-muted-foreground/60 hover:text-primary transition-colors"
+                                  title="Inspect candidate profile"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </Link>
+                              </div>
+                              <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-muted-foreground">
+                                {inv.job_title && (
+                                  <Link
+                                    to={`/recruiter/candidate/${inv.candidate_id || inv.match_result_id}`}
+                                    className="inline-flex items-center gap-1 font-medium text-foreground hover:text-primary hover:underline transition-colors"
+                                  >
+                                    <Briefcase className="w-3 h-3 text-primary" />
+                                    {inv.job_title}
+                                  </Link>
+                                )}
+                                <span>•</span>
+                                <span className="font-semibold text-primary">
+                                  {inv.interview_type || "Technical Interview"}
+                                </span>
+                              </div>
                             </div>
+
+                            {isOverdue ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                                Cancelled (Overdue)
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                                {inv.status}
+                              </span>
+                            )}
                           </div>
 
-                          {isOverdue ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
-                              Cancelled (Overdue)
+                          {/* Date & Time */}
+                          <div className="flex items-center gap-2 text-xs text-foreground font-medium p-2.5 rounded-xl bg-card border border-border/70">
+                            <Calendar className="w-4 h-4 text-emerald-500 shrink-0" />
+                            <span>
+                              {inv.interview_date
+                                ? new Date(inv.interview_date).toLocaleString([], {
+                                    weekday: "short",
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                : "Date TBD"}
                             </span>
-                          ) : (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                              {inv.status}
-                            </span>
+                          </div>
+
+                          {/* Meeting Link & Calendar Actions */}
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            {inv.interview_date && inv.status !== "cancelled" && (
+                              <GoogleCalendarButton
+                                {...buildInterviewCalendarEvent({
+                                  candidateName: inv.candidate_name || "Candidate",
+                                  jobTitle: inv.job_title || "Position",
+                                  interviewType: inv.interview_type || "Interview",
+                                  scheduledDate: inv.interview_date,
+                                  meetingLink: inv.meeting_link || undefined,
+                                  recruiterName: inv.scheduler_name || undefined,
+                                })}
+                                size="sm"
+                                variant="outline"
+                                label="Add to Calendar"
+                              />
+                            )}
+
+                            {inv.meeting_link && (
+                              <>
+                                <a
+                                  href={inv.meeting_link}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition"
+                                >
+                                  <Video className="w-3.5 h-3.5" />
+                                  Join Video Call
+                                  <ExternalLink className="w-3 h-3 ml-0.5 opacity-80" />
+                                </a>
+
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(inv.meeting_link!);
+                                    setCopiedInterviewId(inv.id);
+                                    setTimeout(() => setCopiedInterviewId(null), 2500);
+                                  }}
+                                  className="gap-1 text-xs font-semibold h-9"
+                                  title="Copy meeting link"
+                                >
+                                  {isCopied ? (
+                                    <>
+                                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                      <span className="text-emerald-500">Copied!</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-3.5 h-3.5" />
+                                      <span>Copy</span>
+                                    </>
+                                  )}
+                                </Button>
+                              </>
+                            )}
+                          </div>
+
+                          {/* HR Coordinator Feedback / Instructions */}
+                          {inv.feedback && (
+                            <div className="text-[11px] text-muted-foreground p-2.5 rounded-lg bg-card border border-border/60">
+                              <strong className="text-foreground">HR Note:</strong> {inv.feedback}
+                            </div>
                           )}
-                        </div>
 
-                        {/* Date & Time */}
-                        <div className="flex items-center gap-2 text-xs text-foreground font-medium p-2.5 rounded-xl bg-card border border-border/70">
-                          <Calendar className="w-4 h-4 text-emerald-500 shrink-0" />
-                          <span>
-                            {inv.interview_date
-                              ? new Date(inv.interview_date).toLocaleString([], {
-                                  weekday: "short",
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
-                              : "Date TBD"}
-                          </span>
-                        </div>
-
-                        {/* Meeting Link & Actions */}
-                        {inv.meeting_link && (
-                          <div className="flex items-center gap-2 pt-1">
-                            <a
-                              href={inv.meeting_link}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition"
-                            >
-                              <Video className="w-3.5 h-3.5" />
-                              Join Video Call
-                              <ExternalLink className="w-3 h-3 ml-0.5 opacity-80" />
-                            </a>
-
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                navigator.clipboard.writeText(inv.meeting_link!);
-                                setCopiedInterviewId(inv.id);
-                                setTimeout(() => setCopiedInterviewId(null), 2500);
-                              }}
-                              className="gap-1 text-xs font-semibold h-9"
-                              title="Copy meeting link"
-                            >
-                              {isCopied ? (
-                                <>
-                                  <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                  <span className="text-emerald-500">Copied!</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="w-3.5 h-3.5" />
-                                  <span>Copy</span>
-                                </>
-                              )}
-                            </Button>
+                          {/* Footer Scheduler Info */}
+                          <div className="text-[10px] text-muted-foreground/80 flex items-center justify-between pt-1">
+                            <span>Coordinated by {inv.scheduler_name || "HR Manager"}</span>
+                            <span>ID #{inv.id}</span>
                           </div>
-                        )}
-
-                        {/* HR Coordinator Feedback / Instructions */}
-                        {inv.feedback && (
-                          <div className="text-[11px] text-muted-foreground p-2.5 rounded-lg bg-card border border-border/60">
-                            <strong className="text-foreground">HR Note:</strong> {inv.feedback}
-                          </div>
-                        )}
-
-                        {/* Footer Scheduler Info */}
-                        <div className="text-[10px] text-muted-foreground/80 flex items-center justify-between pt-1">
-                          <span>Coordinated by {inv.scheduler_name || "HR Manager"}</span>
-                          <span>ID #{inv.id}</span>
                         </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Pagination Controls */}
+                  {totalInterviewPages > 1 && (
+                    <div className="flex items-center justify-between pt-3 border-t border-border/80 text-xs text-muted-foreground">
+                      <span>
+                        Showing {(interviewPage - 1) * INTERVIEWS_PER_PAGE + 1} -{" "}
+                        {Math.min(interviewPage * INTERVIEWS_PER_PAGE, filteredSortedInterviews.length)} of{" "}
+                        {filteredSortedInterviews.length} interviews (newest first)
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2.5 text-xs"
+                          onClick={() => setInterviewPage((p) => Math.max(1, p - 1))}
+                          disabled={interviewPage === 1}
+                        >
+                          Previous
+                        </Button>
+                        <span className="px-2 text-foreground font-semibold">
+                          Page {interviewPage} of {totalInterviewPages}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2.5 text-xs"
+                          onClick={() => setInterviewPage((p) => Math.min(totalInterviewPages, p + 1))}
+                          disabled={interviewPage === totalInterviewPages}
+                        >
+                          Next
+                        </Button>
                       </div>
-                    );
-                  })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -6,7 +6,7 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (token: string) => Promise<User>;
+  login: (token: string, preloadedUser?: User | null) => Promise<User>;
   logout: () => void;
   refreshUser: () => Promise<User | null>;
   hasRole: (roles: RoleName | RoleName[]) => boolean;
@@ -64,13 +64,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => window.removeEventListener("storage", handleStorageChange);
   }, [token]);
 
-  const login = async (newToken: string): Promise<User> => {
+  const login = async (newToken: string, preloadedUser?: User | null): Promise<User> => {
     // CRITICAL: Set token synchronously in localStorage BEFORE any API call
     // so that the request interceptor picks up the Bearer token correctly.
     localStorage.setItem("skillalign_token", newToken);
-    // Also update axios default header immediately for the pending getMe call
+    // Also update axios default header immediately for subsequent calls
     apiClient.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
     setToken(newToken);
+    if (preloadedUser) {
+      setUser(preloadedUser);
+      setIsLoading(false);
+      return preloadedUser;
+    }
     const userData = await authApi.getMe();
     setUser(userData);
     return userData;

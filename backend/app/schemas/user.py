@@ -69,6 +69,10 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     """Partial update — all fields optional."""
     name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone_number: Optional[str] = None
+    role: Optional[str] = None
+    role_id: Optional[int] = None
     is_active: Optional[bool] = None
 
 

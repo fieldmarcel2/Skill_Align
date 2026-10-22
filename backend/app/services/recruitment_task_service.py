@@ -61,7 +61,7 @@ def create_task(
         channel="in_app",
         subject=f"New Task: {title}",
         body=(
-            f"HR {created_by_user.name} assigned you a task on requisition '{job.title if job else job_id}': "
+            f"HM {created_by_user.name} assigned you a task on requisition '{job.title if job else job_id}': "
             f"'{title}'. Priority: {priority}."
         ),
         status="sent",

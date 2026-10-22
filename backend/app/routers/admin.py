@@ -24,7 +24,7 @@ from app.models.role import Role
 from app.models.candidate import Candidate
 from app.models.job import Job
 from app.models.audit_log import AuditLog
-from app.schemas.user import PaginatedUsersResponse, UserOut
+from app.schemas.user import PaginatedUsersResponse, UserOut, UserUpdate
 from app.schemas.audit_log import HiringLogsResponse, HiringAuditLogEntry, HiringLogsMetrics
 from app.services import user_service
 
@@ -256,6 +256,22 @@ def delete_user(
     return user_service.delete_user(db, user_id, current_admin_id=admin.id)
 
 
+@router.put(
+    "/users/{user_id}",
+    response_model=UserOut,
+    status_code=status.HTTP_200_OK,
+    summary="Update user profile (Admin only)",
+    description="Admin updates user name, email, phone number, role, or active status with audit logging."
+)
+def admin_update_user(
+    user_id: int,
+    data: UserUpdate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    return user_service.update_user(db, user_id, data, current_admin_id=admin.id)
+
+
 # ─── Global Hiring & Audit Logs ──────────────────────────────────────────────
 
 ACTION_CATEGORY_MAP: Dict[str, tuple[str, str]] = {
@@ -295,7 +311,7 @@ ACTION_CATEGORY_MAP: Dict[str, tuple[str, str]] = {
     "HM_FEEDBACK_GO": ("REVIEWS", "HM Review Decision: GO"),
     "HM_FEEDBACK_NO_GO": ("REVIEWS", "HM Review Decision: NO GO"),
     "HM_REJECTED_CANDIDATE": ("REVIEWS", "Candidate Rejected by HM"),
-    "CANDIDATE_APPROVED_BY_HR": ("REVIEWS", "Candidate Approved by HR"),
+    "CANDIDATE_APPROVED_BY_HR": ("REVIEWS", "Candidate Approved by HM"),
 
     # Sourcing & Talent Pipeline
     "CANDIDATE_MATCHED": ("SOURCING", "Candidate Matched to Requisition"),

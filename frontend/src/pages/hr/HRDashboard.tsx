@@ -47,10 +47,17 @@ import {
   ChevronDown,
   ChevronUp,
   Eye,
+  MessageSquare,
+  Star,
 } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Cell } from "recharts";
+import { Suspense, lazy } from "react";
 import { AssignRecruiterModal } from "../../components/job/AssignRecruiterModal";
 import { RequestInterviewModal } from "../../components/workflow/RequestInterviewModal";
+import { cn } from "../../lib/utils";
+import { MatchScoreGauge } from "../../components/common/MatchScoreGauge";
+import { ChartSkeleton } from "../../components/charts/ChartSkeleton";
+
+const HRPipelineFunnelChart = lazy(() => import("../../components/charts/HRPipelineFunnelChart"));
 
 export const HRDashboard: React.FC = () => {
   const toast = useToast();
@@ -90,6 +97,7 @@ export const HRDashboard: React.FC = () => {
   const [pendingOffers, setPendingOffers] = useState<Offer[]>([]);
   const [reviewingOfferId, setReviewingOfferId] = useState<number | null>(null);
   const [hmComments, setHmComments] = useState<Record<number, string>>({});
+  const [offerFilterTab, setOfferFilterTab] = useState<"all" | "pending" | "approved" | "sent" | "accepted">("all");
 
   // Interview Modal State
   const [selectedMatchForInterview, setSelectedMatchForInterview] = useState<MatchResult | null>(null);
@@ -268,7 +276,7 @@ export const HRDashboard: React.FC = () => {
         prev.map((m) => (m.id === match.id ? { ...m, status: updated.status } : m))
       );
       toast.success(
-        `${match.candidate.full_name} has been approved by HR! You can now schedule an interview.`,
+        `${match.candidate.full_name} has been approved by HM! You can now schedule an interview.`,
         "Strategic Approval Granted"
       );
     } catch (err: any) {
@@ -504,6 +512,26 @@ export const HRDashboard: React.FC = () => {
     (o) => o.status === "SENT" || o.workflow_state === "SENT"
   ).length;
 
+  const approvedOffers = allOffers.filter((o) => o.workflow_state === "HM_APPROVED" || o.status === "HM_APPROVED");
+  const sentOffers = allOffers.filter((o) => o.workflow_state === "SENT" || o.status === "SENT");
+  const acceptedOffers = allOffers.filter((o) => o.workflow_state === "ACCEPTED" || o.status === "ACCEPTED" || o.status === "HIRED");
+
+  const displayedOffers = allOffers.filter((offer) => {
+    if (offerFilterTab === "pending") {
+      return offer.workflow_state === "PENDING_HM_REVIEW" || offer.status === "PENDING_HM_REVIEW";
+    }
+    if (offerFilterTab === "approved") {
+      return offer.workflow_state === "HM_APPROVED" || offer.status === "HM_APPROVED";
+    }
+    if (offerFilterTab === "sent") {
+      return offer.workflow_state === "SENT" || offer.status === "SENT";
+    }
+    if (offerFilterTab === "accepted") {
+      return offer.workflow_state === "ACCEPTED" || offer.status === "ACCEPTED" || offer.status === "HIRED";
+    }
+    return true;
+  });
+
   // Filtered & Sorted Screened Candidates
   const filteredMatches = screenedMatches
     .filter((m) => {
@@ -532,8 +560,18 @@ export const HRDashboard: React.FC = () => {
   );
 
   const INTERVIEWS_PER_PAGE = 10;
-  const totalInterviewPages = Math.max(1, Math.ceil(interviews.length / INTERVIEWS_PER_PAGE));
-  const paginatedInterviews = interviews.slice(
+  const sortedInterviews = [...interviews].sort((a, b) => {
+    const timeA = a.interview_date
+      ? new Date(a.interview_date).getTime()
+      : (a.created_at ? new Date(a.created_at).getTime() : 0);
+    const timeB = b.interview_date
+      ? new Date(b.interview_date).getTime()
+      : (b.created_at ? new Date(b.created_at).getTime() : 0);
+    if (timeB !== timeA) return timeB - timeA;
+    return (b.id || 0) - (a.id || 0);
+  });
+  const totalInterviewPages = Math.max(1, Math.ceil(sortedInterviews.length / INTERVIEWS_PER_PAGE));
+  const paginatedInterviews = sortedInterviews.slice(
     (interviewPage - 1) * INTERVIEWS_PER_PAGE,
     interviewPage * INTERVIEWS_PER_PAGE
   );
@@ -560,57 +598,155 @@ export const HRDashboard: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           {hmData && (
             <>
-              <Button
-                variant={activeTab === "hm_review" ? "gradient" : "outline"}
+              <button
+                type="button"
                 onClick={() => handleTabChange("hm_review")}
-                className="gap-2 text-xs border-amber-500/40 text-amber-300"
+                className={cn(
+                  "gap-2 text-xs px-3 py-1.5 rounded-lg border transition-all flex items-center cursor-pointer",
+                  activeTab === "hm_review"
+                    ? "bg-amber-600 text-white border-amber-600 shadow-sm font-bold"
+                    : "bg-amber-500/10 text-amber-900 dark:text-amber-200 border-amber-500/30 hover:bg-amber-500/20 font-semibold"
+                )}
               >
-                <Clock className="h-4 w-4 text-amber-400" /> Pending Review ({hmData.counts.pending_review})
-              </Button>
-              <Button
-                variant={activeTab === "feedback" ? "gradient" : "outline"}
+                <Clock className={cn("h-4 w-4", activeTab === "hm_review" ? "text-white" : "text-amber-600 dark:text-amber-400")} />
+                <span>Pending Review</span>
+                <span className={cn(
+                  "px-1.5 py-0.5 rounded-full text-[10px] font-bold",
+                  activeTab === "hm_review" ? "bg-white/25 text-white" : "bg-amber-500/20 text-amber-950 dark:text-amber-200"
+                )}>
+                  {hmData.counts.pending_review}
+                </span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => handleTabChange("feedback")}
-                className="gap-2 text-xs border-emerald-500/40 text-emerald-300"
+                className={cn(
+                  "gap-2 text-xs px-3 py-1.5 rounded-lg border transition-all flex items-center cursor-pointer",
+                  activeTab === "feedback"
+                    ? "bg-emerald-600 text-white border-emerald-600 shadow-sm font-bold"
+                    : "bg-emerald-500/10 text-emerald-900 dark:text-emerald-200 border-emerald-500/30 hover:bg-emerald-500/20 font-semibold"
+                )}
               >
-                <Award className="h-4 w-4 text-emerald-400" /> Feedback Required ({hmData.counts.feedback_required})
-              </Button>
-              <Button
-                variant={activeTab === "offer_review" ? "gradient" : "outline"}
+                <Award className={cn("h-4 w-4", activeTab === "feedback" ? "text-white" : "text-emerald-600 dark:text-emerald-400")} />
+                <span>Feedback Required</span>
+                <span className={cn(
+                  "px-1.5 py-0.5 rounded-full text-[10px] font-bold",
+                  activeTab === "feedback" ? "bg-white/25 text-white" : "bg-emerald-500/20 text-emerald-950 dark:text-emerald-200"
+                )}>
+                  {hmData.counts.feedback_required}
+                </span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => handleTabChange("offer_review")}
-                className="gap-2 text-xs border-purple-500/40 text-purple-300"
+                className={cn(
+                  "gap-2 text-xs px-3 py-1.5 rounded-lg border transition-all flex items-center cursor-pointer",
+                  activeTab === "offer_review"
+                    ? "bg-purple-600 text-white border-purple-600 shadow-sm font-bold"
+                    : "bg-purple-500/10 text-purple-900 dark:text-purple-200 border-purple-500/30 hover:bg-purple-500/20 font-semibold"
+                )}
               >
-                <DollarSign className="h-4 w-4 text-purple-400" /> Offer Approvals ({pendingOffers.length})
-              </Button>
-              <Button
-                variant={activeTab === "recent_hires" ? "gradient" : "outline"}
+                <DollarSign className={cn("h-4 w-4", activeTab === "offer_review" ? "text-white" : "text-purple-600 dark:text-purple-400")} />
+                <span>Offer Approvals</span>
+                <span className={cn(
+                  "px-1.5 py-0.5 rounded-full text-[10px] font-bold",
+                  activeTab === "offer_review" ? "bg-white/25 text-white" : "bg-purple-500/20 text-purple-950 dark:text-purple-200"
+                )}>
+                  {pendingOffers.length}
+                </span>
+                {allOffers.length > 0 && (
+                  <span className={cn(
+                    "text-[10px] px-1 py-0.5 rounded opacity-80",
+                    activeTab === "offer_review" ? "text-purple-100" : "text-muted-foreground"
+                  )}>
+                    ({allOffers.length} total)
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
                 onClick={() => handleTabChange("recent_hires")}
-                className="gap-2 text-xs border-emerald-500/40 text-emerald-300"
+                className={cn(
+                  "gap-2 text-xs px-3 py-1.5 rounded-lg border transition-all flex items-center cursor-pointer",
+                  activeTab === "recent_hires"
+                    ? "bg-teal-600 text-white border-teal-600 shadow-sm font-bold"
+                    : "bg-teal-500/10 text-teal-900 dark:text-teal-200 border-teal-500/30 hover:bg-teal-500/20 font-semibold"
+                )}
               >
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" /> Recent Hires ({totalHiredCount})
-              </Button>
+                <CheckCircle2 className={cn("h-4 w-4", activeTab === "recent_hires" ? "text-white" : "text-teal-600 dark:text-teal-400")} />
+                <span>Recent Hires</span>
+                <span className={cn(
+                  "px-1.5 py-0.5 rounded-full text-[10px] font-bold",
+                  activeTab === "recent_hires" ? "bg-white/25 text-white" : "bg-teal-500/20 text-teal-950 dark:text-teal-200"
+                )}>
+                  {totalHiredCount}
+                </span>
+              </button>
             </>
           )}
-          <Button
-            variant={activeTab === "screened" ? "gradient" : "outline"}
+
+          <button
+            type="button"
             onClick={() => handleTabChange("screened")}
-            className="gap-2 text-xs"
+            className={cn(
+              "gap-2 text-xs px-3 py-1.5 rounded-lg border transition-all flex items-center cursor-pointer",
+              activeTab === "screened"
+                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm font-bold"
+                : "bg-indigo-500/10 text-indigo-900 dark:text-indigo-200 border-indigo-500/30 hover:bg-indigo-500/20 font-semibold"
+            )}
           >
-            <UserCheck className="h-4 w-4" /> Screened ({awaitingHRCount})
-          </Button>
-          <Button
-            variant={activeTab === "interviews" ? "gradient" : "outline"}
+            <UserCheck className={cn("h-4 w-4", activeTab === "screened" ? "text-white" : "text-indigo-600 dark:text-indigo-400")} />
+            <span>Candidate Pipeline</span>
+            <span className={cn(
+              "px-1.5 py-0.5 rounded-full text-[10px] font-bold",
+              activeTab === "screened" ? "bg-white/25 text-white" : "bg-indigo-500/20 text-indigo-950 dark:text-indigo-200"
+            )}>
+              {screenedMatches.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => handleTabChange("interviews")}
-            className="gap-2 text-xs"
+            className={cn(
+              "gap-2 text-xs px-3 py-1.5 rounded-lg border transition-all flex items-center cursor-pointer",
+              activeTab === "interviews"
+                ? "bg-sky-600 text-white border-sky-600 shadow-sm font-bold"
+                : "bg-sky-500/10 text-sky-900 dark:text-sky-200 border-sky-500/30 hover:bg-sky-500/20 font-semibold"
+            )}
           >
-            <CalendarCheck className="h-4 w-4" /> Interviews ({scheduledCount})
-          </Button>
-          <Button
-            variant={activeTab === "jobs" ? "gradient" : "outline"}
+            <CalendarCheck className={cn("h-4 w-4", activeTab === "interviews" ? "text-white" : "text-sky-600 dark:text-sky-400")} />
+            <span>Interviews</span>
+            <span className={cn(
+              "px-1.5 py-0.5 rounded-full text-[10px] font-bold",
+              activeTab === "interviews" ? "bg-white/25 text-white" : "bg-sky-500/20 text-sky-950 dark:text-sky-200"
+            )}>
+              {scheduledCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => handleTabChange("jobs")}
-            className="gap-2 text-xs"
+            className={cn(
+              "gap-2 text-xs px-3 py-1.5 rounded-lg border transition-all flex items-center cursor-pointer",
+              activeTab === "jobs"
+                ? "bg-slate-800 dark:bg-slate-700 text-white border-slate-800 dark:border-slate-700 shadow-sm font-bold"
+                : "bg-secondary text-foreground border-border hover:bg-secondary/80 font-semibold"
+            )}
           >
-            <Briefcase className="h-4 w-4" /> Job Requisitions ({jobs.length})
-          </Button>
+            <Briefcase className="h-4 w-4" />
+            <span>Job Requisitions</span>
+            <span className={cn(
+              "px-1.5 py-0.5 rounded-full text-[10px] font-bold",
+              activeTab === "jobs" ? "bg-white/25 text-white" : "bg-muted text-foreground"
+            )}>
+              {jobs.length}
+            </span>
+          </button>
 
           {/* Premium Animated New Job Requisition Action Button */}
           <Link to="/hr/jobs/create">
@@ -692,57 +828,16 @@ export const HRDashboard: React.FC = () => {
           </div>
         </div>
         <div className="h-[190px] sm:h-[210px] w-full min-w-0 pt-1">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={[
-                { stage: "Sourced & Screened", shortStage: "Sourced", count: Math.max(screenedMatches.length, 7), color: "#6366f1", detail: "Screened candidates evaluated in talent pool" },
-                { stage: "HM Review & Slots", shortStage: "HM Review", count: Math.max(awaitingHMReviewCount, 2), color: "#f59e0b", detail: "Awaiting hiring manager review or slots proposal" },
-                { stage: "Interviews Active", shortStage: "Interviews", count: scheduledCount, color: "#06b6d4", detail: "Scheduled or active interview rounds" },
-                { stage: "Evaluations & Feedback", shortStage: "Feedback", count: Math.max(feedbackRequiredCount, interviews.filter(i => i.status === "completed").length, 1), color: "#8b5cf6", detail: "Completed rounds awaiting GO/NO-GO verdict" },
-                { stage: "Offers Formulated", shortStage: "Offers", count: Math.max(allOffers.length, pendingOffers.length, 1), color: "#ec4899", detail: "Compensation structured, pending, or sent" },
-                { stage: "Confirmed Hires", shortStage: "Hires", count: totalHiredCount, color: "#10b981", detail: "Offers accepted & confirmed candidate hires" },
-              ]}
-              margin={{ top: 12, right: 15, left: -15, bottom: 0 }}
-            >
-              <XAxis 
-                dataKey="shortStage" 
-                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} 
-                tickLine={false} 
-                axisLine={{ stroke: "hsl(var(--border))" }} 
-              />
-              <YAxis 
-                allowDecimals={false} 
-                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} 
-                tickLine={false} 
-                axisLine={{ stroke: "hsl(var(--border))" }} 
-              />
-              <RechartsTooltip
-                content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null;
-                  const data = payload[0].payload;
-                  return (
-                    <div className="p-3 rounded-xl bg-popover/95 border border-border shadow-xl text-xs space-y-1">
-                      <div className="font-bold text-foreground font-outfit">{data.stage}</div>
-                      <div className="text-primary font-bold text-sm">{data.count} candidate{data.count !== 1 ? "s" : ""}</div>
-                      <div className="text-[10px] text-muted-foreground">{data.detail}</div>
-                    </div>
-                  );
-                }}
-              />
-              <Bar dataKey="count" radius={[5, 5, 0, 0]}>
-                {[
-                  "#6366f1",
-                  "#f59e0b",
-                  "#06b6d4",
-                  "#8b5cf6",
-                  "#ec4899",
-                  "#10b981",
-                ].map((col, index) => (
-                  <Cell key={`funnel-cell-${index}`} fill={col} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <Suspense fallback={<ChartSkeleton height="h-[190px] sm:h-[210px]" label="Loading talent pipeline funnel..." />}>
+            <HRPipelineFunnelChart
+              screenedCount={screenedMatches.length}
+              awaitingHMReviewCount={awaitingHMReviewCount}
+              scheduledCount={scheduledCount}
+              feedbackRequiredCount={feedbackRequiredCount}
+              offersCount={allOffers.length || pendingOffers.length}
+              totalHiredCount={totalHiredCount}
+            />
+          </Suspense>
         </div>
       </div>
 
@@ -885,9 +980,7 @@ export const HRDashboard: React.FC = () => {
                       <span className="text-xs font-semibold text-amber-400 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20">
                         {item.pipeline_state}
                       </span>
-                      <span className="text-sm font-bold font-mono text-cyan-400">
-                        {Math.round(item.overall_score)}% Match
-                      </span>
+                      <MatchScoreGauge score={item.overall_score} size="sm" />
                     </div>
                     <h3 className="text-base font-bold text-foreground">{item.candidate_name}</h3>
                     <p className="text-xs text-muted-foreground flex items-center gap-1.5">
@@ -927,7 +1020,7 @@ export const HRDashboard: React.FC = () => {
                 Interviews Requiring Hiring Manager Feedback ({hmData?.feedback_required?.length || 0})
               </h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Completed interview rounds requiring structured 5-star evaluation and conclusive GO / NO-GO decision.
+                Completed interview rounds with recruiter evaluations requiring structured evaluation and conclusive GO / NO-GO decision.
               </p>
             </div>
           </div>
@@ -941,29 +1034,76 @@ export const HRDashboard: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {hmData.feedback_required.map((item) => (
-                <Card key={item.match_result_id} className="p-5 border-border hover:border-emerald-500/40 transition-all flex flex-col justify-between gap-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-emerald-400 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                        Interview Completed
+                <Card key={item.match_result_id} className="p-5 border-border hover:border-emerald-500/40 transition-all flex flex-col justify-between gap-4 bg-card/60 backdrop-blur-sm">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <span className="text-xs font-semibold text-emerald-400 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Interview Completed
                       </span>
-                      <span className="text-sm font-bold font-mono text-cyan-400">
-                        {Math.round(item.overall_score)}% Match
-                      </span>
+                      <MatchScoreGauge score={item.overall_score} size="sm" />
                     </div>
-                    <h3 className="text-base font-bold text-foreground">{item.candidate_name}</h3>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                      <Briefcase className="h-3.5 w-3.5 text-muted-foreground" />
-                      Role: <strong className="text-foreground">{item.job_title}</strong>
-                    </p>
+
+                    <div>
+                      <h3 className="text-lg font-bold text-foreground">{item.candidate_name}</h3>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                        <Briefcase className="h-3.5 w-3.5 text-muted-foreground" />
+                        Role: <strong className="text-foreground">{item.job_title}</strong>
+                      </p>
+                      {item.round_name && (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
+                          <CalendarCheck className="h-3.5 w-3.5 text-indigo-400" />
+                          Round: <span className="text-indigo-300 font-medium">{item.round_name}</span>
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Recruiter Evaluation & Feedback Section */}
+                    <div className="bg-secondary/40 border border-border/80 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                          <MessageSquare className="w-3.5 h-3.5 text-primary" />
+                          Recruiter Evaluation:
+                          <span className="text-muted-foreground font-normal">
+                            {item.recruiter_name ? `by ${item.recruiter_name}` : "by Recruiter"}
+                          </span>
+                        </span>
+                        {item.interviewer_overall_rating && (
+                          <div className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">
+                            <span className="text-xs font-bold text-amber-400 font-mono">
+                              {item.interviewer_overall_rating}/5
+                            </span>
+                            <div className="flex items-center">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Star
+                                  key={star}
+                                  className={`w-3 h-3 ${
+                                    star <= (item.interviewer_overall_rating || 0)
+                                      ? "text-amber-400 fill-amber-400"
+                                      : "text-muted-foreground/30"
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="text-xs text-muted-foreground italic bg-background/50 rounded-lg p-2.5 border border-border/50">
+                        "{item.interviewer_comments || "Interview completed. Candidate evaluation submitted for Hiring Manager review."}"
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                  <div className="flex items-center justify-between gap-2 pt-3 border-t border-border">
+                    <span className="text-[11px] text-amber-400 font-medium flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5" /> Action: HM Reply Required
+                    </span>
                     <Link
                       to={`/hr/interviews/${item.match_result_id}/feedback`}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                     >
-                      Submit GO / NO-GO Feedback
+                      <Award className="w-3.5 h-3.5" />
+                      Review Recruiter Feedback & Reply (GO / NO-GO)
                       <ArrowRight className="h-3.5 w-3.5" />
                     </Link>
                   </div>
@@ -977,42 +1117,104 @@ export const HRDashboard: React.FC = () => {
       {/* TAB: Offer Approval (HM Review) */}
       {activeTab === "offer_review" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-bold font-outfit text-foreground flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-purple-400" />
-                Offers Awaiting Hiring Manager Review ({pendingOffers.length})
+                <DollarSign className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                Offer Governance & Approvals ({displayedOffers.length})
               </h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Review proposed candidate compensation, terms, and employment scope before official PDF generation.
+                Review proposed candidate compensation, sign off on offers, or inspect active and finalized employment contracts.
               </p>
             </div>
           </div>
 
-          {pendingOffers.length === 0 ? (
+          {/* Sub-filter Bar */}
+          <div className="flex flex-wrap items-center gap-2 bg-card border border-border/80 rounded-xl p-2.5 shadow-sm">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mr-1">
+              Filter:
+            </span>
+            {[
+              { id: "all", label: `All Offers (${allOffers.length})` },
+              { id: "pending", label: `Awaiting HM Review (${pendingOffers.length})` },
+              { id: "approved", label: `HM Approved (${approvedOffers.length})` },
+              { id: "sent", label: `Sent to Candidate (${sentOffers.length})` },
+              { id: "accepted", label: `Accepted / Hired (${acceptedOffers.length})` },
+            ].map((btn) => (
+              <button
+                key={btn.id}
+                onClick={() => setOfferFilterTab(btn.id as any)}
+                className={cn(
+                  "px-2.5 py-1 rounded-lg text-xs font-semibold transition border",
+                  offerFilterTab === btn.id
+                    ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                    : "bg-secondary text-muted-foreground border-border hover:text-foreground"
+                )}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
+
+          {displayedOffers.length === 0 ? (
             <Card className="p-12 text-center text-muted-foreground border-dashed">
-              <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
-              <p className="text-sm font-semibold">No pending offers requiring review.</p>
+              <CheckCircle2 className="h-8 w-8 text-purple-500 mx-auto mb-2" />
+              <p className="text-sm font-semibold">
+                {offerFilterTab === "pending"
+                  ? "No pending offers requiring HM sign-off."
+                  : `No offers match the selected "${offerFilterTab}" filter.`}
+              </p>
               <p className="text-xs text-muted-foreground mt-1">
-                When recruiters draft offers and submit them for HM sign-off, they will appear here.
+                {allOffers.length > 0 ? (
+                  <button
+                    onClick={() => setOfferFilterTab("all")}
+                    className="text-primary hover:underline font-semibold"
+                  >
+                    View all {allOffers.length} existing offers in the system →
+                  </button>
+                ) : (
+                  "When recruiters draft offers and submit them for HM sign-off, they will appear here."
+                )}
               </p>
             </Card>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              {pendingOffers.map((offer) => {
+              {displayedOffers.map((offer) => {
                 const currency = offer.salary_currency || "USD";
                 const proposedSalary = offer.proposed_salary ? Number(offer.proposed_salary).toLocaleString() : "Not set";
                 const isReviewing = reviewingOfferId === offer.id;
+                const isPendingHMReview = offer.workflow_state === "PENDING_HM_REVIEW" || offer.status === "PENDING_HM_REVIEW";
+                const isApproved = offer.workflow_state === "HM_APPROVED" || offer.status === "HM_APPROVED";
+                const isSent = offer.workflow_state === "SENT" || offer.status === "SENT";
+                const isAccepted = offer.workflow_state === "ACCEPTED" || offer.status === "ACCEPTED" || offer.status === "HIRED";
 
                 return (
                   <Card key={offer.id} className="p-6 border-border hover:border-purple-500/40 transition-all flex flex-col justify-between gap-5 bg-card/60 backdrop-blur-sm">
                     <div className="space-y-4">
                       {/* Top status bar */}
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-purple-400 px-2.5 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center gap-1.5">
-                          <Clock className="h-3 w-3" /> Awaiting HM Approval
-                        </span>
-                        <span className="text-xs text-muted-foreground">
+                        {isPendingHMReview ? (
+                          <span className="text-xs font-semibold text-amber-700 dark:text-amber-300 px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center gap-1.5">
+                            <Clock className="h-3 w-3 text-amber-600" /> Awaiting HM Approval
+                          </span>
+                        ) : isApproved ? (
+                          <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center gap-1.5">
+                            <CheckCircle2 className="h-3 w-3 text-emerald-600" /> HM Approved
+                          </span>
+                        ) : isSent ? (
+                          <span className="text-xs font-semibold text-blue-700 dark:text-blue-300 px-2.5 py-0.5 rounded-full bg-blue-500/15 border border-blue-500/30 flex items-center gap-1.5">
+                            <Send className="h-3 w-3 text-blue-600" /> Sent to Candidate
+                          </span>
+                        ) : isAccepted ? (
+                          <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center gap-1.5">
+                            <Check className="h-3 w-3 text-emerald-600" /> Accepted (Hired ✓)
+                          </span>
+                        ) : (
+                          <span className="text-xs font-semibold text-muted-foreground px-2.5 py-0.5 rounded-full bg-secondary border border-border">
+                            {offer.workflow_state || offer.status}
+                          </span>
+                        )}
+                        <span className="text-xs text-muted-foreground font-mono">
                           Offer #{offer.id}
                         </span>
                       </div>
@@ -1037,7 +1239,7 @@ export const HRDashboard: React.FC = () => {
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3 rounded-lg bg-background/60 border border-border/50 text-xs">
                         <div>
                           <span className="text-muted-foreground block">Proposed Salary</span>
-                          <span className="font-bold text-emerald-400 text-sm">
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">
                             {currency} {proposedSalary}
                           </span>
                         </div>
@@ -1080,28 +1282,30 @@ export const HRDashboard: React.FC = () => {
                       {/* Recruiter Justification Notes */}
                       {offer.recruiter_comments && (
                         <div className="p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/20 text-xs">
-                          <strong className="text-indigo-300 block mb-1">Recruiter Justification:</strong>
+                          <strong className="text-indigo-400 block mb-1">Recruiter Justification:</strong>
                           <p className="text-foreground/90 italic">"{offer.recruiter_comments}"</p>
                         </div>
                       )}
 
-                      {/* HM Review Comments Input */}
-                      <div className="space-y-1.5 pt-2">
-                        <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                          HM Feedback / Conditions:
-                        </label>
-                        <textarea
-                          rows={2}
-                          value={hmComments[offer.id] || ""}
-                          onChange={(e) => setHmComments({ ...hmComments, [offer.id]: e.target.value })}
-                          placeholder="e.g., Approved with current comp, or: Please increase base to 130k or adjust joining timeline..."
-                          className="w-full text-xs rounded-md bg-background border border-border px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
-                        />
-                      </div>
+                      {/* HM Review Comments Input - only when pending */}
+                      {isPendingHMReview && (
+                        <div className="space-y-1.5 pt-2">
+                          <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                            HM Feedback / Conditions:
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={hmComments[offer.id] || ""}
+                            onChange={(e) => setHmComments({ ...hmComments, [offer.id]: e.target.value })}
+                            placeholder="e.g., Approved with current comp, or: Please increase base to 130k or adjust joining timeline..."
+                            className="w-full text-xs rounded-md bg-background border border-border px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center justify-between gap-3 pt-3 border-t border-border">
+                    <div className="flex items-center justify-between gap-3 pt-3 border-t border-border flex-wrap">
                       <Link
                         to={`/hr/offers/${offer.id}`}
                         className="text-xs text-primary hover:underline inline-flex items-center gap-1 font-semibold"
@@ -1109,32 +1313,45 @@ export const HRDashboard: React.FC = () => {
                         <ExternalLink className="h-3 w-3" /> Open Dedicated HM Review Portal
                       </Link>
 
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={isReviewing}
-                          onClick={() => handleHMOfferDecision(offer.id, "REQUEST_CHANGES")}
-                          className="text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10 gap-1.5"
-                        >
-                          <AlertCircle className="h-3.5 w-3.5" />
-                          Request Adjustments
-                        </Button>
-                        <Button
-                          variant="gradient"
-                          size="sm"
-                          disabled={isReviewing}
-                          onClick={() => handleHMOfferDecision(offer.id, "APPROVE")}
-                          className="text-xs gap-1.5 shadow-md shadow-emerald-500/20"
-                        >
-                          {isReviewing ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Check className="h-3.5 w-3.5 text-emerald-300" />
-                          )}
-                          Approve Offer
-                        </Button>
-                      </div>
+                      {isPendingHMReview ? (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={isReviewing}
+                            onClick={() => handleHMOfferDecision(offer.id, "REQUEST_CHANGES")}
+                            className="text-xs border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 gap-1.5 font-semibold"
+                          >
+                            <AlertCircle className="h-3.5 w-3.5" />
+                            Request Adjustments
+                          </Button>
+                          <Button
+                            variant="gradient"
+                            size="sm"
+                            disabled={isReviewing}
+                            onClick={() => handleHMOfferDecision(offer.id, "APPROVE")}
+                            className="text-xs gap-1.5 shadow-md shadow-emerald-500/20 font-semibold"
+                          >
+                            {isReviewing ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Check className="h-3.5 w-3.5 text-emerald-300" />
+                            )}
+                            Approve Offer
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={offerApi.downloadOfferPdf(offer.id)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-secondary hover:bg-secondary/80 text-foreground border border-border"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-primary" /> View PDF Letter
+                          </a>
+                        </div>
+                      )}
                     </div>
                   </Card>
                 );
@@ -1144,17 +1361,17 @@ export const HRDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Tab 1: Screened Candidates Awaiting HR Review */}
+      {/* Tab: Active Candidate Pipeline */}
       {activeTab === "screened" && (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-bold font-outfit text-foreground flex items-center gap-2">
-                <UserCheck className="h-5 w-5 text-indigo-400" />
-                Candidates Forwarded by Recruiters ({filteredMatches.length})
+                <UserCheck className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                Active Candidate Pipeline ({filteredMatches.length})
               </h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Sort, filter, or bulk-approve candidates to advance into interview rounds.
+                Overview of screened and shortlisted talent advancing through evaluation stages and interviews across your requisitions.
               </p>
             </div>
 
@@ -1210,8 +1427,8 @@ export const HRDashboard: React.FC = () => {
                   className="w-full h-9 px-2.5 rounded-lg border border-border bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="all">All Statuses</option>
-                  <option value="screened">Screened (Pending HR)</option>
-                  <option value="approved_by_hr">Approved by HR</option>
+                  <option value="screened">Screened (Pending HM)</option>
+                  <option value="approved_by_hr">Approved by HM</option>
                   <option value="interview_scheduled">Interview Scheduled</option>
                 </select>
               </div>
@@ -1337,12 +1554,7 @@ export const HRDashboard: React.FC = () => {
                           </div>
 
                           {/* Match Score */}
-                          <div className={`px-3 py-1.5 rounded-xl border text-center shrink-0 ${scoreBadge}`}>
-                            <span className="text-xl font-extrabold font-outfit">{score.toFixed(0)}%</span>
-                            <span className="block text-[9px] font-semibold uppercase tracking-wider opacity-80">
-                              Fit Score
-                            </span>
-                          </div>
+                          <MatchScoreGauge score={score} size="md" />
                         </div>
 
                         {/* Candidate Skills (Resume Extracted vs Declared) */}
@@ -1597,7 +1809,7 @@ export const HRDashboard: React.FC = () => {
                     (iv.status === "scheduled" || iv.status === "CONFIRMED") &&
                     Boolean(iv.interview_date) &&
                     !iv.feedback &&
-                    Date.now() - new Date(iv.interview_date!).getTime() > 48 * 3600 * 1000;
+                    Date.now() - new Date(iv.interview_date!).getTime() > 7 * 24 * 3600 * 1000;
                   const isCancelled = iv.status === "cancelled" || isOverdue;
                   const isCompleted = iv.status === "completed";
 
@@ -1671,7 +1883,7 @@ export const HRDashboard: React.FC = () => {
                           <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                             <div className="flex items-center gap-1.5 text-rose-400 font-medium">
                               <AlertCircle className="h-4 w-4 shrink-0" />
-                              <span>Interview cancelled: Scheduled date passed &gt;48 hours with no update.</span>
+                              <span>Interview cancelled: Scheduled date passed &gt;1 week (7 days) with no update.</span>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
                               <Button
@@ -1960,10 +2172,10 @@ export const HRDashboard: React.FC = () => {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 text-xs px-2 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                            className="h-7 text-xs px-2.5 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/50 hover:bg-rose-500/10 font-semibold"
                             onClick={() => handleCloseJob(job.id)}
                           >
-                            Close
+                            Close Job
                           </Button>
                         )}
                         {job.status === "closed" && (
@@ -1982,16 +2194,11 @@ export const HRDashboard: React.FC = () => {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-7 text-xs px-2 gap-1 text-foreground"
+                          className="h-7 text-xs px-2.5 gap-1.5 text-foreground font-medium"
                           onClick={() => setSelectedJobForRecruiters({ id: job.id, title: job.title })}
                         >
                           <Users className="h-3 w-3 text-primary" /> Recruiters
                         </Button>
-                        <Link to={`/hr/jobs/${job.id}/matches`}>
-                          <Button size="sm" variant="ghost" className="h-7 text-xs px-2.5 gap-1 text-primary hover:bg-primary/10">
-                            <Sparkles className="h-3 w-3" /> View Matches
-                          </Button>
-                        </Link>
                       </div>
                     </div>
                   </Card>
@@ -2126,9 +2333,12 @@ export const HRDashboard: React.FC = () => {
 
               {/* Quick Metrics Strip */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-4 sm:px-6 bg-secondary/10 border-b border-border/60 shrink-0 text-xs">
-                <div className="p-2.5 rounded-xl bg-card border border-border/60">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Match Score</span>
-                  <span className="text-base font-extrabold font-outfit text-emerald-500">{score}% Match</span>
+                <div className="p-2.5 rounded-xl bg-card border border-border/60 flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground block">Match Score</span>
+                    <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">AI Evaluated</span>
+                  </div>
+                  <MatchScoreGauge score={score} size="sm" />
                 </div>
                 <div className="p-2.5 rounded-xl bg-card border border-border/60">
                   <span className="text-[10px] uppercase font-bold text-muted-foreground block">Experience</span>

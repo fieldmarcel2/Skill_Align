@@ -151,7 +151,7 @@ class HMUpdateOfferRequest(BaseModel):
 
 
 class OfferRespondRequest(BaseModel):
-    token: str
+    token: Optional[str] = None
     accept: bool
     note: Optional[str] = None
 
@@ -257,6 +257,7 @@ class OfferOut(BaseModel):
     recruiter_name: Optional[str] = None
     hiring_manager_name: Optional[str] = None
     has_pdf: bool = False
+    offer_token: Optional[str] = None
 
 
 
@@ -316,12 +317,19 @@ class ActionCenterItem(BaseModel):
 class HMDashboardItem(BaseModel):
     match_result_id: int
     candidate_name: str
+    job_id: Optional[int] = None
     job_title: str
     overall_score: float
     pipeline_state: str
     submitted_to_hm_at: Optional[datetime] = None
     hm_reviewed_at: Optional[datetime] = None
     recruiter_name: Optional[str] = None
+    interview_id: Optional[int] = None
+    interviewer_overall_rating: Optional[int] = None
+    interviewer_comments: Optional[str] = None
+    interview_date: Optional[datetime] = None
+    round_name: Optional[str] = None
+    note: Optional[str] = None
 
 
 class InterviewWithSlotsOut(BaseModel):

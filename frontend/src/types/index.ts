@@ -378,7 +378,7 @@ export interface AdminStats {
 export const PIPELINE_STAGE_LABELS: Record<string, string> = {
   matched: "Matched",
   screened: "Screened by Recruiter",
-  approved_by_hr: "Approved by HR",
+  approved_by_hr: "Approved by HM",
   interview_scheduled: "Interview Scheduled",
   screening: "Screening",
   technical_interview: "Technical Interview",
@@ -606,6 +606,7 @@ export interface Offer {
   company_name?: string | null;
   recruiter_name?: string | null;
   hiring_manager_name?: string | null;
+  offer_token?: string | null;
 }
 
 export interface OfferStats {
@@ -674,14 +675,18 @@ export interface ActionCenterItem {
 export interface HMDashboardItem {
   match_result_id: number;
   candidate_name: string;
+  job_id?: number | null;
   job_title: string;
   overall_score: number;
   pipeline_state: PipelineState;
   submitted_to_hm_at?: string | null;
   hm_reviewed_at?: string | null;
   recruiter_name?: string | null;
-  job_id?: number | null;
+  interview_id?: number | null;
+  interviewer_overall_rating?: number | null;
+  interviewer_comments?: string | null;
   interview_date?: string | null;
+  round_name?: string | null;
   note?: string | null;
 }
 

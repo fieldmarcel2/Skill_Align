@@ -18,6 +18,7 @@ import logging
 from pathlib import Path
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -113,6 +114,21 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         request_id = set_request_id(incoming)
         request.state.request_id = request_id
 
+        # Emit DEBUG-level request start log for full lifecycle tracing
+        logger.debug(
+            "%s %s — request received",
+            request.method,
+            request.url.path,
+            extra={
+                "event": "request_started",
+                "stage": "request_received",
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "client_ip": request.client.host if request.client else None,
+            },
+        )
+
         start_time = time.perf_counter()
         response = await call_next(request)
         duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
@@ -134,6 +150,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
             duration_ms,
             extra={
                 "event": "http_request",
+                "stage": "response",
                 "category": "access",
                 "request_id": request_id,
                 "method": request.method,
@@ -429,6 +446,7 @@ def custom_openapi():
 app.openapi = custom_openapi  # type: ignore[method-assign]
 
 # ── Middleware Stack (order matters — outermost applied last) ────────────────
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 

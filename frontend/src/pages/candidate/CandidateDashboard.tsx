@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense, lazy } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { candidatesApi, interviewsApi, notificationsApi, skillsApi, resumeApi } from "../../services/api";
@@ -64,16 +64,9 @@ import {
 import { CandidateSlotPickerModal } from "../../components/candidate/CandidateSlotPickerModal";
 import { InlineSlotChooser } from "../../components/candidate/InlineSlotChooser";
 import confetti from "canvas-confetti";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Cell,
-} from "recharts";
+import { ChartSkeleton } from "../../components/charts/ChartSkeleton";
+
+const CandidateAnalyticsCharts = lazy(() => import("../../components/charts/CandidateAnalyticsCharts"));
 
 const MATCH_PAGE_SIZE = 10;
 const INTERVIEW_PAGE_SIZE = 10;
@@ -1202,83 +1195,15 @@ export const CandidateDashboard: React.FC = () => {
       {activeTab === "pipeline" && (
         <div className="space-y-5">
           {/* Visual Analytics: Skill Domain Distribution & Application Progress */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card className="p-4 border-border/80 bg-card/70 backdrop-blur-xl shadow-sm space-y-3 min-w-0 overflow-hidden">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                    <Code2 className="h-4 w-4 text-indigo-400" />
-                    Verified Skill Domains
-                  </h3>
-                  <p className="text-[11px] text-muted-foreground">Distribution of credentials across industry competencies</p>
-                </div>
-                <Badge variant="outline" className="text-[10px] font-mono">
-                  {profile?.skills?.length || 0} Total
-                </Badge>
-              </div>
-
-              <div className="h-52 sm:h-56 w-full min-w-0 pt-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={skillDomainDistribution} margin={{ top: 10, right: 15, left: -15, bottom: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
-                    <XAxis dataKey="domain" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} />
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (!active || !payload?.length) return null;
-                        const data = payload[0].payload;
-                        return (
-                          <div className="p-2.5 rounded-lg bg-popover/95 border border-border shadow-lg text-xs">
-                            <span className="font-semibold text-foreground">{data.fullName}</span>
-                            <div className="text-indigo-400 font-bold mt-0.5">{data.count} skill{data.count !== 1 ? "s" : ""}</div>
-                          </div>
-                        );
-                      }}
-                    />
-                    <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-
-            <Card className="p-4 border-border/80 bg-card/70 backdrop-blur-xl shadow-sm space-y-3 min-w-0 overflow-hidden">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                    <Layers className="h-4 w-4 text-emerald-400" />
-                    Active Pipeline Progression
-                  </h3>
-                  <p className="text-[11px] text-muted-foreground">Recruitment stages for matched job requisitions</p>
-                </div>
-                <Badge variant="outline" className="text-[10px] font-mono">
-                  {activeApplications.length} Positions
-                </Badge>
-              </div>
-
-              <div className="h-52 sm:h-56 w-full min-w-0 pt-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={pipelineStageDistribution} margin={{ top: 10, right: 15, left: -15, bottom: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
-                    <XAxis dataKey="stage" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} />
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (!active || !payload?.length) return null;
-                        const data = payload[0].payload;
-                        return (
-                          <div className="p-2.5 rounded-lg bg-popover/95 border border-border shadow-lg text-xs">
-                            <span className="font-semibold text-foreground">{data.stage} Stage</span>
-                            <div className="text-emerald-400 font-bold mt-0.5">{data.count} application{data.count !== 1 ? "s" : ""}</div>
-                          </div>
-                        );
-                      }}
-                    />
-                    <Bar dataKey="count" fill="#10b981" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-          </div>
+          {/* Visual Analytics: Skill Domain Distribution & Application Progress (Lazy-Loaded) */}
+          <Suspense fallback={<ChartSkeleton height="h-[240px]" label="Loading competency and pipeline charts..." />}>
+            <CandidateAnalyticsCharts
+              skillsCount={profile?.skills?.length || 0}
+              activeApplicationsCount={activeApplications.length}
+              skillDomainDistribution={skillDomainDistribution}
+              pipelineStageDistribution={pipelineStageDistribution}
+            />
+          </Suspense>
           {visibleMatches.length === 0 ? (
             <Card className="p-12 text-center border-dashed border-border/80 bg-card/40 space-y-4">
               <div className="h-12 w-12 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto">
@@ -1624,7 +1549,7 @@ export const CandidateDashboard: React.FC = () => {
                           </div>
                           <div className="space-y-1">
                             <div className={`h-1.5 rounded-full ${stageIndex >= 3 ? "bg-indigo-500" : "bg-secondary"}`} />
-                            <span className="text-[10px] text-muted-foreground">3. HR Approved</span>
+                            <span className="text-[10px] text-muted-foreground">3. HM Approved</span>
                           </div>
                           <div className="space-y-1">
                             <div className={`h-1.5 rounded-full ${stageIndex >= 4 ? "bg-purple-500" : "bg-secondary"}`} />

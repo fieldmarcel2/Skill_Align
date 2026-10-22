@@ -111,4 +111,4 @@ def update_user(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin)
 ):
-    return user_service.update_user(db, user_id, data)
+    return user_service.update_user(db, user_id, data, current_admin_id=admin.id)

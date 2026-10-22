@@ -37,7 +37,7 @@ export const SlotSelectionPage: React.FC = () => {
 
   useEffect(() => {
     const fetchSlots = async () => {
-      if (!interviewId || !token) {
+      if (!interviewId) {
         setError("Invalid or missing interview selection link. Please check your invitation communication.");
         setLoading(false);
         return;
@@ -57,7 +57,7 @@ export const SlotSelectionPage: React.FC = () => {
       } catch (err: any) {
         setError(
           err.response?.data?.detail ||
-            "Unable to load interview slots. The link may have expired or is invalid."
+            "Unable to load interview slots. The link may have expired or is invalid. Please check your invitation or sign in to your account."
         );
       } finally {
         setLoading(false);
@@ -68,12 +68,12 @@ export const SlotSelectionPage: React.FC = () => {
   }, [interviewId, token]);
 
   const handleConfirmSlot = async () => {
-    if (!selectedSlotId || !interviewId || !token) return;
+    if (!selectedSlotId || !interviewId) return;
 
     setSubmitting(true);
     setError(null);
     try {
-      await workflowApi.candidateSelectSlot(interviewId, token, selectedSlotId);
+      await workflowApi.candidateSelectSlot(interviewId, selectedSlotId, token || undefined);
       const chosen = interview?.slots.find((s) => s.id === selectedSlotId) || null;
       setConfirmedSlot(chosen);
       setIsConfirmed(true);

@@ -123,7 +123,7 @@ export const LoginPage: React.FC = () => {
         password: data.password,
       };
       const res = await authApi.login(cleanData);
-      const user = await login(res.access_token);
+      const user = await login(res.access_token, res.user);
       toast.success(`Welcome back, ${user.name}!`, "Signed In");
       handleRoleRedirect(user.role.name);
     } catch (err: any) {
@@ -141,7 +141,7 @@ export const LoginPage: React.FC = () => {
     setIsLoading(true);
     try {
       const res = await authApi.login({ email, password });
-      const user = await login(res.access_token);
+      const user = await login(res.access_token, res.user);
       toast.success(`Welcome back, ${user.name}!`, "Signed In");
       handleRoleRedirect(user.role.name);
     } catch (err: any) {
@@ -218,7 +218,7 @@ export const LoginPage: React.FC = () => {
         phone: phoneNumber,
         otp: otpCode.trim(),
       });
-      const user = await login(res.access_token);
+      const user = await login(res.access_token, res.user);
       toast.success(
         res.is_new_user
           ? `Welcome to SkillAlign, ${user.name}!`

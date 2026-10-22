@@ -75,7 +75,8 @@ export const CandidateOfferPage: React.FC = () => {
     setActionLoading(true);
     setError(null);
     try {
-      const updated = await offerApi.respondOffer(offer.id, token, true);
+      const effectiveToken = token || offer.offer_token || "";
+      const updated = await offerApi.respondOffer(offer.id, effectiveToken, true);
       setOffer(updated);
       setSuccessMsg("Congratulations! Your offer acceptance is confirmed and corporate onboarding has been initiated.");
     } catch (err: any) {
@@ -90,7 +91,8 @@ export const CandidateOfferPage: React.FC = () => {
     setActionLoading(true);
     setError(null);
     try {
-      const updated = await offerApi.respondOffer(offer.id, token, false, declineReason || undefined);
+      const effectiveToken = token || offer.offer_token || "";
+      const updated = await offerApi.respondOffer(offer.id, effectiveToken, false, declineReason || undefined);
       setOffer(updated);
       setShowDeclineModal(false);
       setSuccessMsg("Offer declined. A 6-month placement cooldown has been recorded as per policy.");

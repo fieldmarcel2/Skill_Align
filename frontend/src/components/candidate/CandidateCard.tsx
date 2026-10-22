@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { MatchResult } from "../../types";
 import { cn } from "../../lib/utils";
+import { MatchScoreGauge } from "../common/MatchScoreGauge";
 
 interface CandidateCardProps {
   match: MatchResult;
@@ -122,7 +123,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
                     : "bg-secondary text-secondary-foreground border-border"
                 )}
               >
-                {match.status.replace(/_/g, " ")}
+                {match.status === "approved_by_hr" ? "Approved by HM" : match.status.replace(/_/g, " ")}
               </span>
             </div>
 
@@ -149,17 +150,8 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
             </div>
           </div>
 
-          {/* Match Score Gauge */}
-          <div
-            className={cn(
-              "flex flex-col items-center justify-center min-w-[56px] h-14 rounded-xl border px-2.5",
-              scoreColor
-            )}
-            title="Algorithm Match Score based on resume evidence, required skills, and experience"
-          >
-            <span className="text-lg font-extrabold leading-none">{scorePercent}%</span>
-            <span className="text-[10px] font-bold uppercase tracking-wider mt-0.5">Match</span>
-          </div>
+          {/* Match Score Radial Gauge */}
+          <MatchScoreGauge score={rawScore} size="md" />
         </div>
 
         {/* Skill Evidence Highlights */}

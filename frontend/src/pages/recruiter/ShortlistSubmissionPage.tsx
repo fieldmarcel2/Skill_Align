@@ -57,7 +57,15 @@ export const ShortlistSubmissionPage: React.FC = () => {
       // Fetch HR/Hiring Managers
       try {
         const usersRes = await usersApi.list();
-        const hmList = (usersRes || []).filter((u: UserType) => u.role?.name === "HR" || u.role?.name === "Admin");
+        const hmList = (usersRes || [])
+          .filter((u: UserType) => u.role?.name === "HR" || u.role?.name === "Admin")
+          .sort((a: UserType, b: UserType) => {
+            if (a.email?.includes("hr@skillaign") || a.name?.toLowerCase().includes("sarah")) return -1;
+            if (b.email?.includes("hr@skillaign") || b.name?.toLowerCase().includes("sarah")) return 1;
+            if (a.role?.name === "HR" && b.role?.name !== "HR") return -1;
+            if (a.role?.name !== "HR" && b.role?.name === "HR") return 1;
+            return 0;
+          });
         setHiringManagers(hmList);
         if (hmList.length > 0 && !selectedHMId) {
           setSelectedHMId(hmList[0].id);

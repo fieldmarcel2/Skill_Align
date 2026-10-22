@@ -37,7 +37,9 @@ import {
   MessageSquare,
   Sparkles,
 } from "lucide-react";
-import { workflowApi, jobsApi, interviewsApi } from "../../services/api";
+import { workflowApi, jobsApi, interviewsApi, recruiterApi } from "../../services/api";
+import { GoogleCalendarButton } from "../../components/calendar/GoogleCalendarButton";
+import { buildInterviewCalendarEvent } from "../../lib/googleCalendar";
 import { ActionCenterItem, PipelineState, Job, Interview, AuditLogEntry } from "../../types";
 import ActionCenterCard from "../../components/workflow/ActionCenterCard";
 import { PipelineStateBar } from "../../components/workflow/PipelineStateBar";
@@ -103,12 +105,18 @@ export const ActionCenterPage: React.FC = () => {
   const [search, setSearch] = useState<string>("");
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
 
-  // Load available jobs for filter selector
+  // Load available jobs for filter selector (prioritize assigned jobs sorted by candidate count)
   useEffect(() => {
     const loadJobs = async () => {
       try {
-        const data = await jobsApi.list();
-        setJobs(data);
+        const assigned = await recruiterApi.getAssignedJobs().catch(() => []);
+        if (assigned && assigned.length > 0) {
+          const sorted = [...assigned].sort((a, b) => (b.total_candidates || 0) - (a.total_candidates || 0));
+          setJobs(sorted as any);
+        } else {
+          const data = await jobsApi.list();
+          setJobs(data);
+        }
       } catch (e) {
         console.error("Failed to load jobs list:", e);
       }
@@ -129,11 +137,22 @@ export const ActionCenterPage: React.FC = () => {
 
       setItems(actionData);
 
+      const sortedInvs = [...interviewsData].sort((a, b) => {
+        const timeA = a.created_at
+          ? new Date(a.created_at).getTime()
+          : (a.interview_date ? new Date(a.interview_date).getTime() : 0);
+        const timeB = b.created_at
+          ? new Date(b.created_at).getTime()
+          : (b.interview_date ? new Date(b.interview_date).getTime() : 0);
+        if (timeB !== timeA) return timeB - timeA;
+        return (b.id || 0) - (a.id || 0);
+      });
+
       // Filter interviews if specific job selected
       if (selectedJobId) {
-        setInterviews(interviewsData.filter((i) => i.job_id === selectedJobId));
+        setInterviews(sortedInvs.filter((i) => i.job_id === selectedJobId));
       } else {
-        setInterviews(interviewsData);
+        setInterviews(sortedInvs);
       }
 
       setActivityLogs(activityData);
@@ -945,20 +964,38 @@ export const ActionCenterPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between pt-2 border-t border-border">
-                      {iv.meeting_link ? (
-                        <a
-                          href={iv.meeting_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-colors"
-                        >
-                          <Video className="w-3.5 h-3.5" />
-                          Join Meeting
-                        </a>
-                      ) : (
-                        <span className="text-xs text-muted-foreground italic">No link provided</span>
-                      )}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border">
+                      <div className="flex items-center gap-2">
+                        {iv.interview_date && (
+                          <GoogleCalendarButton
+                            {...buildInterviewCalendarEvent({
+                              candidateName: iv.candidate_name || "Candidate",
+                              jobTitle: iv.job_title || "Position",
+                              interviewType: iv.interview_type || "Interview",
+                              scheduledDate: iv.interview_date,
+                              meetingLink: iv.meeting_link || undefined,
+                              recruiterName: iv.scheduler_name || undefined,
+                            })}
+                            size="sm"
+                            variant="outline"
+                            label="Add to Calendar"
+                          />
+                        )}
+
+                        {iv.meeting_link ? (
+                          <a
+                            href={iv.meeting_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-colors"
+                          >
+                            <Video className="w-3.5 h-3.5" />
+                            Join Meeting
+                          </a>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">No link provided</span>
+                        )}
+                      </div>
 
                       <Link
                         to={`/recruiter/candidates/${iv.match_result_id}`}

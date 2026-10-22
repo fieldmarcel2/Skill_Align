@@ -97,8 +97,8 @@ export const authApi = {
     const res = await apiClient.post<User>("/api/auth/register", data);
     return res.data;
   },
-  login: async (data: { email: string; password: string }): Promise<{ access_token: string }> => {
-    const res = await apiClient.post<{ access_token: string }>("/api/auth/login", data);
+  login: async (data: { email: string; password: string }): Promise<{ access_token: string; token_type?: string; user?: User }> => {
+    const res = await apiClient.post<{ access_token: string; token_type?: string; user?: User }>("/api/auth/login", data);
     return res.data;
   },
   sendOtp: async (data: { phone: string }): Promise<{ message: string; dev_otp?: string }> => {
@@ -181,6 +181,19 @@ export const adminApi = {
   },
   getUserDetail: async (userId: number): Promise<any> => {
     const res = await apiClient.get<any>(`/api/admin/users/${userId}/detail`);
+    return res.data;
+  },
+  updateUser: async (
+    userId: number,
+    data: {
+      name?: string;
+      email?: string;
+      phone_number?: string | null;
+      role?: string;
+      is_active?: boolean;
+    }
+  ): Promise<User> => {
+    const res = await apiClient.put<User>(`/api/admin/users/${userId}`, data);
     return res.data;
   },
   deleteUser: async (userId: number): Promise<{ message: string; id: number }> => {
@@ -822,6 +835,10 @@ export const workflowApi = {
   // Hiring Manager (HR) actions
   hmReview: async (matchId: number): Promise<WorkflowState> => {
     const res = await apiClient.post<WorkflowState>(`/api/workflow/${matchId}/hm-review`);
+    return res.data;
+  },
+  approveShortlist: async (matchId: number): Promise<WorkflowState> => {
+    const res = await apiClient.post<WorkflowState>(`/api/workflow/${matchId}/approve-interview`);
     return res.data;
   },
   hmReject: async (matchId: number, reason?: string): Promise<WorkflowState> => {

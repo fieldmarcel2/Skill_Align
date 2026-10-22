@@ -471,7 +471,7 @@ export const HRJobMatchesPage: React.FC = () => {
                           onClick={() => handleStatusUpdate(match.id, "hr_interview")}
                           className="w-full text-xs gap-1 shadow-md shadow-indigo-500/20"
                         >
-                          <BookmarkCheck className="h-3.5 w-3.5" /> Move to HR Interview
+                          <BookmarkCheck className="h-3.5 w-3.5" /> Move to HM Interview
                         </Button>
                       )}
 

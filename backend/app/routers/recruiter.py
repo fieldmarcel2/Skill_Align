@@ -169,7 +169,7 @@ def get_recruiter_jobs(
             )
         )
 
-    items.sort(key=lambda x: x.created_at, reverse=True)
+    items.sort(key=lambda x: (x.total_candidates, x.created_at), reverse=True)
     return items
 
 
@@ -215,7 +215,15 @@ def get_job_candidates(
         query = query.filter(MatchResult.overall_score >= min_score)
 
     if status:
-        query = query.filter(MatchResult.status == status)
+        if status.lower() == "rejected":
+            query = query.filter(
+                or_(
+                    MatchResult.status == "rejected",
+                    MatchResult.pipeline_state.in_(["REJECTED", "HIRING_MANAGER_REJECTED", "OFFER_REJECTED", "OFFER_EXPIRED"]),
+                )
+            )
+        else:
+            query = query.filter(MatchResult.status == status)
 
     if assigned_to_me:
         query = query.join(
@@ -303,7 +311,15 @@ def get_all_assigned_candidates(
         query = query.filter(MatchResult.overall_score >= min_score)
 
     if status:
-        query = query.filter(MatchResult.status == status)
+        if status.lower() == "rejected":
+            query = query.filter(
+                or_(
+                    MatchResult.status == "rejected",
+                    MatchResult.pipeline_state.in_(["REJECTED", "HIRING_MANAGER_REJECTED", "OFFER_REJECTED", "OFFER_EXPIRED"]),
+                )
+            )
+        else:
+            query = query.filter(MatchResult.status == status)
 
     if assigned_to_me:
         query = query.join(

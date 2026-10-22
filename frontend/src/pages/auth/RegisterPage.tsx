@@ -138,7 +138,7 @@ export const RegisterPage: React.FC = () => {
         password: data.password,
       });
 
-      await login(loginRes.access_token);
+      await login(loginRes.access_token, loginRes.user);
       toast.success(
         "Candidate account created successfully! Welcome to SkillAlign.",
         "Registration Complete"

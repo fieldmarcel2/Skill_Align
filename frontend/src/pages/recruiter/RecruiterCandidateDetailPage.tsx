@@ -36,12 +36,14 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../components/ui/toast";
 import { recruiterApi, matchingApi, communicationApi, tasksApi, resumeApi, workflowApi, offerApi } from "../../services/api";
 import { MatchResult, RecruitmentMessage, RecruitmentTask, PipelineState, AuditLogEntry } from "../../types";
 import { cn } from "../../lib/utils";
 import PipelineStateBar from "../../components/workflow/PipelineStateBar";
 import CandidateTimeline from "../../components/workflow/CandidateTimeline";
 import InterviewerEvaluationModal from "../../components/workflow/InterviewerEvaluationModal";
+import { MatchScoreGauge } from "../../components/common/MatchScoreGauge";
 import InterviewerEvaluationDisplayCard from "../../components/workflow/InterviewerEvaluationDisplayCard";
 import { MultiRoundInterviewSection } from "../../components/workflow/MultiRoundInterviewSection";
 import { InterviewWithSlots, Offer } from "../../types";
@@ -50,6 +52,9 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
   const { jobId, candidateId } = useParams<{ jobId: string; candidateId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const toast = useToast();
+  const userRole = (typeof user?.role === "string" ? user.role : user?.role?.name || "").toLowerCase();
+  const isAdmin = userRole === "admin";
 
   const numJobId = Number(jobId);
   const numCandidateId = Number(candidateId);
@@ -369,13 +374,22 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
   const candidate = match.candidate;
   const job = match.job;
 
+  // Pipeline stage flags
+  const isPipelineActive = Boolean(
+    match.pipeline_state &&
+    match.pipeline_state !== "CANDIDATE_MATCHED" &&
+    match.pipeline_state !== "REJECTED" &&
+    match.pipeline_state !== "BLACKLISTED" &&
+    match.status !== "matched"
+  );
+
   // Assignment status handling (supporting both 'claimed' and 'assigned')
   const isAssigned =
-    (match.assignment_status === "claimed" || match.assignment_status === "assigned") &&
+    (match.assignment_status === "claimed" || match.assignment_status === "assigned" || isPipelineActive) &&
     Boolean(match.assigned_recruiter);
-  const isClaimedByMe = isAssigned && match.assigned_recruiter?.id === user?.id;
-  const isClaimedByOther = isAssigned && match.assigned_recruiter?.id !== user?.id;
-  const isUnassigned = !isAssigned;
+  const isClaimedByMe = (isAssigned && match.assigned_recruiter?.id === user?.id) || (isPipelineActive && (!match.assigned_recruiter || match.assigned_recruiter?.id === user?.id));
+  const isClaimedByOther = isAssigned && Boolean(match.assigned_recruiter?.id) && match.assigned_recruiter?.id !== user?.id;
+  const isUnassigned = !isAssigned && !isPipelineActive;
 
   // Normalize match score to 0-100 (resolving the 7400% bug)
   const rawScore = Number(match.overall_score) || 0;
@@ -386,6 +400,13 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
   const latestInterview = candidateInterviews.length > 0 ? candidateInterviews[0] : null;
 
   // Pipeline stage flags to prevent conflicting interview/offer status indicators
+  const isCandidateRejected =
+    match.status === "rejected" ||
+    match.pipeline_state === "REJECTED" ||
+    match.pipeline_state === "HIRING_MANAGER_REJECTED" ||
+    match.pipeline_state === "INTERVIEW_NO_GO" ||
+    match.pipeline_state === "OFFER_REJECTED";
+
   const isHiredOrAccepted =
     candidateOffer?.status === "ACCEPTED" ||
     match.pipeline_state === "HIRED" ||
@@ -418,8 +439,8 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
       {/* Top Breadcrumb & Back */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Link to="/recruiter" className="hover:text-primary transition-colors">
-            Recruiter Dashboard
+          <Link to={isAdmin ? "/admin" : "/recruiter"} className="hover:text-primary transition-colors">
+            {isAdmin ? "Admin Overview" : "Recruiter Dashboard"}
           </Link>
           <ChevronRight className="w-4 h-4" />
           {job ? (
@@ -470,7 +491,7 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
           const currentTransitions = stateTransitions[match.pipeline_state || ""];
           const hasActionCenterTask = ["INTERVIEW_SLOTS_PROPOSED", "CANDIDATE_SLOT_SELECTED", "INTERVIEW_GO", "OFFER_CREATED"].includes(match.pipeline_state || "");
 
-          if (!currentTransitions && !hasActionCenterTask) return null;
+          if (isAdmin || (!currentTransitions && !hasActionCenterTask)) return null;
 
           return (
             <div className="mt-4 pt-4 border-t border-border flex flex-wrap items-center gap-3">
@@ -515,6 +536,11 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-secondary text-muted-foreground border border-border">
                   <User className="w-3.5 h-3.5" />
                   Claimed by {match.assigned_recruiter?.name}
+                </span>
+              ) : isPipelineActive ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/30">
+                  <UserCheck className="w-3.5 h-3.5" />
+                  Active in Pipeline
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
@@ -561,21 +587,7 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
           {/* Right: Match Score Gauge & Quick Actions */}
           <div className="flex items-center gap-4 self-stretch lg:self-auto justify-between lg:justify-end">
             <div className="flex items-center gap-3 pr-4 border-r border-border/80">
-              <div
-                className={cn(
-                  "w-16 h-16 rounded-2xl border flex flex-col items-center justify-center p-2 shadow-sm",
-                  scorePercent >= 80
-                    ? "text-emerald-500 bg-emerald-500/10 border-emerald-500/30"
-                    : scorePercent >= 65
-                    ? "text-sky-500 bg-sky-500/10 border-sky-500/30"
-                    : scorePercent >= 50
-                    ? "text-amber-500 bg-amber-500/10 border-amber-500/30"
-                    : "text-rose-500 bg-rose-500/10 border-rose-500/30"
-                )}
-              >
-                <span className="text-2xl font-black leading-none">{scorePercent}%</span>
-                <span className="text-[10px] font-bold uppercase tracking-wider mt-1">Match</span>
-              </div>
+              <MatchScoreGauge score={rawScore} size="lg" />
               <div className="text-xs text-muted-foreground leading-tight">
                 <span className="font-semibold text-foreground block">Deterministic Match</span>
                 Resume Evidence + Experience
@@ -584,8 +596,16 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
 
             {/* Action Buttons */}
             <div className="flex flex-wrap items-center gap-2">
-              {/* Enterprise Workflow Specific Actions */}
-              {job && ["CANDIDATE_MATCHED", "CANDIDATE_SHORTLISTED"].includes(match.pipeline_state || "") && (
+              {/* Read-Only Admin Indicator */}
+              {isAdmin && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-secondary/80 text-muted-foreground border border-border">
+                  <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+                  Read-Only Admin View
+                </span>
+              )}
+
+              {/* Enterprise Workflow Specific Actions (Recruiter & HM only) */}
+              {!isAdmin && job && ["CANDIDATE_MATCHED", "CANDIDATE_SHORTLISTED"].includes(match.pipeline_state || "") && (
                 <Link
                   to={`/recruiter/jobs/${job.id}/shortlist?match_id=${match.id}&candidate_id=${match.candidate_id || candidateId || ""}`}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition shadow-sm"
@@ -595,7 +615,7 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
                 </Link>
               )}
 
-              {match.pipeline_state === "INTERVIEW_SLOTS_PROPOSED" && (
+              {!isAdmin && match.pipeline_state === "INTERVIEW_SLOTS_PROPOSED" && (
                 <button
                   type="button"
                   onClick={handleSendSlots}
@@ -607,7 +627,41 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
                 </button>
               )}
 
-              {match.pipeline_state === "CANDIDATE_SLOT_SELECTED" && (
+              {!isAdmin && match.pipeline_state === "WAITING_FOR_CANDIDATE_SLOT" && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const intId = latestInterview?.id || activeInterviewDetails?.id;
+                      const tok = latestInterview?.slot_token || activeInterviewDetails?.slot_token;
+                      if (!tok) {
+                        toast.error("Slots have not been dispatched to candidate yet.");
+                        return;
+                      }
+                      const slotUrl = `${window.location.origin}/interviews/${intId}/select-slot?token=${tok}`;
+                      navigator.clipboard.writeText(slotUrl);
+                      toast.success("Candidate slot selection link copied to clipboard!");
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white transition shadow-sm"
+                    title="Copy candidate slot booking link"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    Copy Candidate Slot Link
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendSlots}
+                    disabled={actionLoading}
+                    className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-medium bg-muted hover:bg-muted/80 text-foreground border border-border transition"
+                    title="Resend interview slots invitation email"
+                  >
+                    <Send className="w-3.5 h-3.5 text-muted-foreground" />
+                    Resend Slots
+                  </button>
+                </div>
+              )}
+
+              {!isAdmin && match.pipeline_state === "CANDIDATE_SLOT_SELECTED" && (
                 <button
                   type="button"
                   onClick={handleConfirmInterview}
@@ -619,7 +673,7 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
                 </button>
               )}
 
-              {match.pipeline_state === "INTERVIEW_CONFIRMED" && (
+              {!isAdmin && match.pipeline_state === "INTERVIEW_CONFIRMED" && (
                 <button
                   type="button"
                   onClick={handleCompleteInterview}
@@ -638,7 +692,7 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
                 </span>
               )}
 
-              {["INTERVIEW_GO", "COMPENSATION_DISCUSSION"].includes(match.pipeline_state || "") && (
+              {!isAdmin && ["INTERVIEW_GO", "COMPENSATION_DISCUSSION"].includes(match.pipeline_state || "") && (
                 <Link
                   to={`/recruiter/offers/create?match_id=${match.id}`}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition shadow-sm"
@@ -648,7 +702,7 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
                 </Link>
               )}
 
-              {match.pipeline_state === "OFFER_CREATED" && (
+              {!isAdmin && match.pipeline_state === "OFFER_CREATED" && (
                 <Link
                   to={`/recruiter/offers/create?match_id=${match.id}`}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white transition shadow-sm"
@@ -665,72 +719,77 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
                 <Clock className="w-3.5 h-3.5 text-muted-foreground" />
                 Audit Log
               </Link>
-              {isUnassigned ? (
-                <button
-                  type="button"
-                  onClick={handleClaim}
-                  disabled={actionLoading}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition shadow-sm disabled:opacity-50"
-                >
-                  <UserCheck className="w-4 h-4" />
-                  Assign to Me
-                </button>
-              ) : isClaimedByMe ? (
-                <>
-                  {match.status === "matched" && (
-                    <button
-                      type="button"
-                      onClick={() => handleStatusTransition("screened")}
-                      disabled={actionLoading}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-sm"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      Screen & Endorse
-                    </button>
-                  )}
-                  {match.status === "screened" && (
-                    <button
-                      type="button"
-                      onClick={() => handleStatusTransition("approved_by_hr")}
-                      disabled={actionLoading}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition shadow-sm"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      Recommend to HR
-                    </button>
-                  )}
-                  {match.status !== "rejected" && (
-                    <button
-                      type="button"
-                      onClick={() => handleStatusTransition("rejected")}
-                      disabled={actionLoading}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-secondary hover:bg-rose-500/10 text-rose-500 border border-border transition"
-                    >
-                      <XCircle className="w-4 h-4" />
-                      Reject
-                    </button>
-                  )}
+
+              {!isAdmin && !isCandidateRejected && !isHiredOrAccepted && (
+                isUnassigned && !isPipelineActive ? (
                   <button
                     type="button"
-                    onClick={handleUnassign}
+                    onClick={handleClaim}
                     disabled={actionLoading}
-                    className="px-2.5 py-2 rounded-xl text-xs text-muted-foreground hover:text-foreground border border-border hover:bg-secondary transition"
-                    title="Release claim back to pool"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition shadow-sm disabled:opacity-50"
                   >
-                    Release Claim
+                    <UserCheck className="w-4 h-4" />
+                    Assign to Me
                   </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleClaim}
-                  disabled={actionLoading}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-secondary hover:bg-primary/10 text-foreground border border-border transition"
-                  title="Claim ownership from another recruiter"
-                >
-                  <UserCheck className="w-3.5 h-3.5 text-primary" />
-                  Take Ownership
-                </button>
+                ) : isClaimedByMe ? (
+                  <>
+                    {match.status === "matched" && (
+                      <button
+                        type="button"
+                        onClick={() => handleStatusTransition("screened")}
+                        disabled={actionLoading}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-sm"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        Screen & Endorse
+                      </button>
+                    )}
+                    {match.status === "screened" && (
+                      <button
+                        type="button"
+                        onClick={() => handleStatusTransition("approved_by_hr")}
+                        disabled={actionLoading}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition shadow-sm"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        Recommend to HM
+                      </button>
+                    )}
+                    {match.status !== "rejected" && (
+                      <button
+                        type="button"
+                        onClick={() => handleStatusTransition("rejected")}
+                        disabled={actionLoading}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-secondary hover:bg-rose-500/10 text-rose-500 border border-border transition"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        Reject
+                      </button>
+                    )}
+                    {!isPipelineActive && (
+                      <button
+                        type="button"
+                        onClick={handleUnassign}
+                        disabled={actionLoading}
+                        className="px-2.5 py-2 rounded-xl text-xs text-muted-foreground hover:text-foreground border border-border hover:bg-secondary transition"
+                        title="Release claim back to pool"
+                      >
+                        Release Claim
+                      </button>
+                    )}
+                  </>
+                ) : isClaimedByOther && !isPipelineActive ? (
+                  <button
+                    type="button"
+                    onClick={handleClaim}
+                    disabled={actionLoading}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-secondary hover:bg-primary/10 text-foreground border border-border transition"
+                    title="Claim ownership from another recruiter"
+                  >
+                    <UserCheck className="w-3.5 h-3.5 text-primary" />
+                    Take Ownership
+                  </button>
+                ) : null
               )}
             </div>
           </div>
@@ -845,6 +904,25 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
                 </button>
               </div>
             )}
+
+            {/* Slot Booking Actions when pending slot */}
+            {latestInterview.status === "pending_slot" && latestInterview.slot_token && (
+              <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const slotUrl = `${window.location.origin}/interviews/${latestInterview.id}/select-slot?token=${latestInterview.slot_token}`;
+                    navigator.clipboard.writeText(slotUrl);
+                    toast.success("Candidate slot selection link copied to clipboard!");
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white shadow-sm transition"
+                  title="Copy candidate slot booking link"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  Copy Booking Link
+                </button>
+              </div>
+            )}
           </div>
 
           {/* HR Preparation Notes */}
@@ -899,7 +977,7 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
           candidateName={match.candidate.full_name}
           rounds={interviewRounds}
           onRoundsUpdated={loadData}
-          canManageRounds={!isHiredOrAccepted}
+          canManageRounds={!isHiredOrAccepted && !isAdmin}
           isOfferPhase={isOfferPhase}
         />
       )}
@@ -920,7 +998,7 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
           </div>
           <InterviewerEvaluationDisplayCard
             interview={activeInterviewDetails || undefined}
-            onEdit={() => {
+            onEdit={isAdmin ? undefined : () => {
               setIsEditingEvaluation(true);
               setShowInterviewerEvalModal(true);
             }}
@@ -953,13 +1031,15 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
               }`}>
                 Offer Status: {candidateOffer?.status || "DRAFT"}
               </span>
-              <Link
-                to={`/recruiter/offers/create?match_id=${match.id}`}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white transition shadow-sm"
-              >
-                <FileCheck className="w-3.5 h-3.5" />
-                {candidateOffer?.id ? "Edit / Send Offer" : "Draft Offer"}
-              </Link>
+              {!isAdmin && (
+                <Link
+                  to={`/recruiter/offers/create?match_id=${match.id}`}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white transition shadow-sm"
+                >
+                  <FileCheck className="w-3.5 h-3.5" />
+                  {candidateOffer?.id ? "Edit / Send Offer" : "Draft Offer"}
+                </Link>
+              )}
             </div>
           </div>
 
@@ -1601,7 +1681,7 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
                 Contextual Discussion on Candidate for {job?.title}
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Notes posted here are strictly scoped to this requisition and visible to assigned recruiters & HR job owner.
+                Notes posted here are strictly scoped to this requisition and visible to assigned recruiters & HM job owner.
               </p>
             </div>
           </div>
@@ -1659,8 +1739,8 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
                 className="text-xs rounded-lg border border-border bg-card px-2.5 py-1.5 text-foreground"
               >
                 <option value="SCREENING_NOTE">Screening Note</option>
-                <option value="RECOMMENDATION">Recommendation to HR</option>
-                <option value="HR_REQUEST">Question for HR</option>
+                <option value="RECOMMENDATION">Recommendation to HM</option>
+                <option value="HR_REQUEST">Question for HM</option>
                 <option value="GENERAL">General Note</option>
               </select>
 
@@ -1744,6 +1824,7 @@ export const RecruiterCandidateDetailPage: React.FC = () => {
                   <div className="shrink-0">
                     <select
                       value={t.status}
+                      disabled={isAdmin}
                       onChange={(e) => handleTaskStatus(t.id, e.target.value)}
                       className={cn(
                         "text-xs font-bold rounded-lg border px-2.5 py-1.5 transition",

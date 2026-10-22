@@ -49,6 +49,7 @@ import {
   Trash2,
   AlertTriangle,
   Eye,
+  Edit3,
 } from "lucide-react";
 
 const PAGE_SIZE = 10;
@@ -343,7 +344,6 @@ export const UsersPage: React.FC = () => {
             { id: "Candidate", label: "Candidates", icon: UserCheck },
             { id: "Recruiter", label: "Recruiters", icon: Briefcase },
             { id: "HR", label: "Hiring Managers (HM)", icon: Sparkles },
-            { id: "Admin", label: "Administrators", icon: Shield },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = roleFilter === tab.id;
@@ -570,6 +570,20 @@ export const UsersPage: React.FC = () => {
                             <Eye className="h-4 w-4" />
                           </Button>
                         </Link>
+                        {u.role.name !== "Candidate" && (
+                          <Link to={`/admin/users/${u.id}?edit=true`}>
+                            <Button
+                              id={`edit-user-${u.id}`}
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-lg cursor-pointer transition-colors"
+                              title={`Edit profile for ${u.name}`}
+                              aria-label={`Edit profile for ${u.name}`}
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                            </Button>
+                          </Link>
+                        )}
                         {u.role.name !== "Admin" ? (
                           <>
                             <Button

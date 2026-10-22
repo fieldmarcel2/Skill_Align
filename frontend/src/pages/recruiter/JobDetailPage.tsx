@@ -65,6 +65,9 @@ export const JobDetailPage: React.FC = () => {
   // Pipeline search & filter
   const [pipelineSearch, setPipelineSearch] = useState("");
   const [pipelineFilter, setPipelineFilter] = useState<string>("all");
+  // Candidate match threshold filter (defaults to 30% qualification threshold)
+  const [minThreshold] = useState<number>(30);
+  const [hideBelowThreshold, setHideBelowThreshold] = useState<boolean>(true);
 
   // Form states for editing
   const [title, setTitle] = useState("");
@@ -183,37 +186,43 @@ export const JobDetailPage: React.FC = () => {
       }
 
       // Filter category
-      if (pipelineFilter === "all") return true;
-      if (pipelineFilter === "matched") {
-        return cand.status === "matched" || cand.pipeline_state === "CANDIDATE_MATCHED";
+      if (pipelineFilter === "all") {
+        // Fall through to threshold check
+      } else if (pipelineFilter === "matched") {
+        if (cand.status !== "matched" && cand.pipeline_state !== "CANDIDATE_MATCHED") return false;
+      } else if (pipelineFilter === "hm_review") {
+        if (
+          cand.pipeline_state !== "CANDIDATE_SHORTLISTED" &&
+          cand.pipeline_state !== "SENT_TO_HIRING_MANAGER" &&
+          cand.pipeline_state !== "HIRING_MANAGER_REVIEW" &&
+          cand.status !== "screened" &&
+          cand.status !== "approved_by_hr"
+        ) return false;
+      } else if (pipelineFilter === "interviews") {
+        if (
+          !cand.pipeline_state?.includes("INTERVIEW") &&
+          !cand.status?.includes("interview") &&
+          cand.pipeline_state !== "CANDIDATE_SLOT_SELECTED"
+        ) return false;
+      } else if (pipelineFilter === "offers") {
+        if (
+          !cand.pipeline_state?.includes("OFFER") &&
+          cand.pipeline_state !== "HIRED" &&
+          cand.status !== "offer" &&
+          cand.status !== "hired"
+        ) return false;
       }
-      if (pipelineFilter === "hm_review") {
-        return (
-          cand.pipeline_state === "CANDIDATE_SHORTLISTED" ||
-          cand.pipeline_state === "SENT_TO_HIRING_MANAGER" ||
-          cand.pipeline_state === "HIRING_MANAGER_REVIEW" ||
-          cand.status === "screened" ||
-          cand.status === "approved_by_hr"
-        );
+
+      // Score threshold filter: if active, hide non-matches (< minThreshold%)
+      const rawScore = Number(cand.overall_score) || 0;
+      const scorePct = rawScore > 1 ? rawScore : rawScore * 100;
+      if (hideBelowThreshold && scorePct < minThreshold) {
+        return false;
       }
-      if (pipelineFilter === "interviews") {
-        return (
-          cand.pipeline_state?.includes("INTERVIEW") ||
-          cand.status?.includes("interview") ||
-          cand.pipeline_state === "CANDIDATE_SLOT_SELECTED"
-        );
-      }
-      if (pipelineFilter === "offers") {
-        return (
-          cand.pipeline_state?.includes("OFFER") ||
-          cand.pipeline_state === "HIRED" ||
-          cand.status === "offer" ||
-          cand.status === "hired"
-        );
-      }
+
       return true;
     });
-  }, [candidates, pipelineSearch, pipelineFilter]);
+  }, [candidates, pipelineSearch, pipelineFilter, hideBelowThreshold, minThreshold]);
 
   const getPipelineStateBadge = (state?: string, status?: string) => {
     if (state === "OFFER_ACCEPTED" || state === "HIRED" || status === "hired") {
@@ -514,26 +523,54 @@ export const JobDetailPage: React.FC = () => {
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5">
-              {[
-                { key: "all", label: `All (${candidates.length})` },
-                { key: "matched", label: "Matched" },
-                { key: "hm_review", label: "HM Review" },
-                { key: "interviews", label: "Interviews" },
-                { key: "offers", label: "Offers/Hires" },
-              ].map((item) => (
-                <button
-                  key={item.key}
-                  onClick={() => setPipelineFilter(item.key)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                    pipelineFilter === item.key
-                      ? "bg-primary text-primary-foreground shadow-xs"
-                      : "bg-secondary/60 text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[
+                  { key: "all", label: `All (${filteredCandidates.length})` },
+                  { key: "matched", label: "Matched" },
+                  { key: "hm_review", label: "HM Review" },
+                  { key: "interviews", label: "Interviews" },
+                  { key: "offers", label: "Offers/Hires" },
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    onClick={() => setPipelineFilter(item.key)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                      pipelineFilter === item.key
+                        ? "bg-primary text-primary-foreground shadow-xs"
+                        : "bg-secondary/60 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Threshold Toggle */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-muted-foreground flex items-center gap-2 cursor-pointer select-none bg-secondary/50 px-3 py-1.5 rounded-xl border border-border/70 hover:bg-secondary transition">
+                  <input
+                    type="checkbox"
+                    checked={hideBelowThreshold}
+                    onChange={(e) => setHideBelowThreshold(e.target.checked)}
+                    className="rounded text-primary focus:ring-primary/40 h-3.5 w-3.5 accent-primary cursor-pointer"
+                  />
+                  <span className="font-medium text-foreground">
+                    Filter &lt;{minThreshold}% non-matches
+                  </span>
+                  {candidates.some((c) => {
+                    const s = Number(c.overall_score) || 0;
+                    return (s > 1 ? s : s * 100) < minThreshold;
+                  }) && (
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground font-semibold">
+                      {candidates.filter((c) => {
+                        const s = Number(c.overall_score) || 0;
+                        return (s > 1 ? s : s * 100) < minThreshold;
+                      }).length} hidden
+                    </span>
+                  )}
+                </label>
+              </div>
             </div>
           </div>
 
@@ -541,25 +578,36 @@ export const JobDetailPage: React.FC = () => {
             <div className="p-16 text-center bg-card border border-dashed border-border rounded-2xl space-y-3">
               <Users className="w-10 h-10 text-muted-foreground mx-auto opacity-40" />
               <h4 className="text-sm font-bold text-foreground">
-                {candidates.length === 0 ? "No Candidates in this Requisition Pipeline" : "No candidates match your current filter"}
+                {candidates.length === 0
+                  ? "No Candidates in this Requisition Pipeline"
+                  : `No candidates meet the ${minThreshold}% qualification threshold`}
               </h4>
-              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+              <p className="text-xs text-muted-foreground max-w-md mx-auto">
                 {candidates.length === 0
                   ? "Run the AI matching engine or browse the global candidate pool to source talent for this role."
-                  : "Try clearing your search query or selecting 'All' in the pipeline filter."}
+                  : `${candidates.length} scored candidates currently have <${minThreshold}% match (0% skill overlap). Uncheck the filter above to view non-matching profiles.`}
               </p>
               {candidates.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setPipelineSearch("");
-                    setPipelineFilter("all");
-                  }}
-                  className="text-xs rounded-xl mt-2"
-                >
-                  Reset Filters
-                </Button>
+                <div className="flex items-center justify-center gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setHideBelowThreshold(false)}
+                    className="text-xs rounded-xl"
+                  >
+                    Show All {candidates.length} Scored Candidates (Including 0%)
+                  </Button>
+                  {pipelineSearch && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setPipelineSearch("")}
+                      className="text-xs rounded-xl"
+                    >
+                      Clear Search
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           ) : (

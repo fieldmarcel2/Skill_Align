@@ -39,8 +39,6 @@ PROFICIENCY_MAP: Dict[str, float] = {
     "Beginner": 0.40,
     "Intermediate": 0.70,
     "Expert": 1.00,
-    # None = resume-detected skill with unknown proficiency
-    # Deliberately between Beginner and Intermediate — evidence present but level unverified
 }
 
 PROFICIENCY_FACTOR_DETECTED = 0.80  # for proficiency_level = None (resume-derived verified skill)
@@ -100,7 +98,6 @@ def _build_match_result_out(record: MatchResult, db: Optional[Session] = None) -
                     "years_experience": float(cs.years_experience or 0),
                 })
 
-        # Check candidate assignment if db provided
         if db:
             from app.models.candidate_recruiter_assignment import CandidateRecruiterAssignment
             assignment = (
@@ -118,6 +115,22 @@ def _build_match_result_out(record: MatchResult, db: Optional[Session] = None) -
                     "name": assignment.recruiter.name,
                     "email": assignment.recruiter.email,
                 }
+                assignment_status = "claimed"
+            elif getattr(record, "recruiter", None):
+                assigned_recruiter = {
+                    "id": record.recruiter.id,
+                    "name": record.recruiter.name,
+                    "email": record.recruiter.email,
+                }
+                assignment_status = "claimed"
+            elif getattr(record, "matched_by_user", None) and getattr(record, "pipeline_state", None) not in ("CANDIDATE_MATCHED", "REJECTED", "BLACKLISTED"):
+                assigned_recruiter = {
+                    "id": record.matched_by_user.id,
+                    "name": record.matched_by_user.name,
+                    "email": record.matched_by_user.email,
+                }
+                assignment_status = "claimed"
+            elif getattr(record, "pipeline_state", None) not in ("CANDIDATE_MATCHED", "REJECTED", "BLACKLISTED"):
                 assignment_status = "claimed"
 
     item = MatchResultOut.model_validate(record)
@@ -273,6 +286,7 @@ def run_job_matching(db: Session, job_id: int, recruiter_user: User) -> MatchRun
     Executes the matching engine for all candidate profiles against the specified job.
     Accessible by Recruiter (or Admin). Sets recruiter_id to the recruiter's ID and status to 'matched'.
     """
+    from app.core.logging_config import debug_log
     start_time = time.perf_counter()
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
@@ -296,7 +310,9 @@ def run_job_matching(db: Session, job_id: int, recruiter_user: User) -> MatchRun
         len(candidates),
         extra={
             "event": "matching_started",
+            "stage": "service_processing",
             "job_id": job_id,
+            "input_count": len(candidates),
             "total_candidates": len(candidates),
             "user_id": recruiter_user.id,
             "user_role": recruiter_user.role.name if recruiter_user.role else "Unknown",
@@ -305,22 +321,24 @@ def run_job_matching(db: Session, job_id: int, recruiter_user: User) -> MatchRun
 
     if not candidates:
         duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
-        logger.info(
-            "Matching completed for job %s: 0 candidates",
+        logger.warning(
+            "Matching job_id=%s found 0 candidates in the database — no matches possible",
             job_id,
             extra={
-                "event": "matching_completed",
+                "event": "matching_no_candidates",
                 "job_id": job_id,
-                "total_candidates": 0,
+                "input_count": 0,
+                "output_count": 0,
                 "match_count": 0,
                 "duration_ms": duration_ms,
-                "status": "success",
+                "discrepancy_note": "No candidates registered in the system",
             },
         )
         return MatchRunResponse(job_id=job_id, total_candidates=0, results=[])
 
     try:
         match_results_out: List[MatchResultOut] = []
+        zero_score_candidates: List[int] = []
 
         for cand in candidates:
             overall_score, breakdown, meets_experience = calculate_candidate_match_score(job, cand)
@@ -329,6 +347,8 @@ def run_job_matching(db: Session, job_id: int, recruiter_user: User) -> MatchRun
                 MatchResult.job_id == job.id,
                 MatchResult.candidate_id == cand.id
             ).first()
+
+            is_new = existing_result is None
 
             if existing_result:
                 existing_result.overall_score = Decimal(str(overall_score))
@@ -349,6 +369,28 @@ def run_job_matching(db: Session, job_id: int, recruiter_user: User) -> MatchRun
 
             db.flush()
             db.refresh(db_record)
+
+            # Debug: log per-candidate score details
+            debug_log(
+                logger,
+                "Candidate %s scored %.2f for job %s (%s) — %d/%d skills matched",
+                stage="database_insert",
+                extra_fields={
+                    "event": "candidate_score_computed",
+                    "candidate_id": cand.id,
+                    "job_id": job_id,
+                    "match_result_id": db_record.id,
+                    "overall_score": overall_score,
+                    "meets_experience": meets_experience,
+                    "skills_matched": sum(1 for b in breakdown if b.get("skill_score", 0) > 0),
+                    "skills_total": len(breakdown),
+                    "db_operation": "INSERT" if is_new else "UPDATE",
+                    "rows_affected": 1,
+                },
+            )
+
+            if overall_score == 0.0:
+                zero_score_candidates.append(cand.id)
 
             result_out = _build_match_result_out(db_record)
             match_results_out.append(result_out)
@@ -376,14 +418,34 @@ def run_job_matching(db: Session, job_id: int, recruiter_user: User) -> MatchRun
         match_results_out.sort(key=lambda r: r.overall_score, reverse=True)
 
         duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+        # Warn if many candidates scored zero (useful for detecting misconfigured job skills)
+        if zero_score_candidates and len(zero_score_candidates) == len(candidates):
+            logger.warning(
+                "All %d candidate(s) scored 0.0 for job_id=%s — verify job skill IDs are correct",
+                len(candidates),
+                job_id,
+                extra={
+                    "event": "matching_all_zero_scores",
+                    "job_id": job_id,
+                    "input_count": len(candidates),
+                    "output_count": 0,
+                    "discrepancy_note": f"Zero-score candidates: {zero_score_candidates[:10]}",
+                },
+            )
+
         logger.info(
-            "Matching completed for job %s: %d matches in %.2fms",
+            "Matching completed for job %s: input=%d candidates → output=%d results in %.2fms",
             job_id,
+            len(candidates),
             len(match_results_out),
             duration_ms,
             extra={
                 "event": "matching_completed",
+                "stage": "response",
                 "job_id": job_id,
+                "input_count": len(candidates),
+                "output_count": len(match_results_out),
                 "total_candidates": len(candidates),
                 "match_count": len(match_results_out),
                 "duration_ms": duration_ms,
@@ -407,6 +469,7 @@ def run_job_matching(db: Session, job_id: int, recruiter_user: User) -> MatchRun
             exc_info=True,
             extra={
                 "event": "matching_failed",
+                "stage": "database_insert",
                 "job_id": job_id,
                 "duration_ms": duration_ms,
                 "status": "failed",
@@ -502,18 +565,18 @@ def update_match_status(db: Session, match_id: int, new_status: str, user: User)
     user_role = user.role.name
 
     if user_role == "Recruiter":
-        # Recruiters can screen/reject candidates or recommend them to HR ('approved_by_hr')
+        # Recruiters can screen/reject candidates or recommend them to HM ('approved_by_hr')
         if new_status not in ("screened", "rejected", "matched", "approved_by_hr"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Recruiter can only update candidate status to 'screened', 'approved_by_hr', or 'rejected'."
             )
     elif user_role == "HR":
-        # HR strategic approval / rejection / interviews / offers
+        # HM strategic approval / rejection / interviews / offers
         if new_status not in ("approved_by_hr", "rejected", "interview_scheduled", "technical_interview", "hr_interview", "offer", "hired", "screened", "shortlisted"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="HR can only approve candidates ('approved_by_hr'), schedule interviews, make offers, hire, or reject."
+                detail="HM can only approve candidates ('approved_by_hr'), schedule interviews, make offers, hire, or reject."
             )
     elif user_role != "Admin":
         raise HTTPException(
@@ -603,7 +666,10 @@ def update_match_status(db: Session, match_id: int, new_status: str, user: User)
             match_record.job.client_name
             or "SkillAlign"
         )
-        status_readable = new_status.replace("_", " ").title()
+        if new_status == "approved_by_hr":
+            status_readable = "Approved by HM"
+        else:
+            status_readable = new_status.replace("_", " ").title()
 
         notif = Notification(
             user_id=cand_user.id,

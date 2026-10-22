@@ -336,7 +336,7 @@ export const HRShortlistsPage: React.FC = () => {
             <option value="all">All Stages</option>
             <option value="shortlisted">Shortlisted</option>
             <option value="screened">Screened</option>
-            <option value="approved_by_hr">HR Approved</option>
+            <option value="approved_by_hr">Approved by HM</option>
             <option value="interview_scheduled">Interview Scheduled</option>
             <option value="offer">Offer Extended</option>
           </select>
@@ -536,9 +536,7 @@ export const HRShortlistsPage: React.FC = () => {
 
                         {/* Score */}
                         <td className="px-4 py-3">
-                          <span className={`font-extrabold text-sm font-outfit ${getScoreColor(score)}`}>
-                            {score}%
-                          </span>
+                          <ScoreBadge score={score} size="sm" showLabel={false} />
                         </td>
 
                         {/* Experience */}
@@ -687,7 +685,7 @@ export const HRShortlistsPage: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <span className={`text-lg font-extrabold font-outfit ${getScoreColor(score)}`}>{score}%</span>
+                  <ScoreBadge score={score} size="md" />
                 </div>
 
                 <div className="space-y-2">

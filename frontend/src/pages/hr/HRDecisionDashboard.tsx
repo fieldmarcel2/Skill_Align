@@ -5,6 +5,8 @@ import { HMDashboardItem, Offer, Job } from "../../types";
 import { useToast } from "../../components/ui/toast";
 import { Card } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
+import { GoogleCalendarButton } from "../../components/calendar/GoogleCalendarButton";
+import { buildInterviewCalendarEvent } from "../../lib/googleCalendar";
 import {
   CheckSquare,
   BookmarkCheck,
@@ -28,6 +30,7 @@ import {
   DollarSign,
   TrendingUp,
 } from "lucide-react";
+import { MatchScoreGauge } from "../../components/common/MatchScoreGauge";
 
 export const HRDecisionDashboard: React.FC = () => {
   const toast = useToast();
@@ -78,6 +81,29 @@ export const HRDecisionDashboard: React.FC = () => {
     fetchData();
   }, []);
 
+  const formatStateBadge = (state?: string) => {
+    switch (state) {
+      case "SENT_TO_HIRING_MANAGER":
+        return "Awaiting HM Review";
+      case "HIRING_MANAGER_REVIEW":
+        return "In HM Review";
+      case "INTERVIEW_REQUESTED":
+        return "Interview Approved";
+      case "INTERVIEW_SLOTS_PROPOSED":
+        return "Slots Proposed";
+      case "WAITING_FOR_CANDIDATE_SLOT":
+        return "Awaiting Candidate Slot";
+      case "CANDIDATE_SLOT_SELECTED":
+        return "Slot Selected";
+      case "INTERVIEW_CONFIRMED":
+        return "Interview Confirmed";
+      case "WAITING_FOR_HM_FEEDBACK":
+        return "Feedback Required";
+      default:
+        return (state || "SENT_TO_HIRING_MANAGER").replace(/_/g, " ");
+    }
+  };
+
   // Filter items by selected job requisition
   const filterHMDashboardItems = (items: HMDashboardItem[]): HMDashboardItem[] => {
     if (selectedJobId === "ALL") return items;
@@ -91,23 +117,58 @@ export const HRDecisionDashboard: React.FC = () => {
     return items.filter((item) => item.job_id === jid);
   };
 
-  const filteredShortlists = filterHMDashboardItems(pendingReviews);
-  const filteredSlots = filterHMDashboardItems(interviewsInProgress);
-  const filteredFeedback = filterHMDashboardItems(feedbackRequired);
+  const sortByNewest = (items: HMDashboardItem[]) =>
+    [...items].sort((a, b) => {
+      const timeA = a.submitted_to_hm_at ? new Date(a.submitted_to_hm_at).getTime() : 0;
+      const timeB = b.submitted_to_hm_at ? new Date(b.submitted_to_hm_at).getTime() : 0;
+      if (timeB !== timeA) return timeB - timeA;
+      return (b.match_result_id || 0) - (a.match_result_id || 0);
+    });
+
+  const filteredShortlists = sortByNewest(filterHMDashboardItems(pendingReviews));
+  const filteredSlots = sortByNewest(filterHMDashboardItems(interviewsInProgress));
+  const filteredFeedback = sortByNewest(filterHMDashboardItems(feedbackRequired));
   const filteredOffers = filterOffers(pendingOffers);
 
   const totalDecisionsPending =
     filteredShortlists.length + filteredSlots.length + filteredFeedback.length + filteredOffers.length;
 
-  // Gate 1: Approve Shortlist
+  // Gate 1: Approve Shortlist (Updates immediately on the spot and moves candidate to Gate 2)
   const handleApproveShortlist = async (matchId: number, candidateName?: string) => {
     setActionLoadingId(matchId);
+    // Optimistic instantaneous UI update: candidate immediately transitions from Gate 1 to Gate 2
+    const targetItem = pendingReviews.find((p) => p.match_result_id === matchId);
+    if (targetItem) {
+      setPendingReviews((prev) => prev.filter((p) => p.match_result_id !== matchId));
+      setInterviewsInProgress((prev) => [
+        {
+          ...targetItem,
+          pipeline_state: "INTERVIEW_SLOTS_PROPOSED",
+          submitted_to_hm_at: new Date().toISOString(),
+        },
+        ...prev.filter((p) => p.match_result_id !== matchId),
+      ]);
+    }
+
     try {
-      await workflowApi.hmReview(matchId);
-      toast.success(`Shortlist approved for ${candidateName || "candidate"}. Candidate progressed to next stage.`);
-      await fetchData();
+      await workflowApi.approveShortlist(matchId);
+      toast.success(
+        `Shortlist approved for ${candidateName || "candidate"}. Progressed to Slot Allocation & Schedules.`
+      );
+      // Background re-fetch to synchronize canonical server state
+      const [hmData, offersData] = await Promise.all([
+        workflowApi.getHMDashboard().catch(() => null),
+        offerApi.getPendingHMOffers().catch(() => []),
+      ]);
+      if (hmData) {
+        setPendingReviews(hmData.pending_review || []);
+        setFeedbackRequired(hmData.feedback_required || []);
+        setInterviewsInProgress(hmData.interview_in_progress || []);
+      }
+      setPendingOffers(offersData || []);
     } catch (err: any) {
       toast.error(err.response?.data?.detail || "Failed to approve shortlist.");
+      await fetchData(); // Revert on failure
     } finally {
       setActionLoadingId(null);
     }
@@ -156,7 +217,7 @@ export const HRDecisionDashboard: React.FC = () => {
   const handleApproveOffer = async (offerId: number, candidateName?: string) => {
     setActionLoadingId(offerId);
     try {
-      await offerApi.hmReviewOffer(offerId, "APPROVE", "Offer package approved by HRM.");
+      await offerApi.hmReviewOffer(offerId, "APPROVE", "Offer package approved by HM.");
       toast.success(`Offer package approved for ${candidateName || "candidate"}. Ready for candidate dispatch.`);
       await fetchData();
     } catch (err: any) {
@@ -420,12 +481,10 @@ export const HRDecisionDashboard: React.FC = () => {
                           Recruiter Shortlist
                         </span>
                         {item.overall_score !== undefined && (
-                          <span className="text-[11px] px-2 py-0.5 rounded-md font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60">
-                            {Math.round(Number(item.overall_score) > 1 ? Number(item.overall_score) : Number(item.overall_score) * 100)}% Match
-                          </span>
+                          <MatchScoreGauge score={item.overall_score} size="sm" />
                         )}
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-secondary text-muted-foreground border border-border font-mono">
-                          {item.pipeline_state || "SENT_TO_HIRING_MANAGER"}
+                        <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 font-medium">
+                          {formatStateBadge(item.pipeline_state)}
                         </span>
                       </div>
 
@@ -455,15 +514,13 @@ export const HRDecisionDashboard: React.FC = () => {
 
                   {/* Sign-Off Action Buttons */}
                   <div className="flex flex-wrap items-center gap-2 shrink-0 md:self-center">
-                    <Button
-                      size="sm"
-                      onClick={() => handleApproveShortlist(item.match_result_id, item.candidate_name)}
-                      disabled={actionLoadingId === item.match_result_id}
-                      className="gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs cursor-pointer"
+                    <Link
+                      to={`/hr/candidates/${item.match_result_id}/review`}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      Approve for Interview
-                    </Button>
+                      Review &amp; Schedule Interview
+                    </Link>
 
                     <Button
                       size="sm"
@@ -475,14 +532,6 @@ export const HRDecisionDashboard: React.FC = () => {
                       <XCircle className="w-3.5 h-3.5" />
                       Decline
                     </Button>
-
-                    <Link
-                      to={`/hr/candidates/${item.match_result_id}/review`}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-secondary-foreground text-xs font-semibold border border-border shadow-xs transition-colors"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-muted-foreground" />
-                      Full Dossier
-                    </Link>
                   </div>
                 </div>
               ))}
@@ -523,8 +572,8 @@ export const HRDecisionDashboard: React.FC = () => {
                         <span className="text-[11px] px-2 py-0.5 rounded-md font-semibold bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/60">
                           Interview Coordination
                         </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-secondary text-muted-foreground border border-border font-mono">
-                          {item.pipeline_state || "INTERVIEW_SCHEDULED"}
+                        <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 font-medium">
+                          {formatStateBadge(item.pipeline_state)}
                         </span>
                       </div>
 
@@ -544,7 +593,20 @@ export const HRDecisionDashboard: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0 md:self-center">
+                  <div className="flex flex-wrap items-center gap-2 shrink-0 md:self-center">
+                    {item.interview_date && (
+                      <GoogleCalendarButton
+                        {...buildInterviewCalendarEvent({
+                          candidateName: item.candidate_name || "Candidate",
+                          jobTitle: item.job_title || "Position",
+                          interviewType: "Technical Interview",
+                          scheduledDate: item.interview_date,
+                        })}
+                        size="sm"
+                        variant="outline"
+                        label="Add to Calendar"
+                      />
+                    )}
                     <Link
                       to={`/hr/candidates/${item.match_result_id}/review`}
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold shadow-xs transition-colors"

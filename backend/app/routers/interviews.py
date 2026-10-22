@@ -78,7 +78,7 @@ def _to_interview_out(interview: Interview, include_token_for_candidate: bool = 
         candidate_id=candidate_id,
         job_id=job_id,
         pipeline_state=pipeline_state,
-        slot_token=interview.slot_token if include_token_for_candidate else None,
+        slot_token=interview.slot_token,
         slots=slots_out,
     )
 
@@ -190,9 +190,13 @@ def list_interviews(
     query = db.query(Interview)
     if status_filter:
         query = query.filter(Interview.status == status_filter)
-    interviews = query.order_by(Interview.interview_date.asc()).all()
+    interviews = query.order_by(
+        Interview.interview_date.desc(),
+        Interview.created_at.desc(),
+        Interview.id.desc(),
+    ).all()
 
-    # Automatically cancel scheduled interviews if scheduled date has passed by > 48 hours without update
+    # Automatically cancel scheduled interviews if scheduled date has passed by > 1 week (7 days / 168 hours) without update
     now = datetime.now(timezone.utc)
     updated = False
     for iv in interviews:
@@ -200,9 +204,9 @@ def list_interviews(
             iv_date = iv.interview_date
             if iv_date.tzinfo is None:
                 iv_date = iv_date.replace(tzinfo=timezone.utc)
-            if (now - iv_date).total_seconds() > 48 * 3600 and not iv.feedback:
+            if (now - iv_date).total_seconds() > 7 * 24 * 3600 and not iv.feedback:
                 iv.status = "cancelled"
-                iv.feedback = "Auto-cancelled: Scheduled interview date passed >48 hours without recruiter/HM outcome update."
+                iv.feedback = "Auto-cancelled: Scheduled interview date passed >1 week (7 days) without recruiter/HM outcome update."
                 updated = True
 
     if updated:

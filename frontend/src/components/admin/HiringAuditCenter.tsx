@@ -40,7 +40,6 @@ import {
   Layers,
   Sparkles,
   ExternalLink,
-  Radio,
 } from "lucide-react";
 
 const CATEGORIES: { key: HiringLogCategory; label: string; icon: React.FC<{ className?: string }> }[] = [
@@ -69,7 +68,6 @@ export const HiringAuditCenter: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [copiedRequestId, setCopiedRequestId] = useState<string | null>(null);
   const [showRawPayload, setShowRawPayload] = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date());
 
   // Debounce search term
@@ -106,15 +104,6 @@ export const HiringAuditCenter: React.FC = () => {
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
-
-  // Auto-refresh interval
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const interval = setInterval(() => {
-      fetchLogs();
-    }, 15000);
-    return () => clearInterval(interval);
-  }, [autoRefresh, fetchLogs]);
 
   const handleCopyJson = (jsonObj: any) => {
     navigator.clipboard.writeText(JSON.stringify(jsonObj, null, 2));
@@ -296,22 +285,8 @@ export const HiringAuditCenter: React.FC = () => {
               )}
             </div>
 
-            {/* Actions: Page Size, Auto-Refresh, Export, Refresh */}
+            {/* Actions: Page Size, Export */}
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setAutoRefresh(!autoRefresh)}
-                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border transition-all ${
-                  autoRefresh
-                    ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                    : "bg-background/80 text-muted-foreground border-border hover:text-foreground"
-                }`}
-                title="Automatically refresh audit log stream every 15 seconds"
-              >
-                <Radio className={`h-3.5 w-3.5 ${autoRefresh ? "animate-pulse text-emerald-400" : ""}`} />
-                {autoRefresh ? "Live (15s)" : "Live Stream"}
-              </button>
-
               <div className="flex items-center gap-1 bg-background/80 border border-border rounded-xl p-0.5">
                 <Button
                   variant="ghost"
@@ -352,17 +327,6 @@ export const HiringAuditCenter: React.FC = () => {
                 <option value={50}>50 / page</option>
                 <option value={100}>100 / page</option>
               </select>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={fetchLogs}
-                disabled={isLoading}
-                className="gap-2 text-xs rounded-xl h-9"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin text-primary" : ""}`} />
-                Refresh
-              </Button>
             </div>
           </div>
 

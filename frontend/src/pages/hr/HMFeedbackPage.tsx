@@ -114,7 +114,7 @@ export const HMFeedbackPage: React.FC = () => {
         message = "NO-GO decision recorded. Candidate has been marked as rejected.";
       }
 
-      navigate("/hr/dashboard", {
+      navigate("/hr", {
         state: { message },
       });
     } catch (err: any) {
@@ -169,7 +169,7 @@ export const HMFeedbackPage: React.FC = () => {
       <div className="p-8 text-center text-slate-400">
         <AlertCircle className="w-8 h-8 mx-auto text-rose-500 mb-2" />
         <p>Interview / Application not found.</p>
-        <Link to="/hr/dashboard" className="text-cyan-400 text-xs mt-2 inline-block">
+        <Link to="/hr" className="text-cyan-400 text-xs mt-2 inline-block">
           Return to Dashboard
         </Link>
       </div>
@@ -181,7 +181,7 @@ export const HMFeedbackPage: React.FC = () => {
       {/* Header Back Link */}
       <div>
         <Link
-          to="/hr/dashboard"
+          to="/hr"
           className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -341,7 +341,7 @@ export const HMFeedbackPage: React.FC = () => {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => navigate("/hr/dashboard")}
+              onClick={() => navigate("/hr")}
               className="px-4 py-2 rounded-lg text-xs text-slate-400 hover:text-white transition-colors"
             >
               Cancel

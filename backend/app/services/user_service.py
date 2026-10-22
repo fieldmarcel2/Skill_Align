@@ -7,7 +7,7 @@ Business logic for creating HR/Recruiter accounts and managing user state.
 import math
 from typing import Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from fastapi import HTTPException, status
 
 from app.core.security import hash_password, normalize_phone
@@ -161,16 +161,149 @@ def get_user(db: Session, user_id: int) -> UserOut:
     return UserOut.model_validate(user)
 
 
-def update_user(db: Session, user_id: int, data: UserUpdate) -> UserOut:
-    """Partial update — only name and is_active can be changed."""
+def update_user(db: Session, user_id: int, data: UserUpdate, current_admin_id: Optional[int] = None) -> UserOut:
+    """Update user profile: name, email, phone_number, role, and is_active."""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
 
+    # Security Guard: External candidate identities must remain authentic and tamper-free.
+    # Administrators can only manage internal staff (Recruiters, Hiring Managers/HR, Admins).
+    if user.role.name == "Candidate":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Security restriction: Administrators cannot modify external candidate profiles. Candidates manage their own credentials and application data to preserve audit authenticity.",
+        )
+
+    old_details = {
+        "name": user.name,
+        "email": user.email,
+        "phone_number": user.phone_number,
+        "role": user.role.name,
+        "is_active": user.is_active,
+    }
+
+    # 1. Update Name
     if data.name is not None:
-        user.name = data.name.strip()
+        trimmed_name = data.name.strip()
+        if not trimmed_name:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Name cannot be empty.")
+        user.name = trimmed_name
+
+    # 2. Update Email
+    if data.email is not None:
+        email_clean = str(data.email).strip().lower()
+        if not email_clean:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email cannot be blank.")
+        # Check uniqueness against other users
+        existing_email = (
+            db.query(User)
+            .filter(func.lower(User.email) == email_clean, User.id != user_id)
+            .first()
+        )
+        if existing_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Email '{email_clean}' is already in use by another account."
+            )
+        user.email = email_clean
+
+    # 3. Update Phone Number
+    if data.phone_number is not None:
+        phone_raw = data.phone_number.strip()
+        if not phone_raw:
+            user.phone_number = None
+        else:
+            try:
+                norm_phone = normalize_phone(phone_raw)
+            except Exception:
+                norm_phone = phone_raw
+            # Check uniqueness against other users
+            existing_phone = (
+                db.query(User)
+                .filter(User.phone_number == norm_phone, User.id != user_id)
+                .first()
+            )
+            if existing_phone:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Phone number '{phone_raw}' is already associated with another account."
+                )
+            user.phone_number = norm_phone
+
+    # 4. Update Role
+    target_role: Optional[Role] = None
+    if data.role_id is not None:
+        target_role = db.query(Role).filter(Role.id == data.role_id).first()
+    elif data.role is not None:
+        role_lookup = data.role.strip()
+        if role_lookup.upper() in ("HM", "HIRING MANAGER", "HIRING_MANAGER"):
+            role_lookup = "HR"
+        target_role = (
+            db.query(Role)
+            .filter(func.lower(Role.name) == role_lookup.lower())
+            .first()
+        )
+
+    if target_role:
+        # Guard: prevent converting internal corporate accounts into candidates
+        if target_role.name == "Candidate":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Security restriction: Internal staff accounts cannot be converted into candidate profiles.",
+            )
+        # Guard: prevent demoting the last active administrator
+        if user.role.name == "Admin" and target_role.name != "Admin":
+            active_admins = (
+                db.query(User)
+                .join(Role)
+                .filter(Role.name == "Admin", User.is_active == True)
+                .count()
+            )
+            if active_admins <= 1:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot change the role of the primary/sole active administrator."
+                )
+        user.role_id = target_role.id
+
+    # 5. Update Status
     if data.is_active is not None:
+        if user.role.name == "Admin" and data.is_active is False:
+            active_admins = (
+                db.query(User)
+                .join(Role)
+                .filter(Role.name == "Admin", User.is_active == True)
+                .count()
+            )
+            if active_admins <= 1:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot deactivate the sole active administrator account."
+                )
         user.is_active = data.is_active
+
+    # 6. Audit Trail Logging
+    from app.services.audit_service import log_audit
+    log_audit(
+        db=db,
+        actor_id=current_admin_id,
+        action="USER_PROFILE_UPDATED",
+        entity_type="user",
+        entity_id=user.id,
+        details={
+            "user_id": user.id,
+            "previous": old_details,
+            "updated": {
+                "name": user.name,
+                "email": user.email,
+                "phone_number": user.phone_number,
+                "role": user.role.name,
+                "is_active": user.is_active,
+            },
+        },
+        commit=False,
+    )
 
     db.commit()
     db.refresh(user)

@@ -148,6 +148,20 @@ async def store_resume_and_queue(
     db.commit()
     db.refresh(candidate)
 
+    logger.debug(
+        "Candidate resume metadata updated in DB: candidate_id=%s s3_key=%s",
+        candidate.id,
+        original_s3_key,
+        extra={
+            "event": "resume_db_update",
+            "stage": "database_insert",
+            "candidate_id": candidate.id,
+            "s3_key": original_s3_key,
+            "db_operation": "UPDATE",
+            "rows_affected": 1,
+        },
+    )
+
     # 5. Check if Celery worker is active; if not, execute synchronously immediately
     task_id = None
     processed_immediately = False
@@ -181,9 +195,27 @@ async def store_resume_and_queue(
                 queue="resume_processing",
             )
             task_id = task.id
-            logger.info(f"Resume task queued to Celery: task_id={task_id} for candidate_id={candidate.id}")
+            logger.info(
+                "Resume task queued to Celery: task_id=%s candidate_id=%s",
+                task_id,
+                candidate.id,
+                extra={
+                    "event": "resume_task_queued",
+                    "stage": "service_processing",
+                    "candidate_id": candidate.id,
+                    "task_id": task_id,
+                },
+            )
         else:
-            logger.info(f"No active Celery workers found — processing resume immediately for candidate_id={candidate.id}")
+            logger.info(
+                "No active Celery workers found — processing resume immediately for candidate_id=%s",
+                candidate.id,
+                extra={
+                    "event": "resume_sync_processing",
+                    "stage": "service_processing",
+                    "candidate_id": candidate.id,
+                },
+            )
             from app.tasks.resume_tasks import process_resume_task
             sync_res = process_resume_task.apply(
                 args=[candidate.id, original_s3_key, original_filename, content_type]
@@ -191,9 +223,25 @@ async def store_resume_and_queue(
             task_id = "sync-completed"
             processed_immediately = True
             db.refresh(candidate)
-            logger.info(f"Resume processed immediately for candidate_id={candidate.id}")
+            logger.info(
+                "Resume processed immediately for candidate_id=%s",
+                candidate.id,
+                extra={
+                    "event": "resume_sync_completed",
+                    "stage": "service_processing",
+                    "candidate_id": candidate.id,
+                },
+            )
     except Exception as e:
-        logger.error(f"Error in async dispatch; attempting direct execution: {e}")
+        logger.error(
+            "Error in async dispatch; attempting direct execution: %s",
+            e,
+            extra={
+                "event": "resume_dispatch_error",
+                "candidate_id": candidate.id,
+                "exception_type": type(e).__name__,
+            },
+        )
         try:
             from app.tasks.resume_tasks import process_resume_task
             sync_res = process_resume_task.apply(
@@ -203,7 +251,16 @@ async def store_resume_and_queue(
             processed_immediately = True
             db.refresh(candidate)
         except Exception as fallback_err:
-            logger.error(f"Direct execution failed: {fallback_err}")
+            logger.error(
+                "Direct resume execution failed for candidate_id=%s: %s",
+                candidate.id,
+                fallback_err,
+                extra={
+                    "event": "resume_fallback_failed",
+                    "candidate_id": candidate.id,
+                    "exception_type": type(fallback_err).__name__,
+                },
+            )
 
     status_str = "completed" if processed_immediately else "processing"
     msg_str = (
@@ -225,6 +282,45 @@ async def store_resume_and_queue(
             cs.skill.name for cs in candidate.skills
             if getattr(cs, "source", None) == "resume" and cs.skill
         ]
+
+    # Log skill extraction result for debugging missing-skill issues
+    if processed_immediately:
+        parsed_skill_count = len(parsed_dict.get("skills", [])) if parsed_dict else 0
+        synced_skill_count = len(auto_skills)
+        logger.info(
+            "Resume processing complete: candidate_id=%s parsed_skills=%d synced_skills=%d",
+            candidate.id,
+            parsed_skill_count,
+            synced_skill_count,
+            extra={
+                "event": "resume_skills_extracted",
+                "stage": "database_result",
+                "candidate_id": candidate.id,
+                "input_count": parsed_skill_count,
+                "output_count": synced_skill_count,
+                "skills_count": synced_skill_count,
+                "discrepancy_note": (
+                    f"Parsed {parsed_skill_count} skills from text but only {synced_skill_count} "
+                    "matched the master skill list"
+                ) if parsed_skill_count != synced_skill_count else None,
+            },
+        )
+        if parsed_skill_count != synced_skill_count and parsed_skill_count > 0:
+            logger.warning(
+                "Skill extraction mismatch for candidate_id=%s: "
+                "parsed %d skills from resume but only %d matched master skill list. "
+                "Unmatched skills may need to be added to the skills master table.",
+                candidate.id,
+                parsed_skill_count,
+                synced_skill_count,
+                extra={
+                    "event": "resume_skill_mismatch",
+                    "candidate_id": candidate.id,
+                    "input_count": parsed_skill_count,
+                    "output_count": synced_skill_count,
+                    "discrepancy_note": f"Synced={synced_skill_count}, Parsed={parsed_skill_count}",
+                },
+            )
 
     return {
         "status": status_str,

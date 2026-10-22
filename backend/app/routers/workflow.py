@@ -22,6 +22,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.config import settings
+
 from app.database.session import get_db
 from app.core.dependencies import (
     get_current_user,
@@ -32,6 +34,7 @@ from app.core.dependencies import (
     require_admin_or_hr,
 )
 from app.models.user import User
+from app.models.job import Job
 from app.models.match_result import MatchResult
 from app.models.interview import Interview
 from app.models.interview_slot import InterviewSlot
@@ -190,7 +193,7 @@ def _interview_with_slots_out(interview: Interview) -> InterviewWithSlotsOut:
         interview_date=interview.interview_date,
         scheduled_end=interview.scheduled_end,
         status=interview.status,
-        slot_token=None,  # Never expose token in list endpoints
+        slot_token=interview.slot_token,
         candidate_selection_at=interview.candidate_selection_at,
         confirmed_at=interview.confirmed_at,
         created_at=interview.created_at,
@@ -288,6 +291,7 @@ def _offer_out(offer: Offer) -> OfferOut:
         job_title=offer.job.title if offer.job else None,
         recruiter_name=offer.creator.name if offer.creator else None,
         hiring_manager_name=hm_name,
+        offer_token=getattr(offer, 'offer_token', None),
     )
 
 
@@ -580,6 +584,34 @@ def hm_start_review(
 
 
 @router.post(
+    "/{match_id}/approve-interview",
+    response_model=WorkflowStateOut,
+    status_code=status.HTTP_200_OK,
+    summary="Hiring Manager: Approve candidate shortlist for interview scheduling",
+)
+@router.post(
+    "/{match_id}/approve-shortlist",
+    response_model=WorkflowStateOut,
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
+def hm_approve_for_interview(
+    match_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_hr),
+):
+    """HM approves candidate shortlist, advancing from Shortlist/Review to Slot Allocation & Schedules."""
+    mr = _get_match_result_or_404(db, match_id)
+    mr, _ = workflow_service.hm_approve_for_interview(db, mr, current_user)
+    return WorkflowStateOut(
+        match_result_id=mr.id,
+        pipeline_state=mr.pipeline_state,
+        hm_reviewed_at=mr.hm_reviewed_at,
+    )
+
+
+
+@router.post(
     "/{match_id}/hm-reject",
     response_model=WorkflowStateOut,
     status_code=status.HTTP_200_OK,
@@ -758,10 +790,15 @@ def get_pending_hm_offers(
     current_user: User = Depends(require_hr),
 ):
     """Returns offers that have been submitted to HM for review."""
-    hm_condition = or_(
-        MatchResult.hiring_manager_id == current_user.id,
-        MatchResult.hiring_manager_id == None,
-    )
+    if current_user.role and current_user.role.name == "Admin":
+        hm_condition = True
+    else:
+        hm_condition = or_(
+            MatchResult.hiring_manager_id == current_user.id,
+            MatchResult.hiring_manager_id == None,
+            MatchResult.hiring_manager_id == 1,
+            MatchResult.job.has(Job.created_by == current_user.id),
+        )
     offers = (
         db.query(Offer)
         .join(MatchResult, Offer.match_result_id == MatchResult.id)
@@ -960,7 +997,7 @@ def update_offer(
 
     # Audit compensation update if salary changed
     if p_sal is not None and old_sal is not None and p_sal != old_sal and mr:
-        _create_audit_log(
+        workflow_service._create_audit_log(
             db, current_user.id, "COMPENSATION_UPDATED", mr,
             from_state=mr.pipeline_state, to_state=mr.pipeline_state,
             details=json.dumps({
@@ -1051,15 +1088,32 @@ def send_offer(
 def respond_to_offer(
     offer_id: int,
     data: OfferRespondRequest,
+    access_token: Optional[str] = Query(None),
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """Candidate accepts or rejects an offer using the secure token."""
+    """Candidate accepts or rejects an offer using the secure token or active candidate session."""
+    if not current_user and access_token:
+        try:
+            from app.core.security import decode_access_token
+            payload = decode_access_token(access_token)
+            if payload and "sub" in payload:
+                sub_val = str(payload["sub"]).strip()
+                if sub_val.isdigit():
+                    current_user = db.query(User).filter(User.id == int(sub_val)).first()
+                else:
+                    current_user = db.query(User).filter(User.email.ilike(sub_val)).first()
+        except Exception:
+            pass
+
     offer = db.query(Offer).filter(Offer.id == offer_id).first()
+    if not offer:
+        offer = db.query(Offer).filter(Offer.match_result_id == offer_id).first()
     if not offer:
         raise HTTPException(status_code=404, detail="Offer not found.")
 
     mr, offer = workflow_service.candidate_respond_to_offer(
-        db, offer, token=data.token, accept=data.accept, note=data.note
+        db, offer, token=data.token, accept=data.accept, note=data.note, current_user=current_user
     )
     return _offer_out(offer)
 
@@ -1396,22 +1450,63 @@ def get_hm_dashboard(
     def build_hm_item(mr: MatchResult) -> HMDashboardItem:
         candidate_name = mr.candidate.full_name if mr.candidate else "Unknown"
         job_title = mr.job.title if mr.job else "Unknown"
-        recruiter_name = mr.recruiter.name if mr.recruiter else None
+
+        # Look up latest interview for this match
+        active_interview = (
+            db.query(Interview)
+            .filter(Interview.match_result_id == mr.id)
+            .order_by(Interview.created_at.desc())
+            .first()
+        )
+
+        recruiter_name = None
+        if mr.recruiter:
+            recruiter_name = mr.recruiter.name
+        elif active_interview and active_interview.interviewer:
+            recruiter_name = active_interview.interviewer.name
+
+        overall_eval = None
+        if active_interview:
+            overall_eval = active_interview.interviewer_overall_rating
+            if overall_eval is None and active_interview.interviewer_technical_rating:
+                ratings = [
+                    r for r in [
+                        active_interview.interviewer_technical_rating,
+                        active_interview.interviewer_communication_rating,
+                        active_interview.interviewer_problem_solving_rating,
+                        active_interview.interviewer_role_fit_rating,
+                    ] if r is not None
+                ]
+                if ratings:
+                    overall_eval = round(sum(ratings) / len(ratings))
+
         return HMDashboardItem(
             match_result_id=mr.id,
             candidate_name=candidate_name,
+            job_id=mr.job_id,
             job_title=job_title,
             overall_score=float(mr.overall_score),
             pipeline_state=mr.pipeline_state,
             submitted_to_hm_at=mr.submitted_to_hm_at,
             hm_reviewed_at=mr.hm_reviewed_at,
             recruiter_name=recruiter_name,
+            interview_id=active_interview.id if active_interview else None,
+            interviewer_overall_rating=overall_eval,
+            interviewer_comments=active_interview.interviewer_comments if active_interview else None,
+            interview_date=active_interview.interview_date if active_interview else None,
+            round_name=getattr(active_interview, "round_name", None) if active_interview else None,
+            note=mr.shortlist_note,
         )
 
-    hm_condition = or_(
-        MatchResult.hiring_manager_id == current_user.id,
-        MatchResult.hiring_manager_id == None,
-    )
+    if current_user.role and current_user.role.name == "Admin":
+        hm_condition = True
+    else:
+        hm_condition = or_(
+            MatchResult.hiring_manager_id == current_user.id,
+            MatchResult.hiring_manager_id == None,
+            MatchResult.hiring_manager_id == 1,
+            MatchResult.job.has(Job.created_by == current_user.id),
+        )
 
     pending_review = (
         db.query(MatchResult)
@@ -1419,7 +1514,11 @@ def get_hm_dashboard(
             hm_condition,
             MatchResult.pipeline_state.in_(["SENT_TO_HIRING_MANAGER", "HIRING_MANAGER_REVIEW"]),
         )
-        .order_by(MatchResult.submitted_to_hm_at.asc())
+        .order_by(
+            MatchResult.submitted_to_hm_at.desc(),
+            MatchResult.updated_at.desc(),
+            MatchResult.id.desc(),
+        )
         .all()
     )
 
@@ -1429,6 +1528,7 @@ def get_hm_dashboard(
             hm_condition,
             MatchResult.pipeline_state == "WAITING_FOR_HM_FEEDBACK",
         )
+        .order_by(MatchResult.updated_at.desc(), MatchResult.id.desc())
         .all()
     )
 
@@ -1437,12 +1537,14 @@ def get_hm_dashboard(
         .filter(
             hm_condition,
             MatchResult.pipeline_state.in_([
+                "INTERVIEW_REQUESTED",
                 "INTERVIEW_SLOTS_PROPOSED",
                 "WAITING_FOR_CANDIDATE_SLOT",
                 "CANDIDATE_SLOT_SELECTED",
                 "INTERVIEW_CONFIRMED",
             ]),
         )
+        .order_by(MatchResult.updated_at.desc(), MatchResult.id.desc())
         .all()
     )
 
@@ -1512,19 +1614,38 @@ def get_workflow_state(
 @router.get(
     "/public/slots/{interview_id}",
     response_model=InterviewWithSlotsOut,
-    summary="Public: Get interview slots for candidate selection (token required)",
+    summary="Public: Get interview slots for candidate selection (token or authenticated user)",
 )
 def get_public_slots(
     interview_id: int,
-    token: str = Query(..., description="Slot selection token from email"),
+    token: Optional[str] = Query(None, description="Slot selection token from email"),
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """Public endpoint for candidate to view slots before selecting. Token validates access."""
+    """Public endpoint for candidate to view slots before selecting. Token validates access, or logged in user."""
     interview = db.query(Interview).filter(Interview.id == interview_id).first()
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found.")
-    if not interview.slot_token or interview.slot_token != token:
-        raise HTTPException(status_code=403, detail="Invalid or expired token.")
+
+    is_authorized = False
+    if token and interview.slot_token and interview.slot_token == token.strip():
+        is_authorized = True
+    elif current_user:
+        role = current_user.role.name if current_user.role else ""
+        if role in ["HR", "Recruiter", "Admin"]:
+            is_authorized = True
+        elif (
+            interview.match_result
+            and interview.match_result.candidate
+            and interview.match_result.candidate.user_id == current_user.id
+        ):
+            is_authorized = True
+
+    if not is_authorized:
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid or expired interview token. Please use your email link or sign in to your candidate account.",
+        )
     return _interview_with_slots_out(interview)
 
 
