@@ -1481,7 +1481,9 @@ export const HRDashboard: React.FC = () => {
                   const isScreened = match.status === "screened";
                   const isApproved = match.status === "approved_by_hr";
                   const isScheduled = match.status === "interview_scheduled";
-                  const isRejected = match.status === "rejected";
+                  const isRejected = match.status === "rejected" || match.pipeline_state === "REJECTED";
+                  const isHired = match.status === "hired" || match.pipeline_state === "HIRED";
+                  const isBlacklisted = match.pipeline_state === "BLACKLISTED" || Boolean((match as any).is_blacklisted);
                   const isSelected = selectedIds.includes(match.id);
 
                   let scoreBadge = "text-emerald-400 border-emerald-500/30 bg-emerald-500/10";
@@ -1518,18 +1520,24 @@ export const HRDashboard: React.FC = () => {
                                 </div>
                                 <Badge
                                   variant={
-                                    isApproved
+                                    isHired
+                                      ? "success"
+                                      : isApproved
                                       ? "success"
                                       : isScheduled
                                       ? "purple"
                                       : isScreened
                                       ? "info"
-                                      : isRejected
+                                      : isRejected || isBlacklisted
                                       ? "destructive"
                                       : "secondary"
                                   }
                                 >
-                                  {match.status.replace(/_/g, " ")}
+                                  {isHired
+                                    ? "HIRED"
+                                    : isBlacklisted
+                                    ? "BLACKLISTED"
+                                    : match.status.replace(/_/g, " ")}
                                 </Badge>
                               </div>
 
@@ -1703,45 +1711,57 @@ export const HRDashboard: React.FC = () => {
                         </div>
 
                         <div className="flex items-center gap-1.5">
-                          {/* Reject */}
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            disabled={updatingMatchId === match.id || isRejected}
-                            onClick={() => handleReject(match)}
-                            className="text-xs h-8 px-2.5"
-                          >
-                            <XCircle className="h-3.5 w-3.5 mr-1" /> Reject
-                          </Button>
+                          {isHired ? (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                              <Check className="h-3.5 w-3.5" /> Hired
+                            </span>
+                          ) : isBlacklisted ? (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/30">
+                              <XCircle className="h-3.5 w-3.5" /> Inactive
+                            </span>
+                          ) : (
+                            <>
+                              {/* Reject */}
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                disabled={updatingMatchId === match.id || isRejected}
+                                onClick={() => handleReject(match)}
+                                className="text-xs h-8 px-2.5"
+                              >
+                                <XCircle className="h-3.5 w-3.5 mr-1" /> Reject
+                              </Button>
 
-                          {/* Approve */}
-                          {!isApproved && !isScheduled && (
-                            <Button
-                              size="sm"
-                              variant="default"
-                              disabled={updatingMatchId === match.id}
-                              onClick={() => handleApprove(match)}
-                              className="text-xs h-8 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
-                            >
-                              {updatingMatchId === match.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Check className="h-3.5 w-3.5 mr-1" />
+                              {/* Approve */}
+                              {!isApproved && !isScheduled && !isRejected && (
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  disabled={updatingMatchId === match.id}
+                                  onClick={() => handleApprove(match)}
+                                  className="text-xs h-8 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+                                >
+                                  {updatingMatchId === match.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Check className="h-3.5 w-3.5 mr-1" />
+                                  )}
+                                  Approve
+                                </Button>
                               )}
-                              Approve
-                            </Button>
-                          )}
 
-                          {/* Propose Slots (Request Interview) Modal Trigger */}
-                          <Button
-                            size="sm"
-                            variant="gradient"
-                            onClick={() => setSelectedMatchForInterview(match)}
-                            className="gap-1 text-xs h-8 px-3 shadow-md shadow-indigo-500/20"
-                          >
-                            <Calendar className="h-3.5 w-3.5" />
-                            {isScheduled ? "Adjust Slots" : "Propose Slots"}
-                          </Button>
+                              {/* Propose Slots (Request Interview) Modal Trigger */}
+                              <Button
+                                size="sm"
+                                variant="gradient"
+                                onClick={() => setSelectedMatchForInterview(match)}
+                                className="gap-1 text-xs h-8 px-3 shadow-md shadow-indigo-500/20"
+                              >
+                                <Calendar className="h-3.5 w-3.5" />
+                                {isScheduled ? "Adjust Slots" : "Propose Slots"}
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </div>
                     </Card>

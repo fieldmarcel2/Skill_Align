@@ -503,14 +503,14 @@ def get_screened_matches(db: Session, job_id: Optional[int] = None) -> List[Matc
 
     active_statuses = [
         "screened", "approved_by_hr", "interview_scheduled", "shortlisted",
-        "screening", "technical_interview", "hr_interview", "offer", "hired"
+        "screening", "technical_interview", "hr_interview", "offer"
     ]
     active_pipeline_states = [
         "CANDIDATE_SHORTLISTED", "SENT_TO_HIRING_MANAGER", "HIRING_MANAGER_REVIEW",
         "INTERVIEW_REQUESTED", "INTERVIEW_SLOTS_PROPOSED", "WAITING_FOR_CANDIDATE_SLOT",
         "CANDIDATE_SLOT_SELECTED", "INTERVIEW_CONFIRMED", "INTERVIEW_COMPLETED",
         "WAITING_FOR_HM_FEEDBACK", "INTERVIEW_GO", "COMPENSATION_DISCUSSION",
-        "OFFER_CREATED", "OFFER_SENT", "OFFER_ACCEPTED", "HIRED"
+        "OFFER_CREATED", "OFFER_SENT"
     ]
 
     query = db.query(MatchResult).filter(
@@ -518,7 +518,10 @@ def get_screened_matches(db: Session, job_id: Optional[int] = None) -> List[Matc
             MatchResult.status.in_(active_statuses),
             MatchResult.pipeline_state.in_(active_pipeline_states),
         )
-    ).filter(MatchResult.status != "rejected")
+    ).filter(
+        MatchResult.status.notin_(("rejected", "hired", "withdrawn", "on_hold")),
+        MatchResult.pipeline_state.notin_(("HIRED", "REJECTED", "BLACKLISTED", "ON_HOLD_DUE_TO_HIRING")),
+    )
 
     if job_id:
         query = query.filter(MatchResult.job_id == job_id)
@@ -584,12 +587,19 @@ def update_match_status(db: Session, match_id: int, new_status: str, user: User)
             detail="Unauthorized to update match status."
         )
 
+    # Disallow reopening or modifying finalized terminal applications
+    if (match_record.pipeline_state in ("HIRED", "BLACKLISTED") or match_record.status == "hired") and new_status != "rejected":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Candidate application is already closed as '{match_record.pipeline_state or match_record.status}'. Finalized applications cannot transition to '{new_status}'.",
+        )
+
     old_status = match_record.status
     match_record.status = new_status
 
     if new_status == "approved_by_hr":
-        if match_record.pipeline_state in (None, "CANDIDATE_MATCHED"):
-            match_record.pipeline_state = "CANDIDATE_SHORTLISTED"
+        if match_record.pipeline_state in (None, "CANDIDATE_MATCHED", "CANDIDATE_SHORTLISTED", "SENT_TO_HIRING_MANAGER"):
+            match_record.pipeline_state = "HIRING_MANAGER_REVIEW"
     elif new_status == "rejected":
         match_record.pipeline_state = "REJECTED"
         from app.models.recruitment_task import RecruitmentTask
@@ -702,7 +712,7 @@ def update_match_status(db: Session, match_id: int, new_status: str, user: User)
     db.commit()
     db.refresh(match_record)
 
-    return _build_match_result_out(match_record)
+    return _build_match_result_out(match_record, db=db)
 
 
 # ── Scorecard CRUD ────────────────────────────────────────────────────────────

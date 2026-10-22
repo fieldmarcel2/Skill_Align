@@ -655,8 +655,15 @@ def request_interview(
             detail=f"Candidate unavailable for interview consideration until {until_str}.",
         )
 
+    if mr.pipeline_state in ("HIRED", "BLACKLISTED") or mr.status == "hired":
+        cand_name = mr.candidate.full_name if mr.candidate else "Candidate"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Candidate {cand_name} has already finalized this requisition ({mr.pipeline_state or mr.status}). Interview slots cannot be requested for hired or closed candidates.",
+        )
+
     # Allow from CANDIDATE_MATCHED, CANDIDATE_SHORTLISTED, SENT_TO_HIRING_MANAGER or HIRING_MANAGER_REVIEW
-    if mr.pipeline_state in (None, "CANDIDATE_MATCHED", "CANDIDATE_SHORTLISTED", "SENT_TO_HIRING_MANAGER"):
+    if mr.pipeline_state not in workflow_service.VALID_TRANSITIONS or mr.pipeline_state in (None, "CANDIDATE_MATCHED", "CANDIDATE_SHORTLISTED", "SENT_TO_HIRING_MANAGER"):
         mr.pipeline_state = "HIRING_MANAGER_REVIEW"
 
     slots_data = [

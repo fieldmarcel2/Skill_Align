@@ -74,6 +74,12 @@ export const RequestInterviewModal: React.FC<RequestInterviewModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (match.pipeline_state === "HIRED" || match.status === "hired") {
+      toast.error(`Candidate ${match.candidate.full_name} is already hired. Cannot schedule further interviews.`);
+      onClose();
+      return;
+    }
+
     const validSlots = proposedSlots.filter((s) => s.slot_datetime);
     if (validSlots.length < 2) {
       toast.error("Enterprise protocol requires proposing at least 2 alternative interview time slots.");

@@ -91,8 +91,20 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins(self) -> list[str]:
-        """Returns all allowed origins including FRONTEND_URL."""
+        """Returns all allowed origins including FRONTEND_URL and vercel origins."""
         origins = list(self.ALLOWED_ORIGINS)
+        default_origins = [
+            "https://skill-align-tau.vercel.app",
+            "https://skillalign.vercel.app",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "null",
+        ]
+        for origin in default_origins:
+            if origin not in origins:
+                origins.append(origin)
         if self.FRONTEND_URL and self.FRONTEND_URL not in origins:
             origins.append(self.FRONTEND_URL.rstrip("/"))
         return origins

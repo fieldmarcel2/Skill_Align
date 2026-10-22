@@ -21,7 +21,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from contextlib import asynccontextmanager
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import Response
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -386,6 +389,113 @@ _OPENAPI_TAGS = [
     },
 ]
 
+def run_startup_schema_sync():
+    """
+    Non-destructive schema verification and auto-migration executed at application startup.
+    Ensures all tables exist, adds new columns if missing, and drops obsolete constraints.
+    Safe across multiple workers and cloud/container environments (Neon, Render, RDS).
+    """
+    try:
+        from app.database.session import engine
+        from app.database.base import Base
+        import app.models  # load all models
+        from sqlalchemy import text
+
+        # 1. Create missing tables
+        Base.metadata.create_all(bind=engine)
+
+        with engine.begin() as conn:
+            # Drop legacy check constraints
+            try:
+                conn.execute(text("ALTER TABLE match_results DROP CONSTRAINT IF EXISTS ck_match_result_status;"))
+            except Exception:
+                pass
+
+            # Safe column additions
+            safe_alters = [
+                "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS request_id VARCHAR(128);",
+                "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS match_result_id INTEGER REFERENCES match_results(id) ON DELETE CASCADE;",
+                "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS interview_id INTEGER REFERENCES interviews(id) ON DELETE CASCADE;",
+                "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS from_state VARCHAR(60);",
+                "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS to_state VARCHAR(60);",
+                "ALTER TABLE match_results ADD COLUMN IF NOT EXISTS recruiter_id INTEGER REFERENCES users(id) ON DELETE SET NULL;",
+                "ALTER TABLE match_results ADD COLUMN IF NOT EXISTS hiring_manager_id INTEGER REFERENCES users(id) ON DELETE SET NULL;",
+                "ALTER TABLE match_results ADD COLUMN IF NOT EXISTS shortlist_note TEXT;",
+                "ALTER TABLE match_results ADD COLUMN IF NOT EXISTS submitted_to_hm_at TIMESTAMP WITH TIME ZONE;",
+                "ALTER TABLE match_results ADD COLUMN IF NOT EXISTS hm_reviewed_at TIMESTAMP WITH TIME ZONE;",
+                "ALTER TABLE match_results ADD COLUMN IF NOT EXISTS hm_rejection_reason TEXT;",
+                "ALTER TABLE match_results ADD COLUMN IF NOT EXISTS processing_status VARCHAR(30) DEFAULT 'completed';",
+                "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS resume_s3_key VARCHAR(500);",
+                "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS resume_filename VARCHAR(255);",
+                "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS resume_uploaded_at TIMESTAMP WITH TIME ZONE;",
+                "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT false;",
+                "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS notification_type VARCHAR(60);",
+                "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS match_result_id INTEGER REFERENCES match_results(id) ON DELETE CASCADE;",
+                "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_url VARCHAR(500);",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS slot_token VARCHAR(255);",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS round_number INTEGER DEFAULT 1;",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS round_name VARCHAR(255);",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS round_type VARCHAR(50);",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS round_status VARCHAR(50);",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS is_additional_round BOOLEAN DEFAULT false;",
+            ]
+            for query in safe_alters:
+                try:
+                    conn.execute(text(query))
+                except Exception as e:
+                    logger.debug("Schema sync notice on alter: %s", e)
+
+            # Auto-backfill recruiter_id on match_results where recruiter_id is NULL
+            try:
+                # 1. Backfill from candidate_recruiter_assignments
+                conn.execute(text("""
+                    UPDATE match_results mr
+                    SET recruiter_id = cra.recruiter_id
+                    FROM candidate_recruiter_assignments cra
+                    WHERE mr.candidate_id = cra.candidate_id
+                      AND mr.job_id = cra.job_id
+                      AND cra.status = 'active'
+                      AND mr.recruiter_id IS NULL;
+                """))
+                # 2. Backfill from matched_by
+                conn.execute(text("""
+                    UPDATE match_results mr
+                    SET recruiter_id = mr.matched_by
+                    WHERE mr.recruiter_id IS NULL AND mr.matched_by IS NOT NULL;
+                """))
+                # 3. Backfill any remaining matches with the first active recruiter
+                recruiter_row = conn.execute(text("""
+                    SELECT u.id FROM users u
+                    JOIN roles r ON u.role_id = r.id
+                    WHERE r.name = 'Recruiter' AND u.is_active = true
+                    ORDER BY u.id ASC LIMIT 1;
+                """)).fetchone()
+                if recruiter_row:
+                    conn.execute(text("""
+                        UPDATE match_results
+                        SET recruiter_id = :rid
+                        WHERE recruiter_id IS NULL;
+                    """), {"rid": recruiter_row[0]})
+            except Exception as e:
+                logger.warning("Could not backfill recruiter_id: %s", e)
+
+        logger.info("[DB SYNC] Startup database schema verification completed successfully.")
+    except Exception as e:
+        logger.error("[DB SYNC] Startup database schema sync encountered an error: %s", e, exc_info=True)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Ensure Upload Directory Exists
+    upload_path = Path(settings.UPLOAD_DIR)
+    upload_path.mkdir(parents=True, exist_ok=True)
+
+    # Run non-destructive database auto-migration & schema sync
+    run_startup_schema_sync()
+
+    yield
+
+
 app = FastAPI(
     title="SkillAlign API",
     version=settings.APP_VERSION,
@@ -398,6 +508,7 @@ app = FastAPI(
     license_info={
         "name": "Proprietary",
     },
+    lifespan=lifespan,
     # Restrict interactive documentation to non-production environments
     docs_url="/docs" if not IS_PRODUCTION else None,
     redoc_url="/redoc" if not IS_PRODUCTION else None,
@@ -500,7 +611,57 @@ def health_check():
     }
 
 
+def _add_cors_headers_if_needed(request: Request, response: Response) -> Response:
+    """Ensure CORS headers are present on responses (especially error responses from ServerErrorMiddleware)."""
+    origin = request.headers.get("origin")
+    if origin:
+        is_allowed = (
+            origin in settings.cors_origins
+            or "vercel.app" in origin
+            or "localhost" in origin
+            or "127.0.0.1" in origin
+            or origin == "null"
+        )
+        if is_allowed or settings.DEBUG or IS_PRODUCTION:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            req_headers = request.headers.get("access-control-request-headers")
+            response.headers["Access-Control-Allow-Headers"] = req_headers or "*"
+            response.headers["Access-Control-Expose-Headers"] = "X-Request-ID, X-Response-Time"
+            response.headers["Vary"] = "Origin"
+    return response
+
+
+class UniversalCORSMiddleware(BaseHTTPMiddleware):
+    """
+    Outermost middleware ensuring Access-Control-Allow-Origin is ALWAYS present on every response.
+    Catches preflights and prevents browser CORS blocking on 4xx/5xx responses.
+    """
+    async def dispatch(self, request: Request, call_next):
+        origin = request.headers.get("origin")
+        if request.method == "OPTIONS" and origin:
+            res = Response(status_code=200)
+            return _add_cors_headers_if_needed(request, res)
+
+        response = await call_next(request)
+        return _add_cors_headers_if_needed(request, response)
+
+
+app.add_middleware(UniversalCORSMiddleware)
+
+
 # ── Global Error Handlers ────────────────────────────────────────────────────
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    resp = JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=getattr(exc, "headers", None),
+    )
+    return _add_cors_headers_if_needed(request, resp)
+
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
@@ -511,6 +672,7 @@ async def generic_exception_handler(request: Request, exc: Exception):
     - In production returns a generic safe message.
     - Always includes request_id in the response for log correlation.
     - Emits a structured ERROR log with event=unhandled_exception.
+    - Guarantees CORS headers on error responses to prevent browser CORS masking.
     """
     request_id = get_request_id()
     user_id = None
@@ -538,18 +700,21 @@ async def generic_exception_handler(request: Request, exc: Exception):
     )
 
     if settings.DEBUG:
-        return JSONResponse(
+        resp = JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "detail": f"Internal Server Error: {str(exc)}",
                 "request_id": request_id,
             },
         )
+        return _add_cors_headers_if_needed(request, resp)
 
-    return JSONResponse(
+    resp = JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "detail": "An unexpected error occurred. Our engineering team has been notified.",
             "request_id": request_id,
         },
     )
+    return _add_cors_headers_if_needed(request, resp)
+

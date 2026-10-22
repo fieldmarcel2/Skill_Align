@@ -453,6 +453,13 @@ def request_interview(
             detail=f"Candidate unavailable for interview consideration until {until_str}.",
         )
 
+    if match_result.pipeline_state in ("HIRED", "BLACKLISTED") or match_result.status == "hired":
+        cand_name = match_result.candidate.full_name if match_result.candidate else "Candidate"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Candidate {cand_name} has already finalized this requisition ({match_result.pipeline_state or match_result.status}). Interview slots cannot be requested for hired or closed candidates.",
+        )
+
     if len(slots) < 2:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -648,6 +655,67 @@ def request_interview(
     job_title = match_result.job.title if match_result.job else "Job"
 
     recruiter_id = match_result.recruiter_id
+    if not recruiter_id:
+        from app.models.candidate_recruiter_assignment import CandidateRecruiterAssignment
+        cra = (
+            db.query(CandidateRecruiterAssignment)
+            .filter(
+                CandidateRecruiterAssignment.job_id == match_result.job_id,
+                CandidateRecruiterAssignment.candidate_id == match_result.candidate_id,
+                CandidateRecruiterAssignment.status == "active",
+            )
+            .first()
+        )
+        if cra:
+            recruiter_id = cra.recruiter_id
+
+        if not recruiter_id:
+            from app.models.job_recruiter_assignment import JobRecruiterAssignment
+            jra = (
+                db.query(JobRecruiterAssignment)
+                .filter(JobRecruiterAssignment.job_id == match_result.job_id)
+                .first()
+            )
+            if jra:
+                recruiter_id = jra.recruiter_id
+
+        if not recruiter_id and match_result.matched_by:
+            mb_user = db.query(User).filter(User.id == match_result.matched_by).first()
+            if mb_user and mb_user.role and mb_user.role.name == "Recruiter":
+                recruiter_id = mb_user.id
+
+        if not recruiter_id:
+            from app.models.role import Role
+            active_recruiter = (
+                db.query(User)
+                .join(Role, User.role_id == Role.id)
+                .filter(Role.name == "Recruiter", User.is_active == True)
+                .order_by(User.id.asc())
+                .first()
+            )
+            if active_recruiter:
+                recruiter_id = active_recruiter.id
+
+        if recruiter_id:
+            match_result.recruiter_id = recruiter_id
+            existing_cra = (
+                db.query(CandidateRecruiterAssignment)
+                .filter(
+                    CandidateRecruiterAssignment.job_id == match_result.job_id,
+                    CandidateRecruiterAssignment.candidate_id == match_result.candidate_id,
+                )
+                .first()
+            )
+            if not existing_cra:
+                new_cra = CandidateRecruiterAssignment(
+                    job_id=match_result.job_id,
+                    candidate_id=match_result.candidate_id,
+                    recruiter_id=recruiter_id,
+                    assigned_by=hm_user.id,
+                    status="active",
+                )
+                db.add(new_cra)
+
     if recruiter_id:
         _create_notification(
             db, recruiter_id,
